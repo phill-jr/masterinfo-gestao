@@ -194,6 +194,26 @@ nav .ct{margin-left:auto;font-size:11px;font-weight:700;min-width:20px;text-alig
 nav a.on .ct{background:rgba(0,0,0,.22);color:#fff}
 nav .ct.hot{background:var(--bad-bg);color:var(--bad)}
 
+/* ── submenus ─────────────────────────────────────────────────── */
+nav .gt{display:flex;align-items:center;gap:11px;width:100%;padding:8.5px 10px;border-radius:var(--r);
+  color:var(--txt2);font-weight:600;font-size:14px;white-space:nowrap;margin-top:6px;
+  transition:background .15s,color .15s}
+nav .gt:hover{background:var(--surface2);color:var(--txt)}
+nav .gt.ativo{color:var(--ac)}
+nav .gt.ativo svg{color:var(--ac)}
+nav .gt b{font-weight:600;flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis}
+nav .gt .chev{display:grid;place-items:center;transition:transform .22s var(--ease);opacity:.6}
+nav .gt.aberto .chev{transform:rotate(90deg)}
+nav .sub{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s var(--ease);
+  margin-left:18px;border-left:1.5px solid var(--line);padding-left:6px}
+nav .sub>div{overflow:hidden;display:flex;flex-direction:column;gap:2px}
+nav .sub.aberto{grid-template-rows:1fr}
+nav .sub a{font-size:13.5px;padding:7px 10px;font-weight:500}
+nav .sub a svg{width:15px;height:15px}
+/* colapsada, a barra vira só ícones: os submenus não cabem */
+.app.mini nav .sub,.app.mini nav .gt .chev,.app.mini nav .gt b{display:none}
+.app.mini nav .gt{justify-content:center;padding-left:0;padding-right:0}
+
 .who{margin-top:8px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;
   cursor:pointer;border-radius:var(--r);transition:background .15s}
 .who:hover{background:var(--surface2)}
@@ -532,7 +552,10 @@ const LS = {
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
   del: k => localStorage.removeItem(k)
 };
-const pref = Object.assign({ theme: 'light', accent: 'orange', density: 'normal', mini: false, ob: true }, LS.get(PREF_KEY, {}));
+const pref = Object.assign(
+  { theme:'light', accent:'orange', density:'normal', mini:false, ob:true, abertos:['comercial','marketing'] },
+  LS.get(PREF_KEY, {}));
+if (!Array.isArray(pref.abertos)) pref.abertos = ['comercial', 'marketing'];
 
 /* ── Identidade visual ─────────────────────────────────────────────
    Vem da tabela config_visual, então vale para todo o time e em
@@ -599,7 +622,7 @@ function aplicaPref() {
 }
 aplicaPref();
 
-let sb = null, sessao = null, eu = null, rota = 'inicio', abaCfg = 'perfil';
+let sb = null, sessao = null, eu = null, rota = 'inicio', area = null, abaCfg = 'perfil';
 const cache = { usuarios: [], canais: [], campanhas: [] };
 
 const $  = (s, r = document) => r.querySelector(s);
@@ -695,7 +718,8 @@ async function recarregaBase() {
 }
 const nomeUser  = id => cache.usuarios.find(u => u.id === id)?.nome || '—';
 const nomeCanal = id => cache.canais.find(c => c.id === id)?.nome || '—';
-const optCanais   = (v = '— sem canal —') => [{ v:'', t:v }, ...cache.canais.filter(c => c.ativo).map(c => ({ v:c.id, t:c.nome }))];
+const optCanais = (v = '— sem canal —') => [{ v:'', t:v },
+  ...(canaisDaArea() || cache.canais).filter(c => c.ativo).map(c => ({ v:c.id, t:c.nome }))];
 const optUsuarios = (v = '— sem responsável —') => [{ v:'', t:v }, ...cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome }))];
 
 /* Recorta a foto no centro, deixa quadrada e reduz para 256px.
@@ -821,12 +845,37 @@ function confirma(titulo, texto, onSim, { perigo = true, palavra } = {}) {
    ROTAS
    ═══════════════════════════════════════════════════════════════════ */
 const R = {};
+
+/* Menu em dois níveis. Comercial e Marketing abrem as mesmas telas,
+   mas filtradas pelos canais daquela área — é isso que faz o submenu
+   ter sentido em vez de virar atalho duplicado. */
 const NAV = [
-  { g: null,               itens: ['inicio'] },
-  { g: 'Operação',         itens: ['acoes', 'agenda', 'campanhas', 'producao'] },
-  { g: 'Resultado',        itens: ['metas', 'financeiro'] },
-  { g: 'Gestão',           itens: ['time', 'config'] }
+  { tipo:'item',  r:'inicio' },
+  { tipo:'grupo', id:'comercial', label:'Comercial', icone:'money',
+    itens:['acoes', 'agenda', 'metas', 'campanhas'] },
+  { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
+    itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
+  { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
+const AREAS = { comercial:'Comercial', marketing:'Marketing' };
+
+/* ── filtro por área ───────────────────────────────────────────────
+   As telas base trazem canal_id; as views trazem o nome do canal.
+   Por isso os dois filtros. */
+function canaisDaArea() {
+  if (!area) return null;
+  return cache.canais.filter(c => c.area === area || c.area === 'ambos' || !c.area);
+}
+function porCanalId(linhas) {
+  const cs = canaisDaArea(); if (!cs) return linhas;
+  const ids = new Set(cs.map(c => c.id));
+  return linhas.filter(l => !l.canal_id || ids.has(l.canal_id));
+}
+function porCanalNome(linhas) {
+  const cs = canaisDaArea(); if (!cs) return linhas;
+  const nomes = new Set(cs.map(c => c.nome));
+  return linhas.filter(l => !l.canal || nomes.has(l.canal));
+}
 
 const vazio = (icone, titulo, texto, botao) => `<div class="empty">
   <div class="ic">${ico(icone, 22)}</div><h4>${esc(titulo)}</h4><p>${esc(texto)}</p>
@@ -837,7 +886,7 @@ R.inicio = {
   label: 'Início', icone: 'grid', titulo: 'Dashboard',
   async dados() {
     const [kpi, fila] = await Promise.all([q('v_dashboard_dia'), q('v_acoes_hoje')]);
-    return { k: kpi[0] || {}, fila };
+    return { k: kpi[0] || {}, fila: porCanalNome(fila) };
   },
   render({ k, fila }) {
     const tile = (icone, n, l, h, cls = '') => `<div class="tile ${Number(n) > 0 ? cls : ''}">
@@ -941,9 +990,11 @@ function formAcao(row) {
 /* ───────────────────────── AÇÕES ───────────────────────── */
 const DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
 R.acoes = {
-  label: 'Ações e rotinas', icone: 'check', titulo: 'Ações e rotinas',
+  label: 'Ações e rotinas', curto: 'Rotinas', icone: 'check', titulo: 'Ações e rotinas',
   filtro: { status: 'abertas' },
-  async dados() { return { todas: await q('acoes', x => x.order('created_at', { ascending: false }).limit(400)) }; },
+  async dados() {
+    return { todas: porCanalId(await q('acoes', x => x.order('created_at', { ascending: false }).limit(400))) };
+  },
   render({ todas }) {
     const f = R.acoes.filtro;
     const modelos = todas.filter(a => a.recorrencia !== 'nenhuma');
@@ -1040,8 +1091,8 @@ R.acoes = {
 
 /* ───────────────────────── AGENDA ───────────────────────── */
 R.agenda = {
-  label: 'Agenda', icone: 'cal', titulo: 'Agenda da semana',
-  async dados() { return { ag: await q('v_agenda_semana') }; },
+  label: 'Agenda', curto: 'Agenda', icone: 'cal', titulo: 'Agenda da semana',
+  async dados() { return { ag: porCanalNome(await q('v_agenda_semana')) }; },
   render({ ag }) {
     const dias = {};
     ag.forEach(a => { (dias[a.data_hora.slice(0, 10)] ||= []).push(a); });
@@ -1084,8 +1135,8 @@ R.agenda = {
 
 /* ───────────────────────── CAMPANHAS ───────────────────────── */
 R.campanhas = {
-  label: 'Campanhas', icone: 'target', titulo: 'Campanhas',
-  async dados() { return { cs: await q('campanhas', x => x.order('data_inicio', { ascending: false })) }; },
+  label: 'Campanhas', curto: 'Campanhas', icone: 'target', titulo: 'Campanhas',
+  async dados() { return { cs: porCanalId(await q('campanhas', x => x.order('data_inicio', { ascending: false }))) }; },
   render({ cs }) {
     const cor = { ativa:'ok', planejada:'info', pausada:'warn', encerrada:'dim' };
     return `<div class="head"><div><h2>Campanhas</h2>
@@ -1129,13 +1180,13 @@ function formCampanha(row) {
 const COLS = [['a_criar','A criar'],['em_producao','Em produção'],['em_validacao','Em validação'],
               ['validado','Validado'],['publicado','Publicado']];
 R.producao = {
-  label: 'Produção', icone: 'film', titulo: 'Produção de conteúdo',
+  label: 'Produção', curto: 'Produção', icone: 'film', titulo: 'Produção de conteúdo',
   async dados() {
     const [itens, cap] = await Promise.all([
       q('producao_conteudo', x => x.neq('status', 'arquivado').order('data_entrega')),
       q('v_capacidade_semana')
     ]);
-    return { itens, cap };
+    return { itens: porCanalId(itens), cap };
   },
   render({ itens, cap }) {
     const k = i => {
@@ -1207,10 +1258,10 @@ R.producao = {
 
 /* ───────────────────────── METAS E FUNIL ───────────────────────── */
 R.metas = {
-  label: 'Metas e funil', icone: 'chart', titulo: 'Metas e funil',
+  label: 'Metas e funil', curto: 'Metas', icone: 'chart', titulo: 'Metas e funil',
   async dados() {
     const [ms, fn] = await Promise.all([q('v_metas_progresso'), q('v_funil_conversao')]);
-    return { ms, fn };
+    return { ms: porCanalNome(ms), fn: porCanalNome(fn) };
   },
   render({ ms, fn }) {
     const cor = { batida:'ok', no_ritmo:'info', atrasada:'warn', perdida:'bad' };
@@ -1276,8 +1327,8 @@ R.metas = {
 
 /* ───────────────────────── FINANCEIRO ───────────────────────── */
 R.financeiro = {
-  label: 'Financeiro', icone: 'money', titulo: 'Financeiro do marketing',
-  async dados() { return { fs: await q('v_financeiro_kpi') }; },
+  label: 'Financeiro', curto: 'Financeiro', icone: 'money', titulo: 'Financeiro do marketing',
+  async dados() { return { fs: porCanalId(await q('v_financeiro_kpi')) }; },
   render({ fs }) {
     const cor = { escalar:'ok', saudavel:'info', cortar:'bad', sem_investimento:'dim' };
     const tot = fs.reduce((a, f) => ({
@@ -1641,8 +1692,11 @@ function cfgCorpo() {
       <div class="card"><div class="ch"><h3>Canais de venda</h3><span class="pill dim">${cs.length}</span>
       <div class="push"><button class="btn sm ghost" data-act="csv-canal">${ico('down',13)}CSV</button>
       <button class="btn sm" data-act="novo-canal">${ico('plus',13)}Canal</button></div></div>
-      ${cs.length ? `<div class="t-scroll"><table><thead><tr><th>Canal</th><th>Tipo</th><th>Responsável</th><th>Estado</th><th></th></tr></thead>
-      <tbody>${cs.map(c => `<tr><td><b>${esc(c.nome)}</b></td><td class="mut">${esc(c.tipo.replace('_',' '))}</td>
+      ${cs.length ? `<div class="t-scroll"><table><thead><tr><th>Canal</th><th>Área</th><th>Tipo</th><th>Responsável</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${cs.map(c => `<tr><td><b>${esc(c.nome)}</b></td>
+        <td><span class="pill ${c.area==='comercial'?'info':c.area==='marketing'?'ac':'dim'}">${
+          (c.area==='ambos'||!c.area)?'ambas':esc(c.area)}</span></td>
+        <td class="mut">${esc(c.tipo.replace('_',' '))}</td>
         <td class="mut">${esc(nomeUser(c.responsavel_id))}</td>
         <td><span class="pill ${c.ativo?'ok':'dim'}">${c.ativo?'ativo':'inativo'}</span></td>
         <td class="act">
@@ -1791,6 +1845,9 @@ function formCanal(row, dup) {
     { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'organico', opts:[
       { v:'organico', t:'Orgânico' }, { v:'trafego_pago', t:'Tráfego pago' }, { v:'indicacao', t:'Indicação' },
       { v:'outbound', t:'Outbound' }, { v:'parceria', t:'Parceria' }, { v:'base_clientes', t:'Base de clientes' }] },
+    { k:'area', label:'Área', type:'select', value:row?.area || 'ambos', opts:[
+      { v:'comercial', t:'Comercial' }, { v:'marketing', t:'Marketing' }, { v:'ambos', t:'Comercial e Marketing' }],
+      hint:'Define em qual submenu este canal aparece.' },
     { k:'responsavel_id', label:'Responsável', type:'select', value:row?.responsavel_id, opts:optUsuarios() },
     { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value:row ? row.ativo : true }
   ], async d => { const ok = await grava('canais_venda', d, row?.id); if (ok) await recarregaBase(); return ok; });
@@ -1935,12 +1992,37 @@ function menuConta(b) {
 /* ═══════════════════════════════════════════════════════════════════
    SHELL
    ═══════════════════════════════════════════════════════════════════ */
-function vai(r) { if (!R[r]) return; rota = r; location.hash = r; montaShell(); }
+function vai(r, a = null) {
+  if (!R[r]) return;
+  rota = r; area = a;
+  location.hash = (a ? a + '/' : '') + r;
+  if (a && !pref.abertos.includes(a)) { pref.abertos.push(a); savePref(); }
+  montaShell();
+}
+
+function elo(k, a) {
+  const ativo = rota === k && area === a;
+  const rotulo = a ? (R[k].curto || R[k].label) : R[k].label;
+  return `<a href="#${a ? a + '/' : ''}${k}" data-r="${k}" data-a="${a || ''}"
+    class="${ativo ? 'on' : ''}" title="${esc(rotulo)}">
+    ${ico(R[k].icone)}<b>${esc(rotulo)}</b><span class="ct" data-ct="${k}" hidden></span></a>`;
+}
+
+function navHTML() {
+  return NAV.map(sec => {
+    if (sec.tipo === 'item')  return elo(sec.r, null);
+    if (sec.tipo === 'secao') return `<div class="grp">${sec.label}</div>` + sec.itens.map(k => elo(k, null)).join('');
+    const aberto = pref.abertos.includes(sec.id) || area === sec.id;
+    return `<button class="gt ${aberto ? 'aberto' : ''} ${area === sec.id ? 'ativo' : ''}" data-grupo="${sec.id}">
+        ${ico(sec.icone)}<b>${sec.label}</b>
+        <span class="ct" data-ct="area-${sec.id}" hidden></span>
+        <span class="chev">${ico('chevron', 14)}</span></button>
+      <div class="sub ${aberto ? 'aberto' : ''}"><div>${sec.itens.map(k => elo(k, sec.id)).join('')}</div></div>`;
+  }).join('');
+}
 
 function montaShell() {
-  const nav = NAV.map(sec => `${sec.g ? `<div class="grp">${sec.g}</div>` : ''}
-    ${sec.itens.map(k => `<a href="#${k}" data-r="${k}" class="${rota === k ? 'on' : ''}" title="${R[k].label}">
-      ${ico(R[k].icone)}<b>${R[k].label}</b><span class="ct" data-ct="${k}" hidden></span></a>`).join('')}`).join('');
+  const nav = navHTML();
 
   $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}" id="app">
     <aside>
@@ -1963,7 +2045,16 @@ function montaShell() {
       <div class="wrap" id="view"></div>
     </main></div>`;
 
-  $$('[data-r]').forEach(a => a.onclick = e => { e.preventDefault(); vai(a.dataset.r); });
+  $$('[data-r]').forEach(a => a.onclick = e => {
+    e.preventDefault(); vai(a.dataset.r, a.dataset.a || null);
+    if (innerWidth <= 900) $('#app').classList.remove('open');
+  });
+  $$('[data-grupo]').forEach(b => b.onclick = () => {
+    const id = b.dataset.grupo, i = pref.abertos.indexOf(id);
+    if (i >= 0) pref.abertos.splice(i, 1); else pref.abertos.push(id);
+    savePref();
+    b.classList.toggle('aberto'); b.nextElementSibling.classList.toggle('aberto');
+  });
   $('#tgl').onclick = () => {
     if (innerWidth <= 900) $('#app').classList.toggle('open');
     else { pref.mini = !pref.mini; savePref(); $('#app').classList.toggle('mini'); }
@@ -1987,8 +2078,12 @@ async function pinta() {
   const meu = ++pintando;
   const view = $('#view'); if (!view) return;
   const r = R[rota];
-  $('#ttl').textContent = r.titulo;
-  $$('[data-r]').forEach(a => a.classList.toggle('on', a.dataset.r === rota));
+  $('#ttl').innerHTML = area
+    ? `<span style="color:var(--ac)">${AREAS[area]}</span>
+       <span class="mut" style="margin:0 6px">/</span>${esc(r.curto || r.titulo)}`
+    : esc(r.titulo);
+  $$('[data-r]').forEach(a =>
+    a.classList.toggle('on', a.dataset.r === rota && (a.dataset.a || null) === area));
   view.innerHTML = esqueleto();
 
   let dados;
@@ -2046,7 +2141,16 @@ document.addEventListener('keydown', e => {
   else if (e.key === '?') { e.preventDefault(); abaCfg = 'atalhos'; vai('config'); }
   else if (e.key === 'Escape') { $$('.pop').forEach(p => p.remove()); }
 });
-addEventListener('hashchange', () => { const h = location.hash.slice(1); if (R[h] && h !== rota) { rota = h; montaShell(); } });
+function leHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  const [a, r] = h.includes('/') ? h.split('/') : [null, h];
+  if (!R[r]) return null;
+  return { rota: r, area: (a && AREAS[a]) ? a : null };
+}
+addEventListener('hashchange', () => {
+  const h = leHash();
+  if (h && (h.rota !== rota || h.area !== area)) { rota = h.rota; area = h.area; montaShell(); }
+});
 
 /* ═══════════════════════════════════════════════════════════════════
    ENTRADA: conexão → login → app
@@ -2137,8 +2241,8 @@ async function iniciar() {
 
   await recarregaBase();
   eu = cache.usuarios.find(u => u.auth_user_id === sessao.user.id) || null;
-  const h = location.hash.slice(1);
-  if (R[h]) rota = h;
+  const h = leHash();
+  if (h) { rota = h.rota; area = h.area; }
   montaShell();
 }
 
