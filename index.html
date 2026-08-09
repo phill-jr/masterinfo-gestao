@@ -623,7 +623,7 @@ function aplicaPref() {
 aplicaPref();
 
 let sb = null, sessao = null, eu = null, rota = 'inicio', area = null, abaCfg = 'perfil';
-const cache = { usuarios: [], canais: [], campanhas: [] };
+const cache = { usuarios: [], canais: [], campanhas: [], cargos: [] };
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -710,12 +710,16 @@ function nomeLivre(base, usados) {
   return n;
 }
 async function recarregaBase() {
-  const [u, c] = await Promise.all([
+  const [u, c, g] = await Promise.all([
     q('usuarios', x => x.order('nome')),
-    q('canais_venda', x => x.order('nome'))
+    q('canais_venda', x => x.order('nome')),
+    q('cargos', x => x.order('nome'))
   ]);
-  cache.usuarios = u; cache.canais = c;
+  cache.usuarios = u; cache.canais = c; cache.cargos = g;
 }
+const nomeCargo = id => cache.cargos.find(c => c.id === id)?.nome || '—';
+const optCargos = (v = '— sem cargo —') => [{ v:'', t:v },
+  ...cache.cargos.filter(c => c.ativo).map(c => ({ v:c.id, t:c.nome }))];
 const nomeUser  = id => cache.usuarios.find(u => u.id === id)?.nome || '—';
 const nomeCanal = id => cache.canais.find(c => c.id === id)?.nome || '—';
 const optCanais = (v = '— sem canal —') => [{ v:'', t:v },
@@ -1900,6 +1904,37 @@ R.config = {
     obon() { pref.ob = true; savePref(); toast('Checklist reativado.'); pinta(); },
     'novo-user': () => formUser(),
     'novo-canal': () => formCanal(),
+
+    /* ── cargos ──────────────────────────────────────────────────── */
+    'novo-cargo': () => formCargo(),
+    async 'edit-cargo'(b) { const [r] = await q('cargos', x => x.eq('id', b.dataset.id)); if (r) formCargo(r); },
+    async 'dup-cargo'(b) {
+      const [r] = await q('cargos', x => x.eq('id', b.dataset.id));
+      if (!r) return;
+      const { id, created_at, updated_at, ...copia } = r;
+      copia.nome = nomeLivre(r.nome, cache.cargos.map(c => c.nome));
+      formCargo(copia, true);
+    },
+    'del-cargo'(b) {
+      const quantos = Number(b.dataset.q) || 0;
+      confirma(`Excluir "${b.dataset.t}"`, `
+        ${quantos ? `<p>${quantos} pessoa(s) usam este cargo. Elas <b>não</b> são apagadas —
+            apenas ficam sem cargo, e você reatribui depois.</p>`
+          : '<p>Ninguém usa este cargo. Pode excluir tranquilo.</p>'}
+        <p class="sm2" style="margin-top:10px">Se for um cargo que não existe mais mas você quer manter o histórico,
+          edite e desmarque <b>Ativo</b>: ele some da lista de escolha e continua nas pessoas antigas.</p>`,
+        async () => {
+          const ok = await apaga('cargos', b.dataset.id);
+          if (ok) { await recarregaBase(); toast('Cargo excluído.'); }
+          return ok;
+        }, quantos ? { palavra:'EXCLUIR' } : {});
+    },
+    'csv-cargo'() {
+      csv('cargos', cache.cargos.map(g => ({
+        nome: g.nome, descricao: g.descricao || '', ativo: g.ativo ? 'sim' : 'não',
+        pessoas: cache.usuarios.filter(u => u.cargo_id === g.id).length
+      })));
+    },
     async 'edit-user'(b) { const [r] = await q('usuarios', x => x.eq('id', b.dataset.id)); if (r) formUser(r); },
     async 'edit-canal'(b) { const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id)); if (r) formCanal(r); },
 
@@ -1975,7 +2010,7 @@ R.config = {
       const nome = ($('#pf-nome')?.value || '').trim();
       if (!nome) return toast('O nome não pode ficar vazio.', { tipo:'bad' });
       const dados = {
-        nome, cargo: ($('#pf-cargo')?.value || '').trim() || null,
+        nome, cargo_id: $('#pf-cargo')?.value || null,
         canal_principal_id: $('#pf-canal')?.value || null
       };
       if (!await grava('usuarios', dados, eu.id)) return;
@@ -1989,7 +2024,7 @@ R.config = {
         .map(p => p[0].toUpperCase() + p.slice(1)).join(' ');
       form('Criar meu perfil', [
         { k:'nome', label:'Nome', req:true, value:sugestao },
-        { k:'cargo', label:'Cargo', ph:'Ex.: Gestor de Marketing' },
+        { k:'cargo_id', label:'Cargo', type:'select', opts:optCargos() },
         { k:'canal_principal_id', label:'Canal principal', type:'select', opts:optCanais() }
       ], async d => {
         d.auth_user_id = sessao.user.id;
@@ -2054,7 +2089,8 @@ function cfgCorpo() {
       </div>
       <div class="g2" style="margin-bottom:14px">
         <div><label>Nome</label><input id="pf-nome" value="${esc(eu.nome || '')}"></div>
-        <div><label>Cargo</label><input id="pf-cargo" value="${esc(eu.cargo || '')}" placeholder="Ex.: Gestor de Marketing"></div>
+        <div><label>Cargo</label><select id="pf-cargo">${optCargos().map(o =>
+          `<option value="${esc(o.v)}"${String(o.v) === String(eu.cargo_id ?? '') ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>
       </div>
       <div class="g2" style="margin-bottom:20px">
         <div><label>Canal principal</label><select id="pf-canal">${optCanais().map(o =>
@@ -2081,6 +2117,26 @@ function cfgCorpo() {
         <td class="act"><button class="btn sm ghost" data-act="edit-user" data-id="${u.id}">${ico('edit',13)}</button></td>
       </tr>`).join('')}</tbody></table></div>`
       : vazio('users', 'Comece por você', 'Cadastre-se primeiro, depois o resto do time.', { act:'novo-user', label:'Adicionar pessoa' })}</div>
+
+      <div class="card"><div class="ch"><h3>Cargos</h3><span class="pill dim">${cache.cargos.length}</span>
+      <div class="push"><button class="btn sm ghost" data-act="csv-cargo">${ico('down',13)}CSV</button>
+      <button class="btn sm" data-act="novo-cargo">${ico('plus',13)}Cargo</button></div></div>
+      ${cache.cargos.length ? `<div class="t-scroll"><table><thead><tr>
+        <th>Cargo</th><th>Descrição</th><th class="num">Pessoas</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${cache.cargos.map(g => {
+        const quantos = us.filter(u => u.cargo_id === g.id).length;
+        return `<tr><td><b>${esc(g.nome)}</b></td>
+          <td class="mut" style="max-width:320px">${esc(g.descricao || '—')}</td>
+          <td class="num">${quantos || '—'}</td>
+          <td><span class="pill ${g.ativo?'ok':'dim'}">${g.ativo?'ativo':'inativo'}</span></td>
+          <td class="act">
+            <button class="btn sm ghost" data-act="edit-cargo" data-id="${g.id}" title="Editar">${ico('edit',13)}</button>
+            <button class="btn sm ghost" data-act="dup-cargo" data-id="${g.id}" title="Duplicar">${ico('copy',13)}</button>
+            <button class="btn sm ghost" data-act="del-cargo" data-id="${g.id}" data-t="${esc(g.nome)}" data-q="${quantos}" title="Excluir">${ico('trash',13)}</button>
+          </td></tr>`;
+      }).join('')}</tbody></table></div>`
+      : vazio('star', 'Nenhum cargo', 'Cadastre os cargos e o campo da pessoa vira uma lista, em vez de texto livre.',
+          { act:'novo-cargo', label:'Adicionar cargo' })}</div>
 
       <div class="card"><div class="ch"><h3>Canais de venda</h3><span class="pill dim">${cs.length}</span>
       <div class="push"><button class="btn sm ghost" data-act="csv-canal">${ico('down',13)}CSV</button>
@@ -2227,11 +2283,27 @@ function cfgCorpo() {
 function formUser(row) {
   form(row ? 'Editar pessoa' : 'Nova pessoa', [
     { k:'nome', label:'Nome', req:true, value:row?.nome },
-    { k:'cargo', label:'Cargo', value:row?.cargo },
+    { k:'cargo_id', label:'Cargo', type:'select', value:row?.cargo_id, opts:optCargos(),
+      hint:'A lista vem do cadastro de cargos, logo abaixo nesta mesma tela.' },
     { k:'canal_principal_id', label:'Canal principal', type:'select', value:row?.canal_principal_id, opts:optCanais() },
     { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value:row ? row.ativo : true }
   ], async d => { const ok = await grava('usuarios', d, row?.id); if (ok) await recarregaBase(); return ok; });
 }
+function formCargo(row, dup) {
+  form(dup ? 'Duplicar cargo' : row ? 'Editar cargo' : 'Novo cargo', [
+    { k:'nome', label:'Nome do cargo', req:true, value:row?.nome, ph:'Ex.: Consultor de Vendas' },
+    { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao,
+      ph:'O que essa pessoa entrega no dia a dia' },
+    { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo',
+      value: row ? row.ativo : true,
+      hint:'Inativo some da lista de escolha, mas continua nas pessoas que já o têm.' }
+  ], async d => {
+    const ok = await grava('cargos', d, dup ? null : row?.id);
+    if (ok) await recarregaBase();
+    return ok;
+  });
+}
+
 function formCanal(row, dup) {
   form(dup ? 'Duplicar canal' : row ? 'Editar canal' : 'Novo canal', [
     { k:'nome', label:'Nome', req:true, value:row?.nome },
