@@ -194,9 +194,12 @@ nav .ct{margin-left:auto;font-size:11px;font-weight:700;min-width:20px;text-alig
 nav a.on .ct{background:rgba(0,0,0,.22);color:#fff}
 nav .ct.hot{background:var(--bad-bg);color:var(--bad)}
 
-.who{margin-top:8px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.who{margin-top:8px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;
+  cursor:pointer;border-radius:var(--r);transition:background .15s}
+.who:hover{background:var(--surface2)}
 .av{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;
-  background:linear-gradient(135deg,var(--ac),var(--ac2));color:var(--ac-fg)}
+  background:linear-gradient(135deg,var(--ac),var(--ac2));color:var(--ac-fg);overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
 .who .tx{min-width:0;flex:1;overflow:hidden}
 .who .n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who .s{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -615,6 +618,15 @@ const num = n => n == null ? '—' : Number(n).toLocaleString('pt-BR');
 const pc = n => n == null ? '—' : Number(n).toFixed(1).replace('.', ',') + '%';
 const seg = d => { const x = new Date((d || hoje()) + 'T12:00:00'); const w = (x.getDay() + 6) % 7;
   x.setDate(x.getDate() - w); return x.toISOString().slice(0, 10); };
+/* Avatar: foto se houver, senão as iniciais. */
+function avatar(u, px = 32, alternativo) {
+  const fonte = Math.max(10, Math.round(px * 0.38));
+  const estilo = `width:${px}px;height:${px}px;font-size:${fonte}px`;
+  return `<div class="av" style="${estilo}">${u?.foto
+    ? `<img src="${esc(u.foto)}" alt="">`
+    : esc(iniciais(u?.nome || alternativo))}</div>`;
+}
+
 /* Iniciais para o avatar. Em e-mail, ignora o domínio e os números —
    "918.philipe@gmail.com" vira PH, não 9. */
 function iniciais(n) {
@@ -685,6 +697,31 @@ const nomeUser  = id => cache.usuarios.find(u => u.id === id)?.nome || '—';
 const nomeCanal = id => cache.canais.find(c => c.id === id)?.nome || '—';
 const optCanais   = (v = '— sem canal —') => [{ v:'', t:v }, ...cache.canais.filter(c => c.ativo).map(c => ({ v:c.id, t:c.nome }))];
 const optUsuarios = (v = '— sem responsável —') => [{ v:'', t:v }, ...cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome }))];
+
+/* Recorta a foto no centro, deixa quadrada e reduz para 256px.
+   Assim uma foto de 5 MB do celular vira ~20 KB e cabe no banco sem
+   o usuário precisar saber o que é redimensionar. */
+function fotoQuadrada(file, lado = 256) {
+  return new Promise((ok, erro) => {
+    if (!/^image\//.test(file.type)) return erro(new Error('Escolha um arquivo de imagem.'));
+    const fr = new FileReader();
+    fr.onerror = () => erro(new Error('Não deu para ler o arquivo.'));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => erro(new Error('Esse arquivo não é uma imagem válida.'));
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = c.height = lado;
+        const menor = Math.min(img.width, img.height);
+        c.getContext('2d').drawImage(img,
+          (img.width - menor) / 2, (img.height - menor) / 2, menor, menor, 0, 0, lado, lado);
+        ok(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
 
 /* ── CSV ─────────────────────────────────────────────────────────── */
 function csv(nome, linhas) {
@@ -1318,7 +1355,7 @@ R.time = {
         <th>PDI</th><th>Último feedback</th><th>Situação</th>
       </tr></thead><tbody>${ts.map(t => `<tr>
         <td><div style="display:flex;align-items:center;gap:10px">
-          <div class="av" style="width:28px;height:28px;font-size:11px">${esc(iniciais(t.nome))}</div>
+          ${avatar(cache.usuarios.find(u => u.id === t.usuario_id), 30, t.nome)}
           <div><b>${esc(t.nome)}</b><div class="sm2">${esc(t.cargo || '—')}</div></div></div></td>
         <td class="mut">${esc(t.canal_principal || '—')}</td>
         <td style="max-width:240px">${esc(t.pdi_objetivo || '—')}</td>
@@ -1468,6 +1505,58 @@ R.config = {
     },
     async 'csv-user'() { csv('usuarios', cache.usuarios); },
     async 'csv-canal'() { csv('canais', cache.canais); },
+    /* ── perfil ──────────────────────────────────────────────────── */
+    'perfil-foto'() {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = async () => {
+        const f = inp.files[0]; if (!f) return;
+        try {
+          eu.foto = await fotoQuadrada(f);
+          if (await grava('usuarios', { foto: eu.foto }, eu.id)) {
+            await recarregaBase(); eu = cache.usuarios.find(u => u.id === eu.id);
+            toast('Foto atualizada.'); montaShell();
+          }
+        } catch (e) { toast(e.message, { tipo:'bad' }); }
+      };
+      inp.click();
+    },
+    async 'perfil-sem-foto'() {
+      if (await grava('usuarios', { foto: null }, eu.id)) {
+        eu.foto = null; await recarregaBase(); eu = cache.usuarios.find(u => u.id === eu.id);
+        toast('Foto removida.'); montaShell();
+      }
+    },
+    async 'salva-perfil'() {
+      const nome = ($('#pf-nome')?.value || '').trim();
+      if (!nome) return toast('O nome não pode ficar vazio.', { tipo:'bad' });
+      const dados = {
+        nome, cargo: ($('#pf-cargo')?.value || '').trim() || null,
+        canal_principal_id: $('#pf-canal')?.value || null
+      };
+      if (!await grava('usuarios', dados, eu.id)) return;
+      await recarregaBase();
+      eu = cache.usuarios.find(u => u.id === eu.id);
+      toast('Perfil salvo.'); montaShell();
+    },
+    'criar-perfil'() {
+      const sugestao = (sessao?.user?.email || '').split('@')[0]
+        .split(/[^a-zA-ZÀ-ÿ]+/).filter(Boolean)
+        .map(p => p[0].toUpperCase() + p.slice(1)).join(' ');
+      form('Criar meu perfil', [
+        { k:'nome', label:'Nome', req:true, value:sugestao },
+        { k:'cargo', label:'Cargo', ph:'Ex.: Gestor de Marketing' },
+        { k:'canal_principal_id', label:'Canal principal', type:'select', opts:optCanais() }
+      ], async d => {
+        d.auth_user_id = sessao.user.id;
+        if (!await grava('usuarios', d)) return false;
+        await recarregaBase();
+        eu = cache.usuarios.find(u => u.auth_user_id === sessao.user.id) || null;
+        toast('Perfil criado.'); montaShell();
+        return true;
+      }, 'Criar');
+    },
+
     vincular() {
       form('Vincular meu login', [
         { k:'usuario_id', label:'Eu sou', type:'select', req:true,
@@ -1492,17 +1581,46 @@ R.config = {
 function cfgCorpo() {
   const bloco = (t, c) => `<div class="card"><div class="ch"><h3>${t}</h3></div><div class="cb">${c}</div></div>`;
 
-  if (abaCfg === 'perfil') return bloco('Sua conta', `
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
-      <div class="av" style="width:52px;height:52px;font-size:17px">${esc(iniciais(eu?.nome || sessao?.user?.email))}</div>
-      <div><div style="font-weight:600;font-size:15px">${esc(eu?.nome || 'Login sem pessoa vinculada')}</div>
-        <div class="sm2">${esc(sessao?.user?.email || '')}</div>
-        <div class="sm2">${esc(eu?.cargo || '')}</div></div>
-      <div class="push" style="margin-left:auto">
-        ${eu ? '' : `<button class="btn" data-act="vincular">${ico('user',15)}Vincular</button>`}
-        <button class="btn ghost" data-act="sair">${ico('out',15)}Sair</button></div></div>
-    ${eu ? '' : `<div class="err" style="display:block">Seu login ainda não está ligado a uma pessoa do time.
-      Sem isso, os feedbacks que você registra ficam sem autor.</div>`}`);
+  if (abaCfg === 'perfil') {
+    // Login ainda não ligado a uma pessoa do time: resolve isso antes.
+    if (!eu) return bloco('Sua conta', `
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+        ${avatar(null, 52, sessao?.user?.email)}
+        <div><div style="font-weight:600;font-size:15px">Login sem perfil</div>
+          <div class="sm2">${esc(sessao?.user?.email || '')}</div></div>
+        <div class="push" style="margin-left:auto">
+          <button class="btn ghost" data-act="sair">${ico('out',15)}Sair</button></div></div>
+      <div class="err" style="display:block;margin-bottom:16px">Seu login ainda não está ligado a uma pessoa do time.
+        Sem isso você não consegue editar perfil e os feedbacks que registra ficam sem autor.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-act="criar-perfil">${ico('plus',15)}Criar meu perfil</button>
+        ${cache.usuarios.length ? `<button class="btn ghost" data-act="vincular">${ico('user',15)}Já existo na lista — vincular</button>` : ''}
+      </div>`);
+
+    return bloco('Meu perfil', `
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:24px;flex-wrap:wrap">
+        ${avatar(eu, 76)}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" data-act="perfil-foto">${ico('down',15)}${eu.foto ? 'Trocar foto' : 'Adicionar foto'}</button>
+          ${eu.foto ? '<button class="btn ghost" data-act="perfil-sem-foto">Remover</button>' : ''}
+          <div class="hint" style="width:100%;margin-top:2px">JPG, PNG ou WebP até 400 KB. A imagem é recortada em quadrado.</div>
+        </div>
+        <div class="push" style="margin-left:auto">
+          <button class="btn ghost" data-act="sair">${ico('out',15)}Sair</button></div>
+      </div>
+      <div class="g2" style="margin-bottom:14px">
+        <div><label>Nome</label><input id="pf-nome" value="${esc(eu.nome || '')}"></div>
+        <div><label>Cargo</label><input id="pf-cargo" value="${esc(eu.cargo || '')}" placeholder="Ex.: Gestor de Marketing"></div>
+      </div>
+      <div class="g2" style="margin-bottom:20px">
+        <div><label>Canal principal</label><select id="pf-canal">${optCanais().map(o =>
+          `<option value="${esc(o.v)}"${String(o.v) === String(eu.canal_principal_id ?? '') ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>
+        <div><label>E-mail de acesso</label><input value="${esc(sessao?.user?.email || '')}" disabled>
+          <div class="hint">Trocado no Supabase, em Authentication.</div></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn" data-act="salva-perfil">${ico('check',15)}Salvar perfil</button></div>`);
+  }
 
   if (abaCfg === 'time') {
     const us = cache.usuarios, cs = cache.canais;
@@ -1512,7 +1630,7 @@ function cfgCorpo() {
       ${us.length ? `<div class="t-scroll"><table><thead><tr><th>Nome</th><th>Cargo</th><th>Canal principal</th><th>Login</th><th>Estado</th><th></th></tr></thead>
       <tbody>${us.map(u => `<tr>
         <td><div style="display:flex;align-items:center;gap:10px">
-          <div class="av" style="width:26px;height:26px;font-size:10px">${esc(iniciais(u.nome))}</div><b>${esc(u.nome)}</b></div></td>
+          ${avatar(u, 28)}<b>${esc(u.nome)}</b></div></td>
         <td class="mut">${esc(u.cargo || '—')}</td><td class="mut">${esc(nomeCanal(u.canal_principal_id))}</td>
         <td>${u.auth_user_id ? '<span class="pill ok">ligado</span>' : '<span class="pill dim">sem login</span>'}</td>
         <td><span class="pill ${u.ativo?'ok':'dim'}">${u.ativo?'ativo':'inativo'}</span></td>
@@ -1794,10 +1912,11 @@ async function notificacoes(b) {
 
 function menuConta(b) {
   popover(b, `
-    <div class="ph" style="gap:11px"><div class="av">${esc(iniciais(eu?.nome || sessao?.user?.email))}</div>
-      <div style="min-width:0"><div style="font-size:13.5px">${esc(eu?.nome || 'Sem pessoa vinculada')}</div>
+    <div class="ph" style="gap:11px">${avatar(eu, 34, sessao?.user?.email)}
+      <div style="min-width:0"><div style="font-size:13.5px">${esc(eu?.nome || 'Sem perfil')}</div>
         <div class="sm2" style="font-weight:400">${esc(sessao?.user?.email || '')}</div></div></div>
     <div class="pl">
+      <div class="mi" data-perfil>${ico('user',16)} Meu perfil</div>
       <div class="mi" data-go="config">${ico('cog',16)} Configurações</div>
       <div class="mi" data-tema>${ico(pref.theme === 'dark' ? 'sun' : 'moon',16)} Tema ${pref.theme === 'dark' ? 'claro' : 'escuro'}</div>
       <div class="mi" data-ajuda>${ico('help',16)} Atalhos de teclado</div><hr>
@@ -1805,6 +1924,7 @@ function menuConta(b) {
   .onclick = e => {
     const mi = e.target.closest('.mi'); if (!mi) return;
     $$('.pop').forEach(x => x.remove());
+    if (mi.hasAttribute('data-perfil')) { abaCfg = 'perfil'; vai('config'); }
     if (mi.dataset.go)    vai(mi.dataset.go);
     if (mi.hasAttribute('data-tema')) { pref.theme = pref.theme === 'dark' ? 'light' : 'dark'; savePref(); montaShell(); }
     if (mi.hasAttribute('data-ajuda')) { abaCfg = 'atalhos'; vai('config'); }
@@ -1827,8 +1947,8 @@ function montaShell() {
       <div class="brand"><img class="lg" src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
         <div class="mk">${esc(iniciais(visual.nome_sistema))}</div></div>
       <nav>${nav}</nav>
-      <div class="who"><div class="av" id="av">${esc(iniciais(eu?.nome || sessao?.user?.email))}</div>
-        <div class="tx"><div class="n">${esc(eu?.nome || 'Sem vínculo')}</div>
+      <div class="who" id="av" title="Minha conta">${avatar(eu, 32, sessao?.user?.email)}
+        <div class="tx"><div class="n">${esc(eu?.nome || 'Sem perfil')}</div>
           <div class="s">${esc(eu?.cargo || sessao?.user?.email || '')}</div></div></div>
     </aside>
     <main>
