@@ -17,6 +17,6 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 window.MI_CONFIG = {
-  url: "https://nnwstrcwfkdqkrubkhpn.supabase.co",
-  key: "sb_publishable_B4dQtCDHv6_pdDQXG6808A_y9QKE6_f"
+  url: "https://ivkmsrypetpcmaatbvtx.supabase.co",
+  key: "sb_publishable_qMGtHperzU7aXq5Tnf2XFA_TdQGnM4M"
 };
