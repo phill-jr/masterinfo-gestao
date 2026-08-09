@@ -118,6 +118,25 @@ button{cursor:pointer;border:0;background:none}
 @keyframes drift3{0%,100%{transform:translate3d(0,0,0) scale(1)}
   50%{transform:translate3d(8vw,-11vh,0) scale(1.2)}}
 
+/* grafismo: malha */
+.malha{position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(var(--line2) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--line2) 1px,transparent 1px);
+  background-size:46px 46px;opacity:.5;
+  -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 42%,#000 0,transparent 78%);
+  mask-image:radial-gradient(ellipse 70% 60% at 50% 42%,#000 0,transparent 78%);
+  animation:malhaAnda 32s linear infinite}
+@keyframes malhaAnda{to{background-position:46px 46px}}
+
+/* grafismo: ondas */
+.ondas{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.ondas i{position:absolute;left:-60%;right:-60%;height:70vh;border-radius:44%;
+  background:linear-gradient(180deg,var(--ac-bg),transparent 72%);will-change:transform}
+.ondas i:nth-child(1){bottom:-42vh;animation:onda 20s ease-in-out infinite}
+.ondas i:nth-child(2){bottom:-50vh;opacity:.7;animation:onda 27s ease-in-out infinite reverse}
+.ondas i:nth-child(3){bottom:-58vh;opacity:.45;animation:onda 34s ease-in-out infinite}
+@keyframes onda{0%,100%{transform:rotate(0) translateY(0)}50%{transform:rotate(7deg) translateY(-3vh)}}
+
 .gate .card{position:relative;z-index:1;background:var(--surface);border:1px solid var(--line);border-radius:20px;
   padding:38px;width:100%;max-width:440px;box-shadow:var(--shadow-lg);animation:pop .45s var(--ease) both}
 .gate .mark{display:block;height:30px;width:auto;margin-bottom:26px;
@@ -424,6 +443,19 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 
 .zone{border:1px solid var(--bad);border-radius:var(--r-lg);padding:18px;background:var(--bad-bg)}
 
+/* miniaturas dos grafismos */
+.gprev{height:74px;position:relative;overflow:hidden;background:var(--bg)}
+.gp-aurora::before,.gp-aurora::after{content:"";position:absolute;border-radius:50%;filter:blur(16px)}
+.gp-aurora::before{width:64px;height:64px;left:8px;top:-14px;background:var(--ac);opacity:.5}
+.gp-aurora::after{width:52px;height:52px;right:6px;bottom:-16px;background:var(--ac2);opacity:.38}
+.gp-ondas::before,.gp-ondas::after{content:"";position:absolute;left:-30%;right:-30%;height:60px;border-radius:44%;
+  background:linear-gradient(180deg,var(--ac),transparent 75%)}
+.gp-ondas::before{bottom:-32px;opacity:.42}
+.gp-ondas::after{bottom:-42px;opacity:.24;transform:rotate(-6deg)}
+.gp-malha{background-image:linear-gradient(var(--line2) 1px,transparent 1px),
+  linear-gradient(90deg,var(--line2) 1px,transparent 1px);background-size:15px 15px}
+.gp-limpo{background:var(--bg)}
+
 @media(max-width:900px){
   .app{grid-template-columns:1fr}
   aside{position:fixed;left:0;top:0;z-index:60;width:var(--sb);transform:translateX(-100%);
@@ -497,15 +529,69 @@ const LS = {
   del: k => localStorage.removeItem(k)
 };
 const pref = Object.assign({ theme: 'light', accent: 'orange', density: 'normal', mini: false, ob: true }, LS.get(PREF_KEY, {}));
-/* A logo oficial tem duas versões: a preta para fundo claro e a branca
-   para fundo escuro. Escolhida na hora de desenhar a tela. */
-const logoSrc = () => pref.theme === 'dark' ? 'logo-branca.png' : 'logo.png';
+
+/* ── Identidade visual ─────────────────────────────────────────────
+   Vem da tabela config_visual, então vale para todo o time e em
+   qualquer máquina. Os arquivos logo.png / logo-branca.png são só o
+   ponto de partida — assim que alguém sobe uma logo pelo painel,
+   ela passa a mandar. */
+const VISUAL_PADRAO = {
+  nome_sistema:'MasterInfo', subtitulo:'Gestão', logo_clara:null, logo_escura:null,
+  favicon:null, accent:'orange', accent_hex:null, grafismo:'aurora', tema_padrao:'light'
+};
+let visual = { ...VISUAL_PADRAO };
+
+/* A logo tem duas versões: escura para fundo claro, clara para fundo
+   escuro. A escolha acompanha o tema em uso. */
+function logoSrc() {
+  const escuro = pref.theme === 'dark';
+  return (escuro ? visual.logo_escura : visual.logo_clara)
+      || (escuro ? 'logo-branca.png' : 'logo.png');
+}
+
+const PRESETS = { orange:'#ff6b00', indigo:'#6366f1', emerald:'#10b981', violet:'#8b5cf6', rose:'#f43f5e' };
+
+function aplicaVisual() {
+  const r = document.documentElement;
+  // Cor: preset nomeado usa o CSS pronto; hex livre entra por variável.
+  const hex = visual.accent_hex;
+  if (hex && /^#[0-9a-f]{6}$/i.test(hex)) {
+    const n = parseInt(hex.slice(1), 16);
+    const R = n >> 16, G = (n >> 8) & 255, B = n & 255;
+    const clarear = (c) => Math.round(c + (255 - c) * 0.28);
+    // Luminância decide se o texto sobre a cor fica branco ou preto
+    const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+    r.style.setProperty('--ac', hex);
+    r.style.setProperty('--ac2', `rgb(${clarear(R)},${clarear(G)},${clarear(B)})`);
+    r.style.setProperty('--ac-bg', `rgba(${R},${G},${B},.14)`);
+    r.style.setProperty('--ac-fg', lum > 0.62 ? '#111318' : '#fff');
+  } else {
+    ['--ac','--ac2','--ac-bg','--ac-fg'].forEach(v => r.style.removeProperty(v));
+    r.dataset.accent = visual.accent || 'orange';
+  }
+  document.title = `${visual.nome_sistema} · ${visual.subtitulo || 'Gestão'}`;
+  const ic = document.querySelector('link[rel=icon]');
+  if (ic) ic.href = visual.favicon || visual.logo_clara || 'logo.png';
+}
+
+async function carregaVisual() {
+  // Silencioso de propósito: se a tabela ainda não existe, o sistema
+  // segue com o padrão em vez de encher a tela de erro.
+  try {
+    const { data } = await sb.from('config_visual').select('*').eq('id', 1).maybeSingle();
+    if (data) visual = { ...VISUAL_PADRAO, ...data };
+  } catch {}
+  if (!LS.get(PREF_KEY)) pref.theme = visual.tema_padrao || 'light';
+  aplicaPref(); aplicaVisual();
+}
 const savePref = () => { LS.set(PREF_KEY, pref); aplicaPref(); };
+/* Tema e densidade são preferência de cada pessoa (ficam no navegador).
+   A cor de destaque não: ela é identidade da marca e vem do banco. */
 function aplicaPref() {
   const r = document.documentElement;
-  r.dataset.theme = pref.theme; r.dataset.accent = pref.accent; r.dataset.density = pref.density;
+  r.dataset.theme = pref.theme; r.dataset.density = pref.density;
   document.querySelector('meta[name=theme-color]')
-    ?.setAttribute('content', pref.theme === 'dark' ? '#0a0b0e' : '#f7f8fa');
+    ?.setAttribute('content', pref.theme === 'dark' ? '#0a0b0e' : '#ffffff');
 }
 aplicaPref();
 
@@ -528,7 +614,17 @@ const num = n => n == null ? '—' : Number(n).toLocaleString('pt-BR');
 const pc = n => n == null ? '—' : Number(n).toFixed(1).replace('.', ',') + '%';
 const seg = d => { const x = new Date((d || hoje()) + 'T12:00:00'); const w = (x.getDay() + 6) % 7;
   x.setDate(x.getDate() - w); return x.toISOString().slice(0, 10); };
-const iniciais = n => String(n || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
+/* Iniciais para o avatar. Em e-mail, ignora o domínio e os números —
+   "918.philipe@gmail.com" vira PH, não 9. */
+function iniciais(n) {
+  let s = String(n || '?').trim();
+  if (s.includes('@')) {
+    const letras = s.split('@')[0].split(/[^a-zA-ZÀ-ÿ]+/).filter(Boolean);
+    if (letras.length) return (letras.length > 1
+      ? letras[0][0] + letras[1][0] : letras[0].slice(0, 2)).toUpperCase();
+  }
+  return s.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
 const saudacao = () => { const h = new Date().getHours();
   return h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
 const dataExtenso = () => { const s = new Date().toLocaleDateString('pt-BR',
@@ -1256,8 +1352,8 @@ R.config = {
   label: 'Configurações', icone: 'cog', titulo: 'Configurações',
   async dados() { return {}; },
   render() {
-    const abas = [['perfil','Perfil'],['time','Time e canais'],['aparencia','Aparência'],
-                  ['dados','Dados'],['conexao','Conexão'],['atalhos','Atalhos']];
+    const abas = [['perfil','Perfil'],['time','Time e canais'],['identidade','Identidade visual'],
+                  ['aparencia','Aparência'],['dados','Dados'],['conexao','Conexão'],['atalhos','Atalhos']];
     return `<div class="head"><div><h2>Configurações</h2>
       <div class="sub">Preferências ficam neste navegador. Time e canais ficam no banco.</div></div></div>
       <div class="tabs">${abas.map(([v,l]) =>
@@ -1266,9 +1362,47 @@ R.config = {
   },
   acoes: {
     aba(b) { abaCfg = b.dataset.v; pinta(); },
-    tema(b) { pref.theme = b.dataset.v; savePref(); pinta(); },
-    accent(b) { pref.accent = b.dataset.v; savePref(); pinta(); },
+    tema(b) { pref.theme = b.dataset.v; savePref(); montaShell(); },
     densidade(b) { pref.density = b.dataset.v; savePref(); pinta(); },
+
+    /* ── identidade visual ───────────────────────────────────────── */
+    accent(b) { visual.accent = b.dataset.v; visual.accent_hex = null; aplicaVisual(); pinta(); },
+    'aplica-hex'() {
+      const v = ($('#iv-hex')?.value || '').trim();
+      if (v && !/^#[0-9a-f]{6}$/i.test(v)) return toast('Use o formato #rrggbb, por exemplo #ff6b00.', { tipo:'bad' });
+      visual.accent_hex = v || null; aplicaVisual(); pinta();
+    },
+    grafismo(b) { visual.grafismo = b.dataset.v; pinta(); },
+    'tema-padrao'(b) { visual.tema_padrao = b.dataset.v; pinta(); },
+    'sobe-logo'(b) {
+      const campo = b.dataset.c;
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/png,image/svg+xml,image/jpeg,image/webp';
+      inp.onchange = () => {
+        const f = inp.files[0]; if (!f) return;
+        if (f.size > 400 * 1024) return toast('Arquivo acima de 400 KB. Reduza a imagem.', { tipo:'bad' });
+        const fr = new FileReader();
+        fr.onload = () => { visual[campo] = fr.result; aplicaVisual(); pinta();
+          toast('Logo carregada. Clique em "Salvar identidade" para valer para todos.', { tipo:'info' }); };
+        fr.readAsDataURL(f);
+      };
+      inp.click();
+    },
+    'tira-logo'(b) { visual[b.dataset.c] = null; aplicaVisual(); pinta(); },
+    'reset-visual'() {
+      confirma('Restaurar identidade padrão',
+        'Volta à logo oficial da MasterInfo, ao laranja e ao grafismo aurora. Só é aplicado depois de salvar.',
+        () => { visual = { ...VISUAL_PADRAO }; aplicaVisual(); return true; }, { perigo:false });
+    },
+    async 'salva-visual'() {
+      visual.nome_sistema = ($('#iv-nome')?.value || '').trim() || 'MasterInfo';
+      visual.subtitulo    = ($('#iv-sub')?.value || '').trim() || null;
+      const { id, updated_at, ...campos } = visual;
+      const { error } = await sb.from('config_visual').update(campos).eq('id', 1);
+      if (error) return toast(error.message, { tipo:'bad' });
+      aplicaVisual(); montaShell();
+      toast('Identidade visual salva para todo o time.');
+    },
     obon() { pref.ob = true; savePref(); toast('Checklist reativado.'); pinta(); },
     'novo-user': () => formUser(),
     'novo-canal': () => formCanal(),
@@ -1340,15 +1474,83 @@ function cfgCorpo() {
       : vazio('target', 'Nenhum canal', 'Cadastre os canais que você opera de verdade.', { act:'novo-canal', label:'Adicionar canal' })}</div>`;
   }
 
+  if (abaCfg === 'identidade') {
+    const gs = [
+      ['aurora','Aurora','Manchas de luz que passeiam devagar'],
+      ['ondas','Ondas','Camadas suaves subindo do rodapé'],
+      ['malha','Malha','Grade técnica discreta'],
+      ['limpo','Limpo','Sem grafismo, só a cor de fundo']
+    ];
+    const logoBox = (campo, rotulo, fallback, fundo) => `
+      <div style="flex:1;min-width:210px">
+        <label>${rotulo}</label>
+        <div style="border:1px solid var(--line);border-radius:var(--r);padding:18px;background:${fundo};
+                    display:grid;place-items:center;min-height:88px;margin-bottom:9px">
+          <img src="${esc(visual[campo] || fallback)}" alt="" style="max-height:34px;max-width:100%">
+        </div>
+        <div style="display:flex;gap:7px">
+          <button class="btn sm ghost" data-act="sobe-logo" data-c="${campo}">${ico('down',13)}Trocar</button>
+          ${visual[campo] ? `<button class="btn sm ghost" data-act="tira-logo" data-c="${campo}">Remover</button>` : ''}
+        </div></div>`;
+
+    return `<div class="card"><div class="ch"><h3>Marca</h3>
+        <span class="push sm2">salvo no banco — vale para todo o time</span></div><div class="cb">
+        <div class="g2" style="margin-bottom:20px">
+          <div><label>Nome do sistema</label><input id="iv-nome" value="${esc(visual.nome_sistema || '')}"></div>
+          <div><label>Subtítulo</label><input id="iv-sub" value="${esc(visual.subtitulo || '')}"></div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          ${logoBox('logo_clara',  'Logo para fundo claro', 'logo.png',        '#ffffff')}
+          ${logoBox('logo_escura', 'Logo para fundo escuro','logo-branca.png', '#111318')}
+        </div>
+        <div class="hint" style="margin-top:12px">PNG ou SVG com fundo transparente, até 400 KB.
+          A imagem é guardada dentro do banco — não precisa hospedar em lugar nenhum.</div>
+      </div></div>
+
+      <div class="card"><div class="ch"><h3>Cor de destaque</h3></div><div class="cb">
+        <div class="sw"><div><div class="lb">Paleta pronta</div>
+          <div class="ds">O laranja é a cor oficial da MasterInfo.</div></div>
+          <div class="ct swatch">${Object.entries(PRESETS).map(([v,c]) =>
+            `<button data-act="accent" data-v="${v}" class="${(!visual.accent_hex && visual.accent===v)?'on':''}"
+              style="background:${c}" title="${v}"></button>`).join('')}</div></div>
+        <div class="sw" style="border:0"><div><div class="lb">Cor livre</div>
+          <div class="ds">Cole o código da cor da marca, se ela não estiver na paleta.</div></div>
+          <div class="ct" style="display:flex;gap:7px;align-items:center">
+            <input id="iv-hex" placeholder="#ff6b00" value="${esc(visual.accent_hex || '')}" style="width:120px">
+            <button class="btn sm" data-act="aplica-hex">Aplicar</button></div></div>
+      </div></div>
+
+      <div class="card"><div class="ch"><h3>Grafismo da tela de entrada</h3></div><div class="cb">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
+          ${gs.map(([v,t,d]) => `<button data-act="grafismo" data-v="${v}"
+            style="all:unset;cursor:pointer;border:2px solid ${visual.grafismo===v?'var(--ac)':'var(--line)'};
+                   border-radius:var(--r-lg);overflow:hidden;background:var(--surface2)">
+            <div class="gprev gp-${v}"></div>
+            <div style="padding:10px 12px"><div style="font-weight:600;font-size:13px">${t}</div>
+              <div class="sm2">${d}</div></div></button>`).join('')}
+        </div></div></div>
+
+      <div class="card"><div class="ch"><h3>Padrões do sistema</h3></div><div class="cb">
+        <div class="sw"><div><div class="lb">Tema que abre por padrão</div>
+          <div class="ds">Vale para quem nunca escolheu um tema. Quem já escolheu mantém o dele.</div></div>
+          <div class="ct seg">${[['light','Claro'],['dark','Escuro']].map(([v,l]) =>
+            `<button data-act="tema-padrao" data-v="${v}" class="${visual.tema_padrao===v?'on':''}">${l}</button>`).join('')}</div></div>
+        <div class="sw" style="border:0"><div><div class="lb">Restaurar o padrão</div>
+          <div class="ds">Volta à logo oficial, ao laranja e ao grafismo aurora.</div></div>
+          <div class="ct"><button class="btn ghost" data-act="reset-visual">Restaurar</button></div></div>
+      </div></div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" data-act="salva-visual">${ico('check',15)}Salvar identidade</button></div>`;
+  }
+
   if (abaCfg === 'aparencia') {
-    const cores = [['orange','#ff6b00'],['indigo','#6366f1'],['emerald','#10b981'],['violet','#8b5cf6'],['rose','#f43f5e']];
-    return bloco('Aparência', `
-      <div class="sw"><div><div class="lb">Tema</div><div class="ds">Claro ou escuro. Fica salvo neste navegador.</div></div>
-        <div class="ct seg">${[['dark','Escuro'],['light','Claro']].map(([v,l]) =>
+    return bloco('Preferências deste navegador', `
+      <p class="sm2" style="margin-bottom:6px">Estas escolhas são suas e não afetam o resto do time.
+        Para trocar logo, cores e grafismo, vá em <b>Identidade visual</b>.</p>
+      <div class="sw"><div><div class="lb">Tema</div><div class="ds">Claro ou escuro.</div></div>
+        <div class="ct seg">${[['light','Claro'],['dark','Escuro']].map(([v,l]) =>
           `<button data-act="tema" data-v="${v}" class="${pref.theme===v?'on':''}">${l}</button>`).join('')}</div></div>
-      <div class="sw"><div><div class="lb">Cor de destaque</div><div class="ds">O laranja é a cor da MasterInfo. Troque se preferir.</div></div>
-        <div class="ct swatch">${cores.map(([v,c]) =>
-          `<button data-act="accent" data-v="${v}" class="${pref.accent===v?'on':''}" style="background:${c}" title="${v}"></button>`).join('')}</div></div>
       <div class="sw"><div><div class="lb">Densidade das tabelas</div><div class="ds">Compacto mostra mais linhas na tela.</div></div>
         <div class="ct seg">${[['normal','Confortável'],['compact','Compacto']].map(([v,l]) =>
           `<button data-act="densidade" data-v="${v}" class="${pref.density===v?'on':''}">${l}</button>`).join('')}</div></div>
@@ -1561,7 +1763,8 @@ function montaShell() {
 
   $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}" id="app">
     <aside>
-      <div class="brand"><img class="lg" src="${logoSrc()}" alt="MasterInfo"><div class="mk">MI</div></div>
+      <div class="brand"><img class="lg" src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
+        <div class="mk">${esc(iniciais(visual.nome_sistema))}</div></div>
       <nav>${nav}</nav>
       <div class="who"><div class="av" id="av">${esc(iniciais(eu?.nome || sessao?.user?.email))}</div>
         <div class="tx"><div class="n">${esc(eu?.nome || 'Sem vínculo')}</div>
@@ -1667,7 +1870,15 @@ addEventListener('hashchange', () => { const h = location.hash.slice(1); if (R[h
 /* ═══════════════════════════════════════════════════════════════════
    ENTRADA: conexão → login → app
    ═══════════════════════════════════════════════════════════════════ */
-const aurora = () => '<div class="aurora"><i></i><i></i><i></i></div>';
+/* Grafismo do fundo da tela de entrada. Escolhido em
+   Configurações → Identidade visual. */
+function aurora() {
+  const g = visual.grafismo || 'aurora';
+  if (g === 'limpo') return '';
+  if (g === 'malha') return '<div class="malha"></div>';
+  if (g === 'ondas') return '<div class="ondas"><i></i><i></i><i></i></div>';
+  return '<div class="aurora"><i></i><i></i><i></i></div>';
+}
 
 function telaConexao() {
   $('#root').innerHTML = `<div class="gate">${aurora()}<div class="card">
@@ -1733,6 +1944,10 @@ async function iniciar() {
   const c = cfgFixa() || LS.get(CFG_KEY);
   if (!c?.url) return telaConexao();
   if (!sb) sb = window.supabase.createClient(c.url, c.key, { auth: { persistSession: true, autoRefreshToken: true } });
+
+  // A identidade visual carrega ANTES do login: a tela de entrada já
+  // precisa da logo e das cores certas.
+  await carregaVisual();
 
   const { data, error } = await sb.auth.getSession();
   if (error) { LS.del(CFG_KEY); return telaConexao(); }
