@@ -466,6 +466,38 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 
 .zone{border:1px solid var(--bad);border-radius:var(--r-lg);padding:18px;background:var(--bad-bg)}
 
+/* ── régua de dias da semana ─────────────────────────────────── */
+.regua{display:inline-flex;gap:3px}
+.regua span{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;
+  font-size:10.5px;font-weight:700;background:var(--surface2);color:var(--dim);
+  border:1px solid var(--line)}
+.regua span.on{background:var(--ac);color:var(--ac-fg);border-color:var(--ac)}
+
+/* ── semana em colunas ───────────────────────────────────────── */
+.semana{display:grid;grid-template-columns:repeat(7,minmax(158px,1fr));gap:11px;
+  overflow-x:auto;padding-bottom:8px;align-items:start}
+.semana .col{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:12px;min-height:140px;transition:border-color .18s}
+.semana .col.fds{background:var(--surface2)}
+.semana .col.hoje{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
+.semana .col h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);
+  display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.semana .col.hoje h4{color:var(--ac)}
+.semana .col h4 span{margin-left:auto;background:var(--surface3);border-radius:20px;
+  padding:1px 7px;font-size:10.5px;color:var(--dim)}
+.semana .col h4 .agora{margin-left:0;background:var(--ac);color:var(--ac-fg)}
+.semana .carga{height:3px;background:var(--surface3);border-radius:2px;margin-bottom:11px;overflow:hidden}
+.semana .carga i{display:block;height:100%;background:var(--ac);border-radius:2px;
+  animation:grow .6s var(--ease) both}
+.semana .k{background:var(--surface2);border:1px solid var(--line);border-radius:var(--r);
+  padding:10px;margin-bottom:7px;transition:transform .15s var(--ease),border-color .15s;
+  animation:fadeUp .3s var(--ease) both}
+.semana .k:hover{transform:translateY(-2px);border-color:var(--ac)}
+.semana .k .t{font-size:12.5px;font-weight:600;line-height:1.35}
+.semana .k .m{font-size:11px;color:var(--dim);margin-top:3px}
+.semana .livre{text-align:center;color:var(--dim);font-size:12px;padding:18px 6px;opacity:.6}
+@media(max-width:900px){.semana{grid-template-columns:repeat(7,minmax(150px,1fr))}}
+
 /* miniaturas dos grafismos */
 .gprev{height:74px;position:relative;overflow:hidden;background:var(--bg)}
 .gp-aurora::before,.gp-aurora::after{content:"";position:absolute;border-radius:50%;filter:blur(16px)}
@@ -726,6 +758,10 @@ async function recarregaBase() {
   ]);
   cache.usuarios = u; cache.canais = c;
   cache.cargos = g || []; cache.temCargos = g !== null;
+  if (cache.temHora === undefined) {
+    const { error } = await sb.from('acoes').select('hora').limit(1);
+    cache.temHora = !error;
+  }
 }
 
 /* Com o cadastro de cargos no ar, vira lista. Sem ele, continua texto
@@ -877,7 +913,7 @@ const NAV = [
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
-    itens:['rotinasTime', 'horarios', 'pdi', 'feedbacks'] },
+    itens:['rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 const AREAS = { comercial:'Comercial', marketing:'Marketing' };
@@ -1012,6 +1048,33 @@ function formAcao(row) {
 
 /* ───────────────────────── AÇÕES ───────────────────────── */
 const DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
+const INICIAL_DIA = ['D','S','T','Q','Q','S','S'];
+// A semana começa na segunda, como a pessoa pensa a rotina de trabalho
+const ORDEM_SEMANA = [1, 2, 3, 4, 5, 6, 0];
+const NOME_DIA = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+/* Em quais dias da semana esta rotina cai. null = não é semanal
+   (mensal), então não entra na visão de semana. */
+function diasDaRotina(m) {
+  switch (m.recorrencia) {
+    case 'diaria':     return [0, 1, 2, 3, 4, 5, 6];
+    case 'dias_uteis': return [1, 2, 3, 4, 5];
+    case 'semanal':    return (m.recorrencia_dias || []).slice().sort();
+    case 'quinzenal':  return m.recorrencia_inicio
+      ? [new Date(m.recorrencia_inicio + 'T12:00:00').getDay()] : [];
+    default:           return null;   // mensal
+  }
+}
+
+/* Régua visual da semana: S T Q Q S S D, com os dias de execução
+   acesos. Diz num relance o que a palavra "quinzenal" não diz. */
+function reguaDias(m) {
+  const dias = diasDaRotina(m);
+  if (!dias) return `<span class="pill dim">dia ${m.recorrencia_dia_mes} do mês</span>`;
+  return `<div class="regua" title="${dias.map(d => DIAS[d]).join(', ')}">
+    ${ORDEM_SEMANA.map(d => `<span class="${dias.includes(d) ? 'on' : ''}">${INICIAL_DIA[d]}</span>`).join('')}
+  </div>`;
+}
 R.acoes = {
   label: 'Ações e rotinas', curto: 'Rotinas', icone: 'check', titulo: 'Ações e rotinas',
   filtro: { status: 'abertas' },
@@ -1040,9 +1103,11 @@ R.acoes = {
       <div class="card"><div class="ch"><h3>Rotinas recorrentes</h3>
         <span class="pill dim">${modelos.length}</span></div>
         ${modelos.length ? `<div class="t-scroll"><table><thead><tr>
-          <th>Rotina</th><th>Recorrência</th><th>Canal</th><th>Responsável</th><th>Estado</th><th></th>
+          <th>Rotina</th><th>Dias de execução</th><th>Hora</th><th>Canal</th><th>Responsável</th><th>Estado</th><th></th>
         </tr></thead><tbody>${modelos.map(m => `<tr>
-          <td><b>${esc(m.titulo)}</b></td><td class="mut">${esc(rec(m))}</td>
+          <td><b>${esc(m.titulo)}</b><div class="sm2">${esc(rec(m))}</div></td>
+          <td>${reguaDias(m)}</td>
+          <td class="mut">${m.hora ? '<b style="color:var(--txt)">' + hm(m.hora) + '</b>' : '—'}</td>
           <td>${esc(nomeCanal(m.canal_id))}</td><td>${esc(nomeUser(m.responsavel_id))}</td>
           <td><span class="pill ${m.status === 'aberta' ? 'ok' : 'dim'}">${m.status === 'aberta' ? 'ativa' : 'pausada'}</span></td>
           <td class="act">
@@ -1099,7 +1164,9 @@ R.acoes = {
         { k:'recorrencia_dia_mes', label:'Dia do mês', type:'number',
           hint:'Só para "Mensal". 1 a 31 — ajusta sozinho em mês curto.' },
         { k:'recorrencia_inicio', label:'Início da contagem', type:'date', value:hoje(),
-          hint:'Só para "Quinzenal". Repete a cada 14 dias a partir daqui.' }
+          hint:'Só para "Quinzenal". Repete a cada 14 dias a partir daqui.' },
+        ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
+          hint:'Opcional. Serve para ordenar o dia na tela Rotina semanal.' }] : [])
       ], d => {
         const dias = d._dias; delete d._dias;
         d.recorrencia_dias = d.recorrencia === 'semanal'
@@ -1475,6 +1542,140 @@ R.time = {
    DESENVOLVIMENTO — rotinas do time, horários e PDI
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ── Rotina semanal ───────────────────────────────────────────────
+   A semana inteira em sete colunas. É a pergunta "como é a minha
+   segunda-feira?" respondida sem precisar abrir cada rotina. */
+R.rotinaSemanal = {
+  label: 'Rotina semanal', curto: 'Rotina semanal', icone: 'cal', titulo: 'Rotina semanal',
+  filtro: { quem: 'minha' },
+  async dados() {
+    return { modelos: await q('acoes', x => x.neq('recorrencia', 'nenhuma').eq('status', 'aberta')) };
+  },
+  render({ modelos }) {
+    const f = R.rotinaSemanal.filtro;
+    if (f.quem === 'minha' && !eu) f.quem = 'todos';
+    const meus = f.quem === 'minha' && eu
+      ? modelos.filter(m => m.responsavel_id === eu.id) : modelos;
+
+    const hojeDia = new Date().getDay();
+    const semanais = meus.filter(m => diasDaRotina(m));
+    const mensais  = meus.filter(m => !diasDaRotina(m));
+
+    // Minutos desde a meia-noite; sem hora vai para o fim do dia
+    const emMin = h => { if (!h) return 99999;
+      const [H, M] = hm(h).split(':').map(Number); return H * 60 + M; };
+
+    const doDia = d => semanais
+      .filter(m => diasDaRotina(m).includes(d))
+      .sort((a, b) => emMin(a.hora) - emMin(b.hora));
+
+    const cartao = m => `<div class="k" data-act="editar" data-id="${m.id}" style="cursor:pointer">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
+        ${m.hora
+          ? `<span class="pill ac" style="font-variant-numeric:tabular-nums">${hm(m.hora)}</span>`
+          : '<span class="pill dim">sem hora</span>'}
+        ${m.recorrencia === 'quinzenal' ? '<span class="pill info">quinzenal</span>' : ''}
+      </div>
+      <div class="t">${esc(m.titulo)}</div>
+      <div class="m">${esc(nomeUser(m.responsavel_id))}${
+        m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div></div>`;
+
+    const carga = ORDEM_SEMANA.map(d => doDia(d).length);
+    const pico = Math.max(...carga, 1);
+    const maxCarga = Math.max(...carga);
+    const diaPico = ORDEM_SEMANA[carga.indexOf(maxCarga)];
+    // Só considera os dias úteis: sábado vazio não é desequilíbrio
+    const uteis = [1,2,3,4,5].map(d => doDia(d).length);
+    const desequilibrio = Math.max(...uteis) - Math.min(...uteis);
+
+    return `<div class="head"><div><h2>Rotina semanal</h2>
+        <div class="sub">Sua semana inteira em uma tela. Cada coluna é um dia, em ordem de horário.</div></div>
+        <div class="push">
+          <div class="seg">${[['minha','Minha rotina'],['todos','Todo o time']].map(([v,l]) =>
+            `<button data-act="quem" data-v="${v}" class="${f.quem===v?'on':''}"${
+              v==='minha' && !eu ? ' disabled title="Crie seu perfil primeiro"' : ''}>${l}</button>`).join('')}</div>
+          <button class="btn" data-act="nova">${ico('plus',15)}Nova rotina</button></div></div>
+
+      ${!cache.temHora ? `<div class="card"><div class="cb"><div class="err" style="display:block">
+        O campo de horário ainda não existe no banco — as rotinas aparecem sem hora.
+        Para ligar, rode <b>CORRECAO-05.sql</b> (é uma linha só).</div></div></div>` : ''}
+
+      ${semanais.length || mensais.length ? `
+        <div class="tiles stg">
+          <div class="tile"><div class="ic">${ico('refresh',18)}</div><div class="n">${semanais.length}</div>
+            <div class="l">Rotinas na semana</div>
+            <div class="h">${semanais.filter(m => m.hora).length} com horário definido</div></div>
+          <div class="tile ok"><div class="ic">${ico('clock',18)}</div>
+            <div class="n">${doDia(hojeDia).length}</div><div class="l">Para hoje</div>
+            <div class="h">${NOME_DIA[hojeDia].toLowerCase()}</div></div>
+          <div class="tile ${desequilibrio > 4 ? 'warn' : ''}"><div class="ic">${ico('chart',18)}</div>
+            <div class="n" style="font-size:22px">${NOME_DIA[diaPico]}</div>
+            <div class="l">Dia mais carregado</div>
+            <div class="h">${maxCarga} rotina(s)${desequilibrio > 4 ? ' — semana desequilibrada' : ''}</div></div>
+          <div class="tile"><div class="ic">${ico('cal',18)}</div>
+            <div class="n">${mensais.length}</div><div class="l">Mensais</div></div>
+        </div>
+
+        <div class="semana">${ORDEM_SEMANA.map((d, i) => {
+          const lista = doDia(d);
+          const nome = NOME_DIA[d];
+          return `<div class="col ${d === hojeDia ? 'hoje' : ''} ${d === 0 || d === 6 ? 'fds' : ''}">
+            <h4>${nome}${d === hojeDia ? '<span class="agora">hoje</span>' : ''}
+              <span>${lista.length}</span></h4>
+            <div class="carga"><i style="width:${100 * lista.length / pico}%"></i></div>
+            ${lista.length ? lista.map(cartao).join('')
+              : `<div class="livre">${d === 0 || d === 6 ? 'folga' : 'dia livre'}</div>`}
+          </div>`;
+        }).join('')}</div>
+
+        ${mensais.length ? `<div class="card" style="margin-top:20px">
+          <div class="ch"><h3>Rotinas mensais</h3>
+            <span class="push sm2">não caem num dia fixo da semana</span></div>
+          ${mensais.map(m => `<div class="row" data-act="editar" data-id="${m.id}" style="cursor:pointer">
+            <span class="pill ac">dia ${m.recorrencia_dia_mes}</span>
+            <div class="g"><div class="t">${esc(m.titulo)}</div>
+              <div class="m">${esc(nomeUser(m.responsavel_id))}${
+                m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div></div>
+            ${m.hora ? `<span class="pill dim">${hm(m.hora)}</span>` : ''}</div>`).join('')}
+        </div>` : ''}`
+      : `<div class="card">${vazio('cal',
+          f.quem === 'minha' ? 'Sua semana está vazia' : 'Nenhuma rotina cadastrada',
+          f.quem === 'minha'
+            ? 'Nenhuma rotina recorrente está no seu nome. Crie uma, ou veja a do time inteiro no botão acima.'
+            : 'Cadastre o que se repete toda semana e ele aparece aqui, distribuído por dia.',
+          { act:'nova', label:'Criar rotina' })}</div>`}`;
+  },
+  acoes: {
+    quem(b) { R.rotinaSemanal.filtro.quem = b.dataset.v; pinta(); },
+    nova() { R.acoes.acoes.modelo(); },
+    async editar(b) {
+      const [m] = await q('acoes', x => x.eq('id', b.dataset.id));
+      if (!m) return;
+      form(`Rotina · ${m.titulo}`, [
+        { k:'titulo', label:'Título', req:true, value:m.titulo },
+        ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time', value:m.hora ? hm(m.hora) : '',
+          hint:'Deixe vazio se não tem hora marcada.' }] : []),
+        { k:'responsavel_id', label:'Responsável', type:'select', value:m.responsavel_id, opts:optUsuarios() },
+        { k:'canal_id', label:'Canal', type:'select', value:m.canal_id, opts:optCanais() },
+        { k:'_dias', label:'Dias da semana', value:(diasDaRotina(m) || []).join(','),
+          hint:'0=dom, 1=seg … 6=sáb. Muda a rotina para semanal nesses dias.' }
+      ], d => {
+        const dias = String(d._dias || '').split(',').map(x => parseInt(x, 10))
+          .filter(n => n >= 0 && n <= 6);
+        delete d._dias;
+        if (dias.length) {
+          // 5 dias úteis ou 7 dias têm recorrência própria, mais legível
+          const util = [1,2,3,4,5].every(x => dias.includes(x)) && dias.length === 5;
+          const todos = dias.length === 7;
+          d.recorrencia = todos ? 'diaria' : util ? 'dias_uteis' : 'semanal';
+          d.recorrencia_dias = d.recorrencia === 'semanal' ? dias : null;
+        }
+        return grava('acoes', d, m.id);
+      });
+    }
+  }
+};
+
 /* ── Rotinas do time ──────────────────────────────────────────────
    Mesmas rotinas da tela de Ações, mas olhadas pela ótica de quem
    executa: quem carrega o quê e quem está cumprindo. */
@@ -1530,14 +1731,14 @@ R.rotinasTime = {
                 <div class="sm2" style="margin-top:3px">${pct}% cumprida (30d)</div></div>`}
           </div></div>
         <div class="t-scroll"><table><thead><tr>
-          <th>Rotina</th><th>Quando</th><th>Canal</th><th class="num">Geradas</th>
+          <th>Rotina</th><th>Dias</th><th>Canal</th><th class="num">Geradas</th>
           <th class="num">Concluídas</th><th>Cumprimento</th><th>Estado</th><th></th>
         </tr></thead><tbody>${lista.map(m => {
           const p = porModelo[m.id] || { total:0, feitas:0 };
           const pc2 = p.total ? Math.round(100 * p.feitas / p.total) : null;
           const c2 = pc2 == null ? '' : pc2 >= 80 ? 'ok' : pc2 >= 50 ? 'warn' : 'bad';
-          return `<tr><td><b>${esc(m.titulo)}</b></td>
-            <td class="mut">${esc(rec(m))}</td>
+          return `<tr><td><b>${esc(m.titulo)}</b>${m.hora ? `<div class="sm2">${hm(m.hora)}</div>` : ''}</td>
+            <td>${reguaDias(m)}</td>
             <td class="mut">${esc(nomeCanal(m.canal_id))}</td>
             <td class="num">${p.total}</td><td class="num">${p.feitas}</td>
             <td>${pc2 == null ? '<span class="mut">—</span>'
