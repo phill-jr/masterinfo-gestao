@@ -31,6 +31,7 @@
   --line:#232833; --line2:#2e3441;
   --txt:#e9ecf2; --txt2:#b3bac9; --dim:#7d8496;
   --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --info:#60a5fa;
+  --pt:#5b8def; --pt-bg:rgba(91,141,239,.15);
   --ok-bg:rgba(52,211,153,.13); --warn-bg:rgba(251,191,36,.13);
   --bad-bg:rgba(248,113,113,.13); --info-bg:rgba(96,165,250,.13);
   --skel:linear-gradient(90deg,#161920 25%,#1e222b 50%,#161920 75%);
@@ -40,6 +41,7 @@
   --line:#e6e9ef; --line2:#d3d9e3;
   --txt:#111318; --txt2:#3d4351; --dim:#767d8d;
   --ok:#059669; --warn:#b45309; --bad:#dc2626; --info:#2563eb;
+  --pt:#1e3a8a; --pt-bg:rgba(30,58,138,.10);
   --ok-bg:rgba(5,150,105,.10); --warn-bg:rgba(180,83,9,.10);
   --bad-bg:rgba(220,38,38,.10); --info-bg:rgba(37,99,235,.10);
   --skel:linear-gradient(90deg,#eef0f4 25%,#f7f8fa 50%,#eef0f4 75%);
@@ -260,6 +262,10 @@ main{min-width:0;display:flex;flex-direction:column}
 .btn.ghost{background:var(--surface);color:var(--txt);border:1px solid var(--line);box-shadow:none}
 .btn.ghost:hover{background:var(--surface2);border-color:var(--line2);box-shadow:none}
 .btn.danger{background:var(--bad);box-shadow:none;color:#fff}
+/* Tarefa pontual tem cor própria: a diferença entre o que se repete e
+   o que apareceu hoje precisa ser lida sem ninguém explicar. */
+.btn.pontual{background:var(--pt);color:#fff;box-shadow:0 4px 14px -6px var(--pt)}
+.btn.pontual:hover{background:var(--pt);filter:brightness(1.14);box-shadow:0 8px 20px -8px var(--pt)}
 .btn.sm{padding:5px 10px;font-size:12.5px;border-radius:7px;box-shadow:none}
 .btn:disabled{opacity:.45;pointer-events:none}
 .btn svg{flex:none}
@@ -521,6 +527,17 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .chk-item.feito{opacity:.55}
 .chk-item.feito .t{text-decoration:line-through;color:var(--dim)}
 .chk-item .tick{margin-top:1px}
+.chk-item.rotina{box-shadow:inset 3px 0 0 var(--ac)}
+.chk-item.pontual{box-shadow:inset 3px 0 0 var(--pt)}
+.tick.pt:hover{border-color:var(--pt);background:var(--pt-bg)}
+.tick.pt.done{background:var(--pt);border-color:var(--pt)}
+.row.rotina{box-shadow:inset 3px 0 0 var(--ac)}
+.row.pontual{box-shadow:inset 3px 0 0 var(--pt)}
+.pill.pt{background:var(--pt-bg);color:var(--pt)}
+.legenda{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--dim);
+  padding:10px 18px;border-bottom:1px solid var(--line)}
+.legenda b{display:inline-flex;align-items:center;gap:6px;font-weight:500}
+.legenda i{width:9px;height:9px;border-radius:3px;display:block}
 
 /* ── régua de dias da semana ─────────────────────────────────── */
 .regua{display:inline-flex;gap:3px}
@@ -1029,8 +1046,9 @@ R.inicio = {
         <span class="rg">${ico('check',11)}</span><span class="lb">${p.lb}</span>
         ${p.ok ? '' : ico('chevron', 15)}</li>`).join('')}</ul></div>` : '';
 
-    const item = a => `<div class="row" data-id="${a.id}">
-      <button class="tick" data-act="concluir" data-id="${a.id}" title="Concluir">${ico('check', 12)}</button>
+    const ehRot = a => a.origem === 'recorrencia';
+    const item = a => `<div class="row ${ehRot(a) ? 'rotina' : 'pontual'}" data-id="${a.id}">
+      <button class="tick ${ehRot(a) ? '' : 'pt'}" data-act="concluir" data-id="${a.id}" title="Concluir">${ico('check', 12)}</button>
       <div class="g"><div class="t">${esc(a.titulo)}</div>
         <div class="m">${esc(a.canal || 'Sem canal')}${a.responsavel ? ' · ' + esc(a.responsavel) : ''}${
           a.travando ? ` · <span style="color:var(--info)">travando ${esc(a.travando)}</span>` : ''}</div></div>
@@ -1046,7 +1064,8 @@ R.inicio = {
           <div class="sub">${dataExtenso()}</div></div>
         <div class="push">
           <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar rotinas de hoje</button>
-          <button class="btn" data-act="nova">${ico('plus',15)}Nova ação</button></div></div>
+          <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
+          <button class="btn pontual" data-act="nova">${ico('zap',15)}Tarefa pontual</button></div></div>
       ${onboarding}
       <div class="tiles stg">
         ${tile('star',  k.acoes_urgentes,        'Urgentes', null, 'bad')}
@@ -1072,7 +1091,8 @@ R.inicio = {
       toast(data ? `${data} rotina(s) criada(s) para hoje.` : 'Nenhuma rotina nova para hoje.', { tipo: data ? 'ok' : 'info' });
       pinta();
     },
-    nova: () => formAcao(),
+    nova: () => formPontual(),
+    'nova-rotina'() { R.acoes.acoes.modelo(); },
     async editar(b) { const [r] = await q('acoes', x => x.eq('id', b.dataset.id)); if (r) formAcao(r); },
     async concluir(b) {
       const id = b.dataset.id;
@@ -1089,6 +1109,26 @@ R.inicio = {
     async csv() { csv('fila-do-dia', await q('v_acoes_hoje')); }
   }
 };
+
+/* Tarefa pontual: nasce com prazo de hoje e sem recorrência. É o que
+   apareceu agora e não faz parte da rotina — por isso vem separada. */
+function formPontual() {
+  form('Nova tarefa pontual', [
+    { k:'titulo', label:'O que precisa ser feito', req:true, ph:'Ex.: Ligar para o cliente da proposta 42' },
+    { k:'descricao', label:'Detalhes', type:'textarea' },
+    { k:'prazo', label:'Para quando', type:'date', value:hoje() },
+    ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
+      hint:'Opcional. Coloca a tarefa na ordem certa do dia.' }] : []),
+    { k:'responsavel_id', label:'Responsável', type:'select', value:eu?.id, opts:optUsuarios() },
+    { k:'canal_id', label:'Canal', type:'select', opts:optCanais() },
+    ...(cache.temTags ? [{ k:'_tags', label:'Tags', ph:'comercial, urgente' }] : []),
+    { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila' }
+  ], d => {
+    if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
+    d.tipo = 'rotina'; d.origem = 'manual';   // avulsa: sem modelo por trás
+    return grava('acoes', d);
+  }, 'Criar tarefa');
+}
 
 function formAcao(row) {
   form(row ? 'Editar ação' : 'Nova ação', [
@@ -1635,7 +1675,7 @@ const chipsTags = tags => !tags?.length ? '' :
    que é onde constância aparece. */
 R.checkDiario = {
   label: 'Check do dia', curto: 'Check do dia', icone: 'check', titulo: 'Check do dia',
-  filtro: { periodo: 'hoje', quem: 'minha', tag: '' },
+  filtro: { periodo: 'hoje', quem: 'minha', tag: '', natureza: 'tudo' },
   async dados() {
     const de = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
     return { acoes: await q('acoes', x =>
@@ -1645,9 +1685,13 @@ R.checkDiario = {
     const f = R.checkDiario.filtro;
     if (f.quem === 'minha' && !eu) f.quem = 'todos';
 
+    // Veio de uma rotina recorrente, ou apareceu solta hoje?
+    const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
+
     const meus = acoes.filter(a =>
       (f.quem !== 'minha' || a.responsavel_id === eu?.id) &&
       (!f.tag || (a.tags || []).includes(f.tag)) &&
+      (f.natureza === 'tudo' || (f.natureza === 'rotina') === ehRotina(a)) &&
       a.status !== 'cancelada');
 
     // Intervalo do período escolhido
@@ -1683,8 +1727,9 @@ R.checkDiario = {
 
     const item = a => {
       const feito = a.status === 'concluida';
-      return `<div class="chk-item ${feito ? 'feito' : ''}">
-        <button class="tick ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
+      const rot = ehRotina(a);
+      return `<div class="chk-item ${rot ? 'rotina' : 'pontual'} ${feito ? 'feito' : ''}">
+        <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
           data-v="${feito ? 'aberta' : 'concluida'}">${ico('check', 12)}</button>
         <div class="g">
           <div class="t">${esc(a.titulo)}</div>
@@ -1721,6 +1766,8 @@ R.checkDiario = {
         <div class="sub">Marque o que saiu. O que importa não é o dia perfeito, é a sequência.</div></div>
         <div class="push">
           <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar rotinas de hoje</button>
+          <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
+          <button class="btn pontual" data-act="nova-pontual">${ico('zap',15)}Tarefa pontual</button>
         </div></div>
 
       <div class="filtros">
@@ -1729,6 +1776,8 @@ R.checkDiario = {
         <div class="seg">${[['minha','Minha'],['todos','Time']].map(([v,l]) =>
           `<button data-act="quem" data-v="${v}" class="${f.quem===v?'on':''}"${
             v==='minha' && !eu ? ' disabled' : ''}>${l}</button>`).join('')}</div>
+        <div class="seg">${[['tudo','Tudo'],['rotina','Rotina'],['pontual','Pontual']].map(([v,l]) =>
+          `<button data-act="natureza" data-v="${v}" class="${f.natureza===v?'on':''}">${l}</button>`).join('')}</div>
         ${cache.temTags && tagsUsadas.length ? `<div class="tagfiltro">
           <button data-act="tag" data-v="" class="${!f.tag?'on':''}">todas</button>
           ${tagsUsadas.map(t => `<button data-act="tag" data-v="${esc(t)}" class="${f.tag===t?'on':''}"
@@ -1766,6 +1815,11 @@ R.checkDiario = {
         <div class="ch"><h3>${f.periodo === 'hoje' ? 'A rotina de hoje'
           : f.periodo === 'semana' ? 'Esta semana' : 'Este mês'}</h3>
           <span class="push sm2">${lista.length} item(ns)</span></div>
+        <div class="legenda">
+          <b><i style="background:var(--ac)"></i> Rotina — se repete</b>
+          <b><i style="background:var(--pt)"></i> Pontual — só hoje</b>
+          <span style="margin-left:auto">${lista.filter(ehRotina).length} rotina(s) ·
+            ${lista.filter(a => !ehRotina(a)).length} pontual(is)</span></div>
         ${lista.length ? chaves.map(k => `
           <div class="grupo">${rotuloGrupo(k)}
             <span>${grupos[k].filter(a => a.status === 'concluida').length}/${grupos[k].length}</span></div>
@@ -1777,9 +1831,12 @@ R.checkDiario = {
       </div>`;
   },
   acoes: {
-    periodo(b) { R.checkDiario.filtro.periodo = b.dataset.v; pinta(); },
-    quem(b)    { R.checkDiario.filtro.quem = b.dataset.v; pinta(); },
-    tag(b)     { R.checkDiario.filtro.tag = b.dataset.v; pinta(); },
+    periodo(b)  { R.checkDiario.filtro.periodo = b.dataset.v; pinta(); },
+    quem(b)     { R.checkDiario.filtro.quem = b.dataset.v; pinta(); },
+    tag(b)      { R.checkDiario.filtro.tag = b.dataset.v; pinta(); },
+    natureza(b) { R.checkDiario.filtro.natureza = b.dataset.v; pinta(); },
+    'nova-rotina'()  { R.acoes.acoes.modelo(); },
+    'nova-pontual'() { formPontual(); },
     async gerar() {
       const { data, error } = await sb.rpc('gerar_acoes_do_dia');
       if (error) return toast(error.message, { tipo:'bad' });
