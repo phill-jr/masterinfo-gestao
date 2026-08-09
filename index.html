@@ -456,6 +456,20 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .tabs button:hover{color:var(--txt)}
 .tabs button.on{background:var(--surface);color:var(--txt);box-shadow:var(--shadow)}
 
+/* Seletor que abre menu vertical. Substitui a fila horizontal de
+   botões, que virava parede quando passava de quatro opções. */
+.dd{display:inline-flex;align-items:center;gap:9px;background:var(--surface);
+  border:1px solid var(--line);border-radius:9px;padding:7.5px 12px;font-size:13.5px;
+  font-weight:600;white-space:nowrap;transition:border-color .15s,background .15s}
+.dd:hover{border-color:var(--line2);background:var(--surface2)}
+.dd .rot{color:var(--dim);font-weight:500;font-size:12px}
+.dd .cv{color:var(--dim);transform:rotate(90deg);display:flex;transition:transform .18s var(--ease)}
+.dd.aberto .cv{transform:rotate(-90deg)}
+.pop .mi.on{color:var(--ac);font-weight:600}
+.pop .mi.on svg{color:var(--ac)}
+.pop .mi .txt{flex:1;min-width:0}
+.pop .mi .txt .sub2{font-size:11.5px;color:var(--dim);font-weight:400;margin-top:1px}
+
 .seg{display:flex;gap:3px;background:var(--surface2);padding:3px;border-radius:9px}
 .seg button{padding:5px 11px;border-radius:7px;font-size:12.5px;font-weight:600;color:var(--dim);transition:all .15s}
 .seg button.on{background:var(--surface);color:var(--txt);box-shadow:var(--shadow)}
@@ -1272,8 +1286,11 @@ R.acoes = {
 
       <div class="card"><div class="ch"><h3>Ações</h3>
         <div class="push">
-          <div class="seg">${[['abertas','Abertas'],['concluidas','Concluídas'],['todas','Todas']]
-            .map(([v,l]) => `<button data-act="filtro" data-v="${v}" class="${f.status===v?'on':''}">${l}</button>`).join('')}</div>
+          ${dd('Mostrar', 'filtro', [
+            { v:'abertas', t:'Abertas', i:'clock' },
+            { v:'concluidas', t:'Concluídas', i:'check' },
+            { v:'todas', t:'Todas', i:'grid' }
+          ], f.status)}
           <button class="btn sm ghost" data-act="csv">${ico('down',13)}CSV</button></div></div>
         ${lista.length ? `<div class="t-scroll"><table><thead><tr>
           <th>Ação</th><th>Tipo</th><th>Origem</th><th>Canal</th><th>Responsável</th><th>Prazo</th><th>Status</th><th></th>
@@ -1823,18 +1840,22 @@ R.checkDiario = {
         </div></div>
 
       <div class="filtros">
-        <div class="seg">${[['hoje','Hoje'],['semana','Semana'],['mes','Mês']].map(([v,l]) =>
-          `<button data-act="periodo" data-v="${v}" class="${f.periodo===v?'on':''}">${l}</button>`).join('')}</div>
-        <div class="seg">${[['minha','Minha'],['todos','Time']].map(([v,l]) =>
-          `<button data-act="quem" data-v="${v}" class="${f.quem===v?'on':''}"${
-            v==='minha' && !eu ? ' disabled' : ''}>${l}</button>`).join('')}</div>
-        <div class="seg">${[['tudo','Tudo'],['rotina','Rotina'],['pontual','Pontual']].map(([v,l]) =>
-          `<button data-act="natureza" data-v="${v}" class="${f.natureza===v?'on':''}">${l}</button>`).join('')}</div>
-        ${cache.temTags && tagsUsadas.length ? `<div class="tagfiltro">
-          <button data-act="tag" data-v="" class="${!f.tag?'on':''}">todas</button>
-          ${tagsUsadas.map(t => `<button data-act="tag" data-v="${esc(t)}" class="${f.tag===t?'on':''}"
-            style="${f.tag===t?`background:${corTag(t)};border-color:${corTag(t)};color:#fff`:`color:${corTag(t)}`}">${esc(t)}</button>`).join('')}
-        </div>` : ''}
+        ${dd('Período', 'periodo', [
+          { v:'hoje', t:'Hoje', i:'clock' },
+          { v:'semana', t:'Esta semana', i:'cal' },
+          { v:'mes', t:'Este mês', i:'chart' }
+        ], f.periodo)}
+        ${dd('De quem', 'quem', [
+          { v:'minha', t:'Minhas', i:'user' },
+          { v:'todos', t:'Do time', i:'users' }
+        ], f.quem)}
+        ${dd('Natureza', 'natureza', [
+          { v:'tudo', t:'Rotina e pontual', i:'grid' },
+          { v:'rotina', t:'Só rotina', i:'refresh' },
+          { v:'pontual', t:'Só pontual', i:'zap' }
+        ], f.natureza)}
+        ${cache.temTags && tagsUsadas.length ? dd('Tag', 'tag',
+          [{ v:'', t:'Todas as tags' }, ...tagsUsadas.map(t => ({ v:t, t }))], f.tag) : ''}
       </div>
 
       <div class="progresso">
@@ -2154,11 +2175,15 @@ R.rotinaSemanal = {
     return `<div class="head"><div><h2>Rotina semanal</h2>
         <div class="sub">Sua semana inteira em uma tela. Cada coluna é um dia, em ordem de horário.</div></div>
         <div class="push">
-          <div class="seg">${[['kanban','Kanban'],['lista','Lista'],['calendario','Calendário']].map(([v,l]) =>
-            `<button data-act="vista" data-v="${v}" class="${f.vista===v?'on':''}">${l}</button>`).join('')}</div>
-          <div class="seg">${[['minha','Minha rotina'],['todos','Todo o time']].map(([v,l]) =>
-            `<button data-act="quem" data-v="${v}" class="${f.quem===v?'on':''}"${
-              v==='minha' && !eu ? ' disabled title="Crie seu perfil primeiro"' : ''}>${l}</button>`).join('')}</div>
+          ${dd('Visão', 'vista', [
+            { v:'kanban', t:'Kanban', i:'grid', d:'A semana em sete colunas' },
+            { v:'lista', t:'Lista', i:'check', d:'Tabela para revisar e editar' },
+            { v:'calendario', t:'Calendário', i:'cal', d:'O mês inteiro, com as mensais' }
+          ], f.vista)}
+          ${dd('De quem', 'quem', [
+            { v:'minha', t:'Minha rotina', i:'user' },
+            { v:'todos', t:'Todo o time', i:'users' }
+          ], f.quem)}
           <button class="btn" data-act="nova">${ico('plus',15)}Nova rotina</button></div></div>
 
       ${!cache.temHora ? `<div class="card"><div class="cb"><div class="err" style="display:block">
@@ -2837,13 +2862,21 @@ R.config = {
   async dados() { return {}; },
   pos() { if (abaCfg === 'acesso') listaConvites(); },
   render() {
-    const abas = [['perfil','Perfil'],['time','Time e canais'],['painel','Painel'],
-                  ['acesso','Acesso e login'],['identidade','Identidade visual'],
-                  ['aparencia','Aparência'],['dados','Dados'],['conexao','Conexão'],['atalhos','Atalhos']];
+    const abas = [
+      ['perfil',     'Perfil',            'user',  'Sua foto, nome e cargo'],
+      ['time',       'Time e canais',     'users', 'Pessoas, cargos, setores e canais'],
+      ['painel',     'Painel',            'chart', 'Quais números aparecem na Rotina semanal'],
+      ['acesso',     'Acesso e login',    'key',   'Convites e senha'],
+      ['identidade', 'Identidade visual', 'star',  'Logo, cores e grafismo'],
+      ['aparencia',  'Aparência',         'moon',  'Tema e densidade deste navegador'],
+      ['dados',      'Dados',             'down',  'Exportar e limpar'],
+      ['conexao',    'Conexão',           'db',    'Projeto Supabase'],
+      ['atalhos',    'Atalhos',           'zap',   'Teclas do sistema']
+    ];
     return `<div class="head"><div><h2>Configurações</h2>
       <div class="sub">Preferências ficam neste navegador. Time e canais ficam no banco.</div></div></div>
-      <div class="tabs">${abas.map(([v,l]) =>
-        `<button data-act="aba" data-v="${v}" class="${abaCfg===v?'on':''}">${l}</button>`).join('')}</div>
+      <div style="margin-bottom:22px">${dd('Seção', 'aba',
+        abas.map(([v, l, i, d]) => ({ v, t:l, i, d })), abaCfg)}</div>
       <div id="cfg-corpo">${cfgCorpo()}</div>`;
   },
   acoes: {
@@ -3691,6 +3724,41 @@ async function palette() {
   desenha(); inp.focus();
 }
 
+/* ── seletor em menu ──────────────────────────────────────────────
+   `dd()` desenha o botão; o clique é interceptado na delegação da
+   view e abre a lista vertical. */
+function dd(rotulo, act, opcoes, atual) {
+  const sel = opcoes.find(o => String(o.v) === String(atual ?? '')) || opcoes[0];
+  return `<button class="dd" data-act="dd" data-alvo="${esc(act)}" data-atual="${esc(atual ?? '')}"
+    data-opts='${esc(JSON.stringify(opcoes))}'>
+    ${rotulo ? `<span class="rot">${esc(rotulo)}</span>` : ''}
+    <b>${esc(sel ? sel.t : '—')}</b><span class="cv">${ico('chevron', 13)}</span></button>`;
+}
+
+function abreSeletor(botao) {
+  let opcoes = [];
+  try { opcoes = JSON.parse(botao.dataset.opts); } catch { return; }
+  const atual = botao.dataset.atual, act = botao.dataset.alvo;
+  botao.classList.add('aberto');
+
+  const alvo = popover(botao, `<div class="pl">${opcoes.map(o => `
+    <div class="mi ${String(o.v) === String(atual) ? 'on' : ''}" data-v="${esc(o.v)}">
+      ${o.i ? ico(o.i, 16) : ''}
+      <div class="txt">${esc(o.t)}${o.d ? `<div class="sub2">${esc(o.d)}</div>` : ''}</div>
+      ${String(o.v) === String(atual) ? ico('check', 14) : ''}</div>`).join('')}</div>`, 'menu');
+
+  const fechar = () => botao.classList.remove('aberto');
+  new MutationObserver((_, obs) => {
+    if (!document.body.contains(alvo)) { fechar(); obs.disconnect(); }
+  }).observe(document.body, { childList: true });
+
+  alvo.onclick = e => {
+    const mi = e.target.closest('.mi'); if (!mi) return;
+    alvo.remove(); fechar();
+    R[rota].acoes?.[act]?.({ dataset: { v: mi.dataset.v, act } });
+  };
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    POPOVERS
    ═══════════════════════════════════════════════════════════════════ */
@@ -3884,6 +3952,7 @@ async function pinta() {
   view.onclick = e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     if (b.tagName === 'SELECT' || b.tagName === 'INPUT') return;  // esses reagem ao change
+    if (b.dataset.act === 'dd') return abreSeletor(b);
     r.acoes?.[b.dataset.act]?.(b);
   };
   view.onchange = e => {
