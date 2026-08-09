@@ -860,7 +860,7 @@ const NAV = [
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
-    itens:['rotinasTime', 'horarios', 'pdi'] },
+    itens:['rotinasTime', 'horarios', 'pdi', 'feedbacks'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 const AREAS = { comercial:'Comercial', marketing:'Marketing' };
@@ -1845,13 +1845,163 @@ function fechaCiclo(id, nome, status) {
     }, { perigo: !aprovado });
 }
 
+/* ── Feedback ─────────────────────────────────────────────────────
+   Histórico completo. A tela de PDI mostra o último; aqui está tudo,
+   porque padrão só aparece quando você olha a sequência. */
+const TIPOS_FB = {
+  um_a_um:        { t:'1 a 1',              cor:'info', ic:'users' },
+  corretivo:      { t:'Corretivo',          cor:'warn', ic:'alert' },
+  reconhecimento: { t:'Reconhecimento',     cor:'ok',   ic:'star'  },
+  avaliacao_ciclo:{ t:'Avaliação de ciclo', cor:'ac',   ic:'check' }
+};
+
+R.feedbacks = {
+  label: 'Feedback', curto: 'Feedback', icone: 'inbox', titulo: 'Feedback',
+  filtro: { pessoa: '', tipo: '' },
+  async dados() {
+    return { fbs: await q('feedbacks', x => x.order('data', { ascending: false }).limit(400)) };
+  },
+  render({ fbs }) {
+    const f = R.feedbacks.filtro;
+    const lista = fbs.filter(x =>
+      (!f.pessoa || x.usuario_id === f.pessoa) && (!f.tipo || x.tipo === f.tipo));
+
+    const pessoas = cache.usuarios.filter(u => u.ativo);
+    const ultimo = {};
+    fbs.forEach(x => { if (!ultimo[x.usuario_id]) ultimo[x.usuario_id] = x; });
+    const diasDe = u => ultimo[u.id]
+      ? Math.floor((new Date() - new Date(ultimo[u.id].data + 'T12:00:00')) / 864e5) : null;
+
+    // Quem está esperando há mais tempo aparece primeiro — é a fila real
+    const fila = [...pessoas].sort((a, b) => {
+      const da = diasDe(a), db = diasDe(b);
+      if (da == null) return -1; if (db == null) return 1;
+      return db - da;
+    });
+    const atrasados = pessoas.filter(u => { const d = diasDe(u); return d == null || d > 30; });
+    const esteMes = fbs.filter(x => x.data >= hoje().slice(0, 8) + '01').length;
+
+    // Agrupa por mês para a linha do tempo
+    const meses = {};
+    lista.forEach(x => { (meses[x.data.slice(0, 7)] ||= []).push(x); });
+    const rotuloMes = m => {
+      const d = new Date(m + '-15T12:00:00');
+      const s = d.toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+      return s[0].toUpperCase() + s.slice(1);
+    };
+
+    return `<div class="head"><div><h2>Feedback</h2>
+        <div class="sub">Todo o histórico. Padrão de comportamento só aparece na sequência, não num registro solto.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="csv">${ico('down',15)}CSV</button>
+          <button class="btn" data-act="novo">${ico('plus',15)}Registrar feedback</button></div></div>
+
+      ${pessoas.length ? `
+      <div class="tiles stg">
+        <div class="tile ${atrasados.length ? 'bad' : 'ok'}"><div class="ic">${ico('alert',18)}</div>
+          <div class="n">${atrasados.length}</div><div class="l">Esperando há mais de 30 dias</div>
+          <div class="h">${atrasados.slice(0,3).map(u => u.nome.split(' ')[0]).join(', ') || 'ninguém'}</div></div>
+        <div class="tile"><div class="ic">${ico('inbox',18)}</div><div class="n">${esteMes}</div>
+          <div class="l">Registrados neste mês</div></div>
+        <div class="tile"><div class="ic">${ico('star',18)}</div>
+          <div class="n">${fbs.filter(x => x.tipo === 'reconhecimento').length}</div>
+          <div class="l">Reconhecimentos</div></div>
+        <div class="tile"><div class="ic">${ico('alert',18)}</div>
+          <div class="n">${fbs.filter(x => x.tipo === 'corretivo').length}</div>
+          <div class="l">Corretivos</div></div>
+      </div>
+
+      <div class="card"><div class="ch"><h3>Fila — quem está esperando</h3>
+        <span class="push sm2">clique para registrar</span></div>
+        <div class="t-scroll"><table><thead><tr>
+          <th>Pessoa</th><th>Último feedback</th><th>Tipo</th><th>Silêncio</th><th></th>
+        </tr></thead><tbody>${fila.map(u => {
+          const d = diasDe(u), lastf = ultimo[u.id];
+          const cor = d == null ? 'bad' : d > 30 ? 'bad' : d > 15 ? 'warn' : 'ok';
+          return `<tr>
+            <td><div style="display:flex;align-items:center;gap:10px">${avatar(u, 28)}
+              <div><b>${esc(u.nome)}</b><div class="sm2">${esc(u.cargo || '—')}</div></div></div></td>
+            <td class="mut">${lastf ? dtl(lastf.data) : 'nunca'}</td>
+            <td>${lastf ? `<span class="pill ${TIPOS_FB[lastf.tipo]?.cor || 'dim'}">${TIPOS_FB[lastf.tipo]?.t || lastf.tipo}</span>` : '—'}</td>
+            <td><span class="pill ${cor}">${d == null ? 'nunca' : d + ' dias'}</span></td>
+            <td class="act"><button class="btn sm" data-act="novo" data-u="${u.id}">Registrar</button></td>
+          </tr>`;
+        }).join('')}</tbody></table></div></div>` : ''}
+
+      <div class="card"><div class="ch"><h3>Histórico</h3>
+        <div class="push">
+          <select data-act="fpessoa" style="width:auto;min-width:160px">
+            <option value="">Todas as pessoas</option>
+            ${pessoas.map(u => `<option value="${u.id}"${f.pessoa===u.id?' selected':''}>${esc(u.nome)}</option>`).join('')}
+          </select>
+          <select data-act="ftipo" style="width:auto;min-width:150px">
+            <option value="">Todos os tipos</option>
+            ${Object.entries(TIPOS_FB).map(([k,v]) => `<option value="${k}"${f.tipo===k?' selected':''}>${v.t}</option>`).join('')}
+          </select>
+          <span class="sm2">${lista.length} registro(s)</span></div></div>
+        ${lista.length ? Object.keys(meses).sort().reverse().map(m => `
+          <div style="padding:14px 18px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+                      color:var(--dim);font-weight:700;background:var(--surface2)">${rotuloMes(m)}</div>
+          ${meses[m].map(x => {
+            const u = cache.usuarios.find(y => y.id === x.usuario_id);
+            const tp = TIPOS_FB[x.tipo] || { t:x.tipo, cor:'dim', ic:'inbox' };
+            return `<div class="row" style="align-items:flex-start">
+              ${avatar(u, 32, '?')}
+              <div class="g"><div class="t">${esc(u?.nome || 'Pessoa removida')}
+                  <span class="pill ${tp.cor}" style="margin-left:6px">${tp.t}</span></div>
+                <div class="m">${dtl(x.data)}${x.autor_id ? ' · por ' + esc(nomeUser(x.autor_id)) : ''}</div>
+                ${x.notas ? `<div style="margin-top:7px;font-size:13px;color:var(--txt2);
+                    white-space:pre-wrap;line-height:1.55">${esc(x.notas)}</div>`
+                  : '<div class="sm2" style="margin-top:6px;font-style:italic">Sem notas — registro sem conteúdo não ajuda ninguém depois.</div>'}</div>
+              <button class="btn sm ghost" data-act="editar" data-id="${x.id}">${ico('edit',13)}</button>
+              <button class="btn sm ghost" data-act="excluir" data-id="${x.id}">${ico('trash',13)}</button>
+            </div>`;
+          }).join('')}`).join('')
+        : vazio('inbox', 'Nenhum feedback com esse filtro',
+            'Feedback que não é registrado vira memória, e memória some. Comece por quem está há mais tempo sem conversa.',
+            { act:'novo', label:'Registrar feedback' })}</div>`;
+  },
+  acoes: {
+    novo(b) { formFeedback(null, b?.dataset.u); },
+    async editar(b) { const [r] = await q('feedbacks', x => x.eq('id', b.dataset.id)); if (r) formFeedback(r); },
+    excluir(b) {
+      confirma('Excluir feedback', 'O registro sai do histórico. Não dá para desfazer.',
+        () => apaga('feedbacks', b.dataset.id));
+    },
+    fpessoa(b) { R.feedbacks.filtro.pessoa = b.value; pinta(); },
+    ftipo(b)   { R.feedbacks.filtro.tipo   = b.value; pinta(); },
+    async csv() {
+      const fbs = await q('feedbacks', x => x.order('data', { ascending: false }));
+      csv('feedbacks', fbs.map(x => ({
+        data: x.data, pessoa: nomeUser(x.usuario_id), tipo: TIPOS_FB[x.tipo]?.t || x.tipo,
+        autor: x.autor_id ? nomeUser(x.autor_id) : '', notas: (x.notas || '').replace(/\n/g, ' ')
+      })));
+    }
+  }
+};
+
+function formFeedback(row, usuarioId) {
+  form(row ? 'Editar feedback' : 'Registrar feedback', [
+    { k:'usuario_id', label:'Pessoa', type:'select', req:true, value:row?.usuario_id || usuarioId,
+      opts:cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome })) },
+    { k:'data', label:'Data', type:'date', value:row?.data || hoje() },
+    { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'um_a_um',
+      opts:Object.entries(TIPOS_FB).map(([v, o]) => ({ v, t:o.t })) },
+    { k:'notas', label:'Notas', type:'textarea', value:row?.notas,
+      ph:'O que foi dito, o que a pessoa respondeu e o que ficou combinado.',
+      hint:'Escreva o combinado. É o que você vai querer reler no próximo ciclo.' }
+  ], d => { if (!row) d.autor_id = eu?.id || null; return grava('feedbacks', d, row?.id); });
+}
+
 /* ───────────────────────── CONFIGURAÇÕES ───────────────────────── */
 R.config = {
   label: 'Configurações', icone: 'cog', titulo: 'Configurações',
   async dados() { return {}; },
+  pos() { if (abaCfg === 'acesso') listaConvites(); },
   render() {
-    const abas = [['perfil','Perfil'],['time','Time e canais'],['identidade','Identidade visual'],
-                  ['aparencia','Aparência'],['dados','Dados'],['conexao','Conexão'],['atalhos','Atalhos']];
+    const abas = [['perfil','Perfil'],['time','Time e canais'],['acesso','Acesso e login'],
+                  ['identidade','Identidade visual'],['aparencia','Aparência'],
+                  ['dados','Dados'],['conexao','Conexão'],['atalhos','Atalhos']];
     return `<div class="head"><div><h2>Configurações</h2>
       <div class="sub">Preferências ficam neste navegador. Time e canais ficam no banco.</div></div></div>
       <div class="tabs">${abas.map(([v,l]) =>
@@ -1904,6 +2054,37 @@ R.config = {
     obon() { pref.ob = true; savePref(); toast('Checklist reativado.'); pinta(); },
     'novo-user': () => formUser(),
     'novo-canal': () => formCanal(),
+
+    /* ── acesso e login ──────────────────────────────────────────── */
+    'novo-convite': () => formConvite(),
+    'convidar-pessoa'(b) { formConvite(cache.usuarios.find(u => u.id === b.dataset.id)); },
+    async 'copia-convite'(b) {
+      const texto = `Você foi convidado para o sistema de gestão da MasterInfo.
+
+1. Abra: ${location.origin + location.pathname}
+2. Clique em "Primeiro acesso? Criar conta"
+3. Use exatamente este e-mail: ${b.dataset.e}
+4. Crie sua senha e pronto.`;
+      try { await navigator.clipboard.writeText(texto); toast('Mensagem copiada. Cole no WhatsApp.'); }
+      catch { modal({ titulo:'Copie a mensagem', ok:'Fechar', onOk:() => true,
+        corpo:`<textarea style="min-height:170px">${esc(texto)}</textarea>` }); }
+    },
+    'revoga-convite'(b) {
+      confirma('Revogar convite',
+        `O convite de <b>${esc(b.dataset.e)}</b> deixa de valer. Se a pessoa ainda não se cadastrou, não vai conseguir.`,
+        async () => { const ok = await apaga('convites', b.dataset.id); if (ok) listaConvites(); return ok; });
+    },
+    'trocar-senha': () => form('Trocar minha senha', [
+      { k:'senha', label:'Nova senha', type:'password', req:true, hint:'Mínimo de 6 caracteres.' },
+      { k:'senha2', label:'Repita a nova senha', type:'password', req:true }
+    ], async d => {
+      if (d.senha.length < 6) { toast('A senha precisa ter ao menos 6 caracteres.', { tipo:'bad' }); return false; }
+      if (d.senha !== d.senha2) { toast('As duas senhas não são iguais.', { tipo:'bad' }); return false; }
+      const { error } = await sb.auth.updateUser({ password: d.senha });
+      if (error) { toast(error.message, { tipo:'bad' }); return false; }
+      toast('Senha alterada.');
+      return true;
+    }, 'Trocar'),
 
     /* ── cargos ──────────────────────────────────────────────────── */
     'novo-cargo': () => formCargo(),
@@ -2156,6 +2337,47 @@ function cfgCorpo() {
       : vazio('target', 'Nenhum canal', 'Cadastre os canais que você opera de verdade.', { act:'novo-canal', label:'Adicionar canal' })}</div>`;
   }
 
+  if (abaCfg === 'acesso') {
+    const semLogin = cache.usuarios.filter(u => u.ativo && !u.auth_user_id);
+    return `<div class="card"><div class="ch"><h3>Convites</h3>
+        <span class="pill dim" id="ct-conv">—</span>
+        <div class="push"><button class="btn sm" data-act="novo-convite">${ico('plus',13)}Convidar</button></div></div>
+        <div id="lista-convites"><div class="cb"><div class="skel"></div></div></div>
+      </div>
+
+      <div class="card"><div class="ch"><h3>Como funciona</h3></div><div class="cb">
+        <div class="sw"><div><div class="lb">1. Você cria o convite</div>
+          <div class="ds">Informa o e-mail da pessoa, o nome e o cargo. Nada é enviado automaticamente —
+            o sistema não manda e-mail.</div></div></div>
+        <div class="sw"><div><div class="lb">2. Você manda o link</div>
+          <div class="ds">Use o botão <b>Copiar mensagem</b> e cole no WhatsApp. Vai o endereço do sistema
+            junto com a instrução.</div></div></div>
+        <div class="sw"><div><div class="lb">3. A pessoa se cadastra sozinha</div>
+          <div class="ds">Ela clica em "Primeiro acesso", cria a senha com <b>aquele mesmo e-mail</b>,
+            e o convite é consumido na hora — já entra com o cargo certo.</div></div></div>
+        <div class="sw" style="border:0"><div><div class="lb">Por que não criamos a conta por você</div>
+          <div class="ds">Criar login pela API exige a chave de administrador do Supabase, que ignora todas as
+            regras de segurança. Ela não pode ficar num site público. Quem se cadastrar sem convite fica
+            autenticado e <b>não enxerga absolutamente nada</b>.</div></div></div>
+      </div></div>
+
+      <div class="card"><div class="ch"><h3>Pessoas sem login</h3>
+        <span class="pill ${semLogin.length ? 'warn' : 'ok'}">${semLogin.length}</span></div>
+        ${semLogin.length ? `<div class="t-scroll"><table><thead><tr>
+          <th>Pessoa</th><th>Cargo</th><th></th></tr></thead><tbody>${semLogin.map(u => `<tr>
+          <td><div style="display:flex;align-items:center;gap:10px">${avatar(u, 28)}<b>${esc(u.nome)}</b></div></td>
+          <td class="mut">${esc(u.cargo || '—')}</td>
+          <td class="act"><button class="btn sm ghost" data-act="convidar-pessoa" data-id="${u.id}" data-n="${esc(u.nome)}">Convidar</button></td>
+        </tr>`).join('')}</tbody></table></div>`
+        : `<div class="cb sm2">Todo mundo do time já tem login.</div>`}</div>
+
+      <div class="card"><div class="ch"><h3>Minha senha</h3></div><div class="cb">
+        <div class="sw" style="border:0"><div><div class="lb">Trocar a senha</div>
+          <div class="ds">Vale só para o seu login: ${esc(sessao?.user?.email || '')}</div></div>
+          <div class="ct"><button class="btn ghost" data-act="trocar-senha">${ico('key',15)}Trocar senha</button></div></div>
+      </div></div>`;
+  }
+
   if (abaCfg === 'identidade') {
     const gs = [
       ['aurora','Aurora','Manchas de luz que passeiam devagar'],
@@ -2289,6 +2511,72 @@ function formUser(row) {
     { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value:row ? row.ativo : true }
   ], async d => { const ok = await grava('usuarios', d, row?.id); if (ok) await recarregaBase(); return ok; });
 }
+/* ── convites ─────────────────────────────────────────────────────
+   A tabela pode não existir ainda (correção 04). Nesse caso a tela
+   explica em vez de despejar erro. */
+async function listaConvites() {
+  const alvo = $('#lista-convites'); if (!alvo) return;
+  const { data, error } = await sb.from('convites').select('*').order('created_at', { ascending: false });
+  if (error) {
+    alvo.innerHTML = `<div class="cb"><div class="err" style="display:block">
+      O convite ainda não existe no banco. Rode o arquivo
+      <b>CORRECAO-04.sql</b> no SQL Editor do Supabase para ligar esta parte.</div></div>`;
+    return;
+  }
+  const abertos = data.filter(c => !c.usado_em && (!c.expira_em || c.expira_em >= hoje()));
+  const ct = $('#ct-conv'); if (ct) ct.textContent = `${abertos.length} aberto(s)`;
+
+  if (!data.length) {
+    alvo.innerHTML = vazio('inbox', 'Nenhum convite',
+      'Crie um convite com o e-mail da pessoa. Ela se cadastra sozinha e já entra com o cargo certo.',
+      { act:'novo-convite', label:'Convidar alguém' });
+    return;
+  }
+  alvo.innerHTML = `<div class="t-scroll"><table><thead><tr>
+    <th>E-mail</th><th>Nome</th><th>Cargo</th><th>Validade</th><th>Situação</th><th></th>
+  </tr></thead><tbody>${data.map(c => {
+    const vencido = !c.usado_em && c.expira_em && c.expira_em < hoje();
+    return `<tr>
+      <td><b>${esc(c.email)}</b></td>
+      <td class="mut">${esc(c.nome || '—')}</td>
+      <td class="mut">${esc(nomeCargo(c.cargo_id))}</td>
+      <td class="mut">${dtl(c.expira_em)}</td>
+      <td>${c.usado_em ? `<span class="pill ok">usado em ${dt(c.usado_em.slice(0,10))}</span>`
+            : vencido ? '<span class="pill bad">vencido</span>'
+            : '<span class="pill warn">aguardando</span>'}</td>
+      <td class="act">
+        ${c.usado_em ? '' : `
+          <button class="btn sm ghost" data-act="copia-convite" data-e="${esc(c.email)}">${ico('copy',13)} Copiar mensagem</button>
+          <button class="btn sm ghost" data-act="revoga-convite" data-id="${c.id}" data-e="${esc(c.email)}">${ico('trash',13)}</button>`}
+      </td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+
+function formConvite(pessoa) {
+  form(pessoa ? `Convidar ${pessoa.nome}` : 'Novo convite', [
+    { k:'email', label:'E-mail da pessoa', req:true, type:'email',
+      hint:'Precisa ser o mesmo e-mail que ela vai usar para criar a conta.' },
+    { k:'nome', label:'Nome', value:pessoa?.nome,
+      hint:pessoa ? '' : 'Usado para criar a pessoa no time quando o convite for aceito.' },
+    { k:'cargo_id', label:'Cargo', type:'select', value:pessoa?.cargo_id, opts:optCargos() },
+    { k:'expira_em', label:'Válido até', type:'date',
+      value: new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10) }
+  ], async d => {
+    d.email = String(d.email).trim().toLowerCase();
+    d.criado_por = eu?.id || null;
+    if (pessoa) d.usuario_id = pessoa.id;   // liga o login a quem já existe
+    const { error } = await sb.from('convites').insert(d);
+    if (error) {
+      toast(/duplicate|unique/i.test(error.message)
+        ? 'Já existe um convite aberto para este e-mail.' : error.message, { tipo:'bad' });
+      return false;
+    }
+    toast('Convite criado. Agora mande o link para a pessoa.');
+    listaConvites();
+    return true;
+  }, 'Criar convite');
+}
+
 function formCargo(row, dup) {
   form(dup ? 'Duplicar cargo' : row ? 'Editar cargo' : 'Novo cargo', [
     { k:'nome', label:'Nome do cargo', req:true, value:row?.nome, ph:'Ex.: Consultor de Vendas' },
@@ -2583,9 +2871,15 @@ async function pinta() {
 
   const html = r.render(dados);
   view.innerHTML = `<div class="view">${html}</div>`;
+  r.pos?.(dados);   // carregamentos que acontecem depois da tela aparecer
   view.onclick = e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.tagName === 'SELECT' || b.tagName === 'INPUT') return;  // esses reagem ao change
     r.acoes?.[b.dataset.act]?.(b);
+  };
+  view.onchange = e => {
+    const el = e.target.closest('[data-act]'); if (!el) return;
+    if (el.tagName === 'SELECT' || el.tagName === 'INPUT') r.acoes?.[el.dataset.act]?.(el);
   };
 }
 
@@ -2669,6 +2963,9 @@ function telaLogin() {
       <div><label>Senha</label><input id="s" type="password" autocomplete="current-password"></div>
       <div class="err" hidden></div>
       <button class="btn" id="go" style="justify-content:center">${ico('arrowR',15)}Entrar</button>
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <button id="esq" style="color:var(--dim)">Esqueci a senha</button>
+        <button id="cad" style="color:var(--ac);font-weight:600">Primeiro acesso? Criar conta</button></div>
       ${cfgFixa() ? '' : '<button class="btn ghost" id="tr" style="justify-content:center">Trocar de projeto</button>'}
     </div></div></div>`;
   const entrar = async () => {
@@ -2682,7 +2979,76 @@ function telaLogin() {
   };
   $('#go').onclick = entrar;
   $('#s').onkeydown = e => { if (e.key === 'Enter') entrar(); };
+  $('#cad').onclick = telaCadastro;
+  $('#esq').onclick = async () => {
+    const email = $('#e').value.trim(), err = $('.err');
+    if (!email) { err.textContent = 'Escreva seu e-mail acima primeiro.'; err.hidden = false; return; }
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href });
+    if (error) { err.textContent = error.message; err.hidden = false; return; }
+    err.hidden = true;
+    toast('Se esse e-mail tiver conta, o link de redefinição chegou nele.', { tipo:'info' });
+  };
   if ($('#tr')) $('#tr').onclick = () => { LS.del(CFG_KEY); location.reload(); };
+}
+
+/* Autocadastro. A conta nasce sem nenhum acesso — quem libera é o
+   convite, conferido logo depois pela função aceitar_convite(). */
+function telaCadastro() {
+  $('#root').innerHTML = `<div class="gate">${aurora()}<div class="card">
+    <img class="mark" src="${logoSrc()}" alt="MasterInfo">
+    <div class="steps"><i class="on"></i><i class="on"></i></div>
+    <h1>Criar minha conta</h1>
+    <p class="lede">Use o <b>mesmo e-mail</b> em que você recebeu o convite.
+      Com outro e-mail a conta é criada, mas não abre nada.</p>
+    <div class="fields">
+      <div><label>E-mail do convite</label><input id="e" type="email" autocomplete="username"></div>
+      <div><label>Crie uma senha</label><input id="s" type="password" autocomplete="new-password">
+        <div class="hint">Mínimo de 6 caracteres.</div></div>
+      <div><label>Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div>
+      <div class="err" hidden></div>
+      <button class="btn" id="go" style="justify-content:center">${ico('user',15)}Criar conta</button>
+      <button class="btn ghost" id="volta" style="justify-content:center">Já tenho conta</button>
+    </div></div></div>`;
+
+  const criar = async () => {
+    const err = $('.err'), b2 = $('#go');
+    const email = $('#e').value.trim(), senha = $('#s').value, senha2 = $('#s2').value;
+    err.hidden = true;
+    if (senha.length < 6) { err.textContent = 'A senha precisa ter ao menos 6 caracteres.'; err.hidden = false; return; }
+    if (senha !== senha2) { err.textContent = 'As duas senhas não são iguais.'; err.hidden = false; return; }
+    b2.disabled = true; b2.textContent = 'Criando…';
+    const { data, error } = await sb.auth.signUp({ email, password: senha });
+    b2.disabled = false; b2.innerHTML = ico('user',15) + 'Criar conta';
+    if (error) {
+      err.textContent = /disabled|not allowed/i.test(error.message)
+        ? 'O autocadastro está desligado no Supabase. Peça para ligar em Authentication → Sign In / Providers.'
+        : error.message;
+      err.hidden = false; return;
+    }
+    if (!data.session) {
+      err.textContent = 'Conta criada. Confirme o e-mail que acabou de chegar e depois entre.';
+      err.hidden = false; return;
+    }
+    iniciar();
+  };
+  $('#go').onclick = criar;
+  $('#s2').onkeydown = e => { if (e.key === 'Enter') criar(); };
+  $('#volta').onclick = telaLogin;
+}
+
+/* Autenticado, porém sem convite: fica autenticado e não vê nada. */
+function telaSemAcesso() {
+  $('#root').innerHTML = `<div class="gate">${aurora()}<div class="card">
+    <img class="mark" src="${logoSrc()}" alt="MasterInfo">
+    <h1>Conta criada, acesso pendente</h1>
+    <p class="lede">Seu login funciona, mas o e-mail <b>${esc(sessao?.user?.email || '')}</b>
+      não tem convite ativo — por isso nada aparece aqui.</p>
+    <div class="fields">
+      <div class="err" style="display:block">Peça a quem administra o sistema para criar um convite
+        para este e-mail, em Configurações → Acesso e login. Depois é só entrar de novo.</div>
+      <button class="btn ghost" id="sair" style="justify-content:center">${ico('out',15)}Sair</button>
+    </div></div></div>`;
+  $('#sair').onclick = () => sb.auth.signOut().then(() => location.reload());
 }
 
 /* Projeto fixo vindo do config.js — vale para qualquer navegador e máquina.
@@ -2705,6 +3071,14 @@ async function iniciar() {
   if (error) { LS.del(CFG_KEY); return telaConexao(); }
   sessao = data.session;
   if (!sessao) return telaLogin();
+
+  // Recém-cadastrado: tenta consumir o convite antes de qualquer leitura.
+  // Se a função ainda não existir no banco, segue o fluxo antigo.
+  try {
+    await sb.rpc('aceitar_convite');
+    const { data: liberado, error: e2 } = await sb.rpc('tem_acesso');
+    if (!e2 && liberado === false) return telaSemAcesso();
+  } catch {}
 
   await recarregaBase();
   eu = cache.usuarios.find(u => u.auth_user_id === sessao.user.id) || null;
