@@ -1,21 +1,22 @@
 /* ═══════════════════════════════════════════════════════════════════
-   CONFIGURAÇÃO DO PROJETO — preencha as duas linhas abaixo UMA VEZ.
+   CONFIGURAÇÃO DO PROJETO SUPABASE
 
-   Onde achar: Supabase → seu projeto → Project Settings → API
-     url = "Project URL"        (https://xxxxx.supabase.co)
-     key = "anon public"        (texto gigante começando com eyJ)
+   Já preenchido. O sistema não pergunta mais o projeto — vale em
+   qualquer navegador e em qualquer máquina.
 
-   Depois de preencher, o sistema nunca mais pergunta o projeto,
-   em nenhum navegador e em nenhuma máquina.
+   Onde achar, caso precise trocar:
+   Supabase → Project Settings → API Keys
+     url = "Project URL"
+     key = "Publishable key" (sb_publishable_…) ou "anon public"
 
-   A chave anon é pública por natureza — todo app Supabase publica a
-   dele. Quem protege os dados é o RLS, que exige login. Por isso o
-   cadastro público PRECISA ficar desligado no Supabase:
+   A chave publishable é pública por natureza — todo app Supabase
+   publica a dele. Quem protege os dados é o RLS, que exige login.
+   Por isso o cadastro público PRECISA ficar desligado:
    Authentication → Sign In / Providers → desmarcar
    "Allow new users to sign up".
    ═══════════════════════════════════════════════════════════════════ */
 
 window.MI_CONFIG = {
-  url: "",
-  key: ""
+  url: "https://nnwstrcwfkdqkrubkhpn.supabase.co",
+  key: "sb_publishable_B4dQtCDHv6_pdDQXG6808A_y9QKE6_f"
 };
