@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<link rel="icon" href="logo.png">
+<link rel="icon" type="image/svg+xml" href="icone.svg">
 <title>Gestão · MasterInfo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -726,7 +726,7 @@ function aplicaVisual() {
   }
   document.title = `${visual.nome_sistema} · ${visual.subtitulo || 'Gestão'}`;
   const ic = document.querySelector('link[rel=icon]');
-  if (ic) ic.href = visual.favicon || visual.logo_clara || 'logo.png';
+  if (ic) ic.href = visual.favicon || 'icone.svg';
 }
 
 async function carregaVisual() {
@@ -751,7 +751,7 @@ function aplicaPref() {
 aplicaPref();
 
 let sb = null, sessao = null, eu = null, rota = 'inicio', area = null, abaCfg = 'perfil';
-const cache = { usuarios: [], canais: [], campanhas: [], cargos: [] };
+const cache = { usuarios: [], canais: [], campanhas: [], cargos: [], setores: [], metricas: [] };
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -847,13 +847,17 @@ function nomeLivre(base, usados) {
   return n;
 }
 async function recarregaBase() {
-  const [u, c, g] = await Promise.all([
+  const [u, c, g, se, me] = await Promise.all([
     q('usuarios', x => x.order('nome')),
     q('canais_venda', x => x.order('nome')),
-    qOpcional('cargos', x => x.order('nome'))
+    qOpcional('cargos', x => x.order('nome')),
+    qOpcional('setores', x => x.order('ordem').order('nome')),
+    qOpcional('metricas_painel', x => x.order('ordem'))
   ]);
   cache.usuarios = u; cache.canais = c;
   cache.cargos = g || []; cache.temCargos = g !== null;
+  cache.setores = se || []; cache.temSetores = se !== null;
+  cache.metricas = me || []; cache.temMetricas = me !== null;
   if (cache.temHora === undefined) {
     const [h, t] = await Promise.all([
       sb.from('acoes').select('hora').limit(1),
@@ -870,7 +874,11 @@ const campoCargo = row => cache.temCargos
   ? { k:'cargo_id', label:'Cargo', type:'select', value:row?.cargo_id, opts:optCargos(),
       hint:'A lista vem do cadastro de cargos, em Configurações → Time e canais.' }
   : { k:'cargo', label:'Cargo', value:row?.cargo, ph:'Ex.: Gestor de Marketing' };
-const nomeCargo = id => cache.cargos.find(c => c.id === id)?.nome || '—';
+const nomeCargo  = id => cache.cargos.find(c => c.id === id)?.nome || '—';
+const nomeSetor  = id => cache.setores.find(c => c.id === id)?.nome || '—';
+const optSetores = (v = '— sem setor —') => [{ v:'', t:v },
+  ...cache.setores.filter(c => c.ativo).map(c => ({ v:c.id, t:c.nome }))];
+const corSetor   = id => cache.setores.find(c => c.id === id)?.cor || corTag(nomeSetor(id));
 const optCargos = (v = '— sem cargo —') => [{ v:'', t:v },
   ...cache.cargos.filter(c => c.ativo).map(c => ({ v:c.id, t:c.nome }))];
 const nomeUser  = id => cache.usuarios.find(u => u.id === id)?.nome || '—';
@@ -1143,6 +1151,7 @@ function formPontual() {
     ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
       hint:'Opcional. Coloca a tarefa na ordem certa do dia.' }] : []),
     { k:'responsavel_id', label:'Responsável', type:'select', value:eu?.id, opts:optUsuarios() },
+    ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', opts:optSetores() }] : []),
     { k:'canal_id', label:'Canal', type:'select', opts:optCanais() },
     ...(cache.temTags ? [{ k:'_tags', label:'Tags', ph:'comercial, urgente' }] : []),
     { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila' }
@@ -1159,6 +1168,7 @@ function formAcao(row) {
     { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao },
     { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'rotina', opts:[
       { v:'rotina', t:'Rotina' }, { v:'campanha', t:'Campanha' }, { v:'pendencia_gestor', t:'Pendência do gestor' }] },
+    ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores() }] : []),
     { k:'canal_id', label:'Canal', type:'select', value:row?.canal_id, opts:optCanais() },
     { k:'responsavel_id', label:'Responsável', type:'select', value:row?.responsavel_id, opts:optUsuarios() },
     { k:'bloqueia_id', label:'Está travando quem?', type:'select', value:row?.bloqueia_id,
@@ -1282,6 +1292,8 @@ R.acoes = {
         { k:'descricao', label:'Descrição', type:'textarea' },
         { k:'tipo', label:'Tipo', type:'select', value:'rotina',
           opts:[{ v:'rotina', t:'Rotina' }, { v:'campanha', t:'Campanha' }] },
+        ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', opts:optSetores(),
+          hint:'Cadastrado em Configurações → Time e canais.' }] : []),
         { k:'canal_id', label:'Canal', type:'select', opts:optCanais() },
         { k:'responsavel_id', label:'Responsável', type:'select', opts:optUsuarios() },
         { k:'recorrencia', label:'Com que frequência', type:'select', value:'dias_uteis', opts:[
@@ -1875,6 +1887,98 @@ R.checkDiario = {
   }
 };
 
+/* ── painel de métricas ───────────────────────────────────────────
+   Cada cartão é uma linha de metricas_painel. Em vez de campo de
+   fórmula livre — que parece flexível e falha calado — a métrica é
+   montada por partes: o que medir, em que período, filtrando o quê.
+   O alcance é o mesmo e o sistema consegue validar. */
+const TIPOS_METRICA = {
+  percentual: { t:'% concluído',        d:'Quanto do previsto foi fechado' },
+  abertas:    { t:'Em aberto',          d:'Quantas ainda faltam' },
+  previstas:  { t:'Previstas',          d:'Quantas existem no período' },
+  concluidas: { t:'Concluídas',         d:'Quantas foram fechadas' },
+  atrasadas:  { t:'Atrasadas',          d:'Passaram do prazo e não fecharam' },
+  dia_pico:   { t:'Dia mais carregado', d:'Onde a semana concentra' },
+  sequencia:  { t:'Sequência',          d:'Dias seguidos fechando 100%' }
+};
+
+function calculaMetrica(m, ocorrencias) {
+  const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
+  const base = ocorrencias.filter(a =>
+    a.status !== 'cancelada' &&
+    (m.escopo !== 'minha' || !eu || a.responsavel_id === eu.id) &&
+    (m.natureza === 'tudo' || (m.natureza === 'rotina') === ehRotina(a)) &&
+    (!m.setor_id || a.setor_id === m.setor_id) &&
+    (!m.tag || (a.tags || []).includes(m.tag)));
+
+  const ini = m.periodo === 'hoje' ? hoje()
+            : m.periodo === 'semana' ? seg() : hoje().slice(0, 8) + '01';
+  const fim = m.periodo === 'hoje' ? hoje()
+            : m.periodo === 'semana'
+              ? new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)
+              : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
+  const dentro = base.filter(a => a.prazo >= ini && a.prazo <= fim);
+  const feitas = dentro.filter(a => a.status === 'concluida');
+
+  switch (m.tipo) {
+    case 'percentual':
+      return { valor: dentro.length ? Math.round(100 * feitas.length / dentro.length) : null,
+               sufixo: '%', rodape: `${feitas.length} de ${dentro.length}` };
+    case 'abertas':
+      return { valor: dentro.length - feitas.length, rodape: `de ${dentro.length} previstas` };
+    case 'previstas':  return { valor: dentro.length };
+    case 'concluidas': return { valor: feitas.length, rodape: `de ${dentro.length}` };
+    case 'atrasadas': {
+      const at = base.filter(a => a.status !== 'concluida' && a.prazo < hoje());
+      return { valor: at.length, invertido: true,
+               rodape: at.length ? 'a mais antiga: ' + dt(at.map(a => a.prazo).sort()[0]) : 'nada vencido' };
+    }
+    case 'dia_pico': {
+      const porDia = ORDEM_SEMANA.map(d => ({ d,
+        n: dentro.filter(a => new Date(a.prazo + 'T12:00:00').getDay() === d).length }));
+      const topo = porDia.reduce((a, b) => b.n > a.n ? b : a, porDia[0]);
+      return { texto: topo.n ? NOME_DIA[topo.d] : '—', rodape: `${topo.n} tarefa(s)` };
+    }
+    case 'sequencia': {
+      let n = 0;
+      for (let i = 0; i < 60; i++) {
+        const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+        const doDia = base.filter(a => a.prazo === d);
+        if (!doDia.length) continue;
+        if (doDia.every(a => a.status === 'concluida')) n++; else break;
+      }
+      return { valor: n, rodape: n === 1 ? 'dia' : 'dias' };
+    }
+  }
+  return { valor: null };
+}
+
+function painelMetricas(ocorrencias) {
+  const ativas = cache.metricas.filter(m => m.ativo);
+  if (!cache.temMetricas) return '';
+  if (!ativas.length) return `<div class="card"><div class="cb sm2">
+    Nenhuma métrica ativa. Escolha o que acompanhar em
+    <b>Configurações → Painel</b>.</div></div>`;
+
+  return `<div class="tiles stg">${ativas.map(m => {
+    const r = calculaMetrica(m, ocorrencias);
+    const v = r.texto ?? (r.valor == null ? '—' : r.valor + (r.sufixo || ''));
+    let cls = '';
+    if (m.meta != null && r.valor != null) {
+      const bate = r.invertido ? r.valor <= m.meta : r.valor >= m.meta;
+      cls = bate ? 'ok' : (r.invertido ? 'bad' : r.valor >= m.meta * 0.6 ? 'warn' : 'bad');
+    } else if (r.invertido && r.valor > 0) cls = 'warn';
+    return `<div class="tile ${cls}">
+      <div class="ic">${ico(m.icone || 'check', 18)}</div>
+      <div class="n" style="${r.texto ? 'font-size:22px' : ''}">${esc(v)}</div>
+      <div class="l">${esc(m.nome)}</div>
+      <div class="h">${esc(r.rodape || '')}${m.meta != null ? ` · meta ${m.meta}${r.sufixo || ''}` : ''}</div>
+      ${m.meta != null && r.valor != null && !r.invertido ? `<div class="bar" style="margin-top:9px">
+        <i class="${cls}" style="width:${Math.min(100, 100 * r.valor / m.meta)}%"></i></div>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
 /* ── calendário das rotinas ───────────────────────────────────────
    Mesma regra de recorrência que o banco usa para gerar o dia. Se as
    duas divergirem, o calendário vira ficção. */
@@ -1971,9 +2075,14 @@ R.rotinaSemanal = {
   label: 'Rotina semanal', curto: 'Rotina semanal', icone: 'cal', titulo: 'Rotina semanal',
   filtro: { quem: 'minha', vista: 'kanban', mes: null },
   async dados() {
-    return { modelos: await q('acoes', x => x.neq('recorrencia', 'nenhuma').eq('status', 'aberta')) };
+    const de = new Date(Date.now() - 59 * 864e5).toISOString().slice(0, 10);
+    const [modelos, ocorrencias] = await Promise.all([
+      q('acoes', x => x.neq('recorrencia', 'nenhuma').eq('status', 'aberta')),
+      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de))
+    ]);
+    return { modelos, ocorrencias };
   },
-  render({ modelos }) {
+  render({ modelos, ocorrencias }) {
     const f = R.rotinaSemanal.filtro;
     if (f.quem === 'minha' && !eu) f.quem = 'todos';
     const meus = f.quem === 'minha' && eu
@@ -2026,20 +2135,21 @@ R.rotinaSemanal = {
         Para ligar, rode <b>CORRECAO-05.sql</b> (é uma linha só).</div></div></div>` : ''}
 
       ${semanais.length || mensais.length ? `
+        ${cache.temMetricas ? painelMetricas(ocorrencias) : `
         <div class="tiles stg">
           <div class="tile"><div class="ic">${ico('refresh',18)}</div><div class="n">${semanais.length}</div>
-            <div class="l">Rotinas na semana</div>
-            <div class="h">${semanais.filter(m => m.hora).length} com horário definido</div></div>
+            <div class="l">Rotinas na semana</div></div>
           <div class="tile ok"><div class="ic">${ico('clock',18)}</div>
-            <div class="n">${doDia(hojeDia).length}</div><div class="l">Para hoje</div>
-            <div class="h">${NOME_DIA[hojeDia].toLowerCase()}</div></div>
+            <div class="n">${doDia(hojeDia).length}</div><div class="l">Para hoje</div></div>
           <div class="tile ${desequilibrio > 4 ? 'warn' : ''}"><div class="ic">${ico('chart',18)}</div>
             <div class="n" style="font-size:22px">${NOME_DIA[diaPico]}</div>
-            <div class="l">Dia mais carregado</div>
-            <div class="h">${maxCarga} rotina(s)${desequilibrio > 4 ? ' — semana desequilibrada' : ''}</div></div>
+            <div class="l">Dia mais carregado</div><div class="h">${maxCarga} rotina(s)</div></div>
           <div class="tile"><div class="ic">${ico('cal',18)}</div>
             <div class="n">${mensais.length}</div><div class="l">Mensais</div></div>
-        </div>
+        </div>`}
+        ${cache.temMetricas ? `<div class="sm2" style="margin:-8px 0 20px">
+          Estes números são configuráveis em
+          <b data-act="ir-painel" style="cursor:pointer;color:var(--ac)">Configurações › Painel</b>.</div>` : ''}
 
         ${f.vista === 'kanban' ? `
         <div class="semana">${ORDEM_SEMANA.map(d => {
@@ -2057,18 +2167,26 @@ R.rotinaSemanal = {
         <div class="card"><div class="ch"><h3>Todas as rotinas</h3>
           <span class="push sm2">${semanais.length + mensais.length} no total</span></div>
           <div class="t-scroll"><table><thead><tr>
-            <th>Rotina</th><th>Dias de execução</th><th>Hora</th><th>Responsável</th><th>Canal</th><th>Tags</th><th></th>
+            <th>Rotina</th><th>Setor</th><th>Dias de execução</th><th>Hora</th>
+            <th>Responsável</th><th>Canal</th><th>Tags</th><th></th>
           </tr></thead><tbody>${[...semanais, ...mensais]
             .sort((a, b) => emMin(a.hora) - emMin(b.hora) || (a.titulo > b.titulo ? 1 : -1))
             .map(m => `<tr>
               <td><b>${esc(m.titulo)}</b>${m.recorrencia === 'quinzenal'
                 ? ' <span class="pill info">quinzenal</span>' : ''}</td>
+              <td>${m.setor_id
+                ? `<span class="pill" style="color:${corSetor(m.setor_id)};background:${corSetor(m.setor_id)}22">${esc(nomeSetor(m.setor_id))}</span>`
+                : '<span class="mut">—</span>'}</td>
               <td>${reguaDias(m)}</td>
               <td class="mut">${m.hora ? '<b style="color:var(--txt)">' + hm(m.hora) + '</b>' : '—'}</td>
               <td class="mut">${esc(nomeUser(m.responsavel_id))}</td>
               <td class="mut">${m.canal_id ? esc(nomeCanal(m.canal_id)) : '—'}</td>
               <td>${chipsTags(m.tags) || '<span class="mut">—</span>'}</td>
-              <td class="act"><button class="btn sm ghost" data-act="editar" data-id="${m.id}">${ico('edit',13)}</button></td>
+              <td class="act">
+                <button class="btn sm ghost" data-act="editar" data-id="${m.id}" title="Editar">${ico('edit',13)}</button>
+                <button class="btn sm ghost" data-act="dup-rotina" data-id="${m.id}" title="Duplicar">${ico('copy',13)}</button>
+                <button class="btn sm ghost" data-act="del-rotina" data-id="${m.id}" data-t="${esc(m.titulo)}" title="Excluir">${ico('trash',13)}</button>
+              </td>
             </tr>`).join('')}</tbody></table></div></div>` : ''}
 
         ${f.vista === 'calendario' ? calendario(meus, f.mes) : ''}
@@ -2096,6 +2214,28 @@ R.rotinaSemanal = {
     mes(b)   { R.rotinaSemanal.filtro.mes = b.dataset.v; pinta(); },
     dia(b)   { detalheDoDia(b.dataset.d); },
     nova() { R.acoes.acoes.modelo(); },
+    'ir-painel'() { abaCfg = 'painel'; vai('config'); },
+    async 'dup-rotina'(b) {
+      const [r] = await q('acoes', x => x.eq('id', b.dataset.id));
+      if (!r) return;
+      const { id, created_at, updated_at, concluida_em, ...copia } = r;
+      copia.titulo = r.titulo + ' (cópia)';
+      form('Duplicar rotina', [
+        { k:'titulo', label:'Título', req:true, value:copia.titulo },
+        ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:copia.setor_id, opts:optSetores() }] : []),
+        { k:'responsavel_id', label:'Responsável', type:'select', value:copia.responsavel_id, opts:optUsuarios() },
+        ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time', value:copia.hora ? hm(copia.hora) : '' }] : [])
+      ], d => grava('acoes', { ...copia, ...d }), 'Duplicar');
+    },
+    'del-rotina'(b) {
+      confirma('Excluir rotina',
+        `<p>"${esc(b.dataset.t)}" sai da grade. As tarefas que ela já gerou nos dias anteriores
+         <b>também são apagadas</b>, junto com o histórico de cumprimento.</p>
+         <p class="sm2" style="margin-top:10px">Se quiser só tirar da rotina sem perder o histórico,
+         use <b>Pausar</b> na tela Ações e rotinas.</p>`,
+        async () => { const ok = await apaga('acoes', b.dataset.id); if (ok) toast('Rotina excluída.'); return ok; },
+        { palavra: 'EXCLUIR' });
+    },
     async editar(b) {
       const [m] = await q('acoes', x => x.eq('id', b.dataset.id));
       if (!m) return;
@@ -2104,6 +2244,7 @@ R.rotinaSemanal = {
         ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time', value:m.hora ? hm(m.hora) : '',
           hint:'Deixe vazio se não tem hora marcada.' }] : []),
         { k:'responsavel_id', label:'Responsável', type:'select', value:m.responsavel_id, opts:optUsuarios() },
+        ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:m.setor_id, opts:optSetores() }] : []),
         { k:'canal_id', label:'Canal', type:'select', value:m.canal_id, opts:optCanais() },
         { k:'_dias', label:'Dias da semana', value:(diasDaRotina(m) || []).join(','),
           hint:'0=dom, 1=seg … 6=sáb. Muda a rotina para semanal nesses dias.' }
@@ -2665,9 +2806,9 @@ R.config = {
   async dados() { return {}; },
   pos() { if (abaCfg === 'acesso') listaConvites(); },
   render() {
-    const abas = [['perfil','Perfil'],['time','Time e canais'],['acesso','Acesso e login'],
-                  ['identidade','Identidade visual'],['aparencia','Aparência'],
-                  ['dados','Dados'],['conexao','Conexão'],['atalhos','Atalhos']];
+    const abas = [['perfil','Perfil'],['time','Time e canais'],['painel','Painel'],
+                  ['acesso','Acesso e login'],['identidade','Identidade visual'],
+                  ['aparencia','Aparência'],['dados','Dados'],['conexao','Conexão'],['atalhos','Atalhos']];
     return `<div class="head"><div><h2>Configurações</h2>
       <div class="sub">Preferências ficam neste navegador. Time e canais ficam no banco.</div></div></div>
       <div class="tabs">${abas.map(([v,l]) =>
@@ -2751,6 +2892,40 @@ R.config = {
       toast('Senha alterada.');
       return true;
     }, 'Trocar'),
+
+    /* ── setores ─────────────────────────────────────────────────── */
+    'novo-setor': () => formSetor(),
+    async 'edit-setor'(b) { const [r] = await q('setores', x => x.eq('id', b.dataset.id)); if (r) formSetor(r); },
+    async 'dup-setor'(b) {
+      const [r] = await q('setores', x => x.eq('id', b.dataset.id));
+      if (!r) return;
+      const { id, created_at, updated_at, ...copia } = r;
+      copia.nome = nomeLivre(r.nome, cache.setores.map(x => x.nome));
+      formSetor(copia, true);
+    },
+    'del-setor'(b) {
+      confirma(`Excluir "${b.dataset.t}"`,
+        `<p>As rotinas deste setor <b>não</b> são apagadas — apenas ficam sem setor.</p>
+         <p class="sm2" style="margin-top:10px">Para tirar da lista mantendo o histórico,
+         edite e desmarque <b>Ativo</b>.</p>`,
+        async () => { const ok = await apaga('setores', b.dataset.id);
+          if (ok) { await recarregaBase(); toast('Setor excluído.'); } return ok; });
+    },
+
+    /* ── métricas do painel ──────────────────────────────────────── */
+    'nova-metrica': () => formMetrica(),
+    async 'edit-metrica'(b) { const [r] = await q('metricas_painel', x => x.eq('id', b.dataset.id)); if (r) formMetrica(r); },
+    async 'ver-metrica'(b) {
+      const m = cache.metricas.find(x => x.id === b.dataset.id);
+      if (await grava('metricas_painel', { ativo: !m.ativo }, m.id)) { await recarregaBase(); pinta(); }
+    },
+    'del-metrica'(b) {
+      confirma(`Excluir "${b.dataset.t}"`, '<p>O cartão some do painel. Nenhum dado é afetado.</p>',
+        async () => { const ok = await apaga('metricas_painel', b.dataset.id);
+          if (ok) { await recarregaBase(); } return ok; });
+    },
+    async 'sobe-metrica'(b) { await moveMetrica(b.dataset.id, -1); },
+    async 'desce-metrica'(b) { await moveMetrica(b.dataset.id, 1); },
 
     /* ── cargos ──────────────────────────────────────────────────── */
     'novo-cargo': () => formCargo(),
@@ -2990,6 +3165,26 @@ function cfgCorpo() {
       : vazio('star', 'Nenhum cargo', 'Cadastre os cargos e o campo da pessoa vira uma lista, em vez de texto livre.',
           { act:'novo-cargo', label:'Adicionar cargo' })}</div>
 
+      <div class="card"><div class="ch"><h3>Setores</h3>
+      ${cache.temSetores ? `<span class="pill dim">${cache.setores.length}</span>
+      <div class="push"><button class="btn sm" data-act="novo-setor">${ico('plus',13)}Setor</button></div>` : ''}</div>
+      ${!cache.temSetores ? `<div class="cb"><div class="err" style="display:block">
+        O cadastro de setores ainda não existe neste banco.</div></div>`
+      : cache.setores.length ? `<div class="t-scroll"><table><thead><tr>
+        <th>Setor</th><th>Descrição</th><th class="num">Rotinas</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${cache.setores.map(g => `<tr>
+        <td><span class="pill" style="color:${corSetor(g.id)};background:${corSetor(g.id)}22">${esc(g.nome)}</span></td>
+        <td class="mut" style="max-width:320px">${esc(g.descricao || '—')}</td>
+        <td class="num" data-cont-setor="${g.id}">—</td>
+        <td><span class="pill ${g.ativo?'ok':'dim'}">${g.ativo?'ativo':'inativo'}</span></td>
+        <td class="act">
+          <button class="btn sm ghost" data-act="edit-setor" data-id="${g.id}" title="Editar">${ico('edit',13)}</button>
+          <button class="btn sm ghost" data-act="dup-setor" data-id="${g.id}" title="Duplicar">${ico('copy',13)}</button>
+          <button class="btn sm ghost" data-act="del-setor" data-id="${g.id}" data-t="${esc(g.nome)}" title="Excluir">${ico('trash',13)}</button>
+        </td></tr>`).join('')}</tbody></table></div>`
+      : vazio('grid', 'Nenhum setor', 'Setores classificam a rotina por área de trabalho.',
+          { act:'novo-setor', label:'Adicionar setor' })}</div>
+
       <div class="card"><div class="ch"><h3>Canais de venda</h3><span class="pill dim">${cs.length}</span>
       <div class="push"><button class="btn sm ghost" data-act="csv-canal">${ico('down',13)}CSV</button>
       <button class="btn sm" data-act="novo-canal">${ico('plus',13)}Canal</button></div></div>
@@ -3006,6 +3201,59 @@ function cfgCorpo() {
           <button class="btn sm ghost" data-act="del-canal" data-id="${c.id}" data-t="${esc(c.nome)}" title="Excluir">${ico('trash',13)}</button>
         </td></tr>`).join('')}</tbody></table></div>`
       : vazio('target', 'Nenhum canal', 'Cadastre os canais que você opera de verdade.', { act:'novo-canal', label:'Adicionar canal' })}</div>`;
+  }
+
+  if (abaCfg === 'painel') {
+    if (!cache.temMetricas) return bloco('Painel', `<div class="err" style="display:block">
+      A tabela de métricas ainda não existe neste banco.</div>`);
+    const ms = [...cache.metricas].sort((a, b) => a.ordem - b.ordem);
+    const desc = m => {
+      const per = { hoje:'hoje', semana:'nesta semana', mes:'neste mês' }[m.periodo];
+      const nat = m.natureza === 'tudo' ? '' : ` · só ${m.natureza}`;
+      const esc2 = m.escopo === 'minha' ? 'minhas' : 'do time';
+      return `${TIPOS_METRICA[m.tipo]?.t || m.tipo} · ${per} · ${esc2}${nat}` +
+        (m.setor_id ? ` · setor ${nomeSetor(m.setor_id)}` : '') +
+        (m.tag ? ` · tag ${m.tag}` : '');
+    };
+    return `<div class="card"><div class="ch"><h3>Cartões do painel</h3>
+        <span class="pill dim">${ms.filter(m => m.ativo).length} ativo(s)</span>
+        <div class="push"><button class="btn sm" data-act="nova-metrica">${ico('plus',13)}Métrica</button></div></div>
+      ${ms.length ? `<div class="t-scroll"><table><thead><tr>
+        <th style="width:40px"></th><th>Nome</th><th>O que mede</th><th class="num">Meta</th><th>Estado</th><th></th>
+      </tr></thead><tbody>${ms.map((m, i) => `<tr>
+        <td><div style="display:flex;flex-direction:column;gap:2px">
+          <button class="ib" style="width:22px;height:18px" data-act="sobe-metrica" data-id="${m.id}"
+            ${i === 0 ? 'disabled' : ''}>${ico('chevron',12)}</button>
+          <button class="ib" style="width:22px;height:18px;transform:rotate(180deg)" data-act="desce-metrica"
+            data-id="${m.id}" ${i === ms.length - 1 ? 'disabled' : ''}>${ico('chevron',12)}</button></div></td>
+        <td><div style="display:flex;align-items:center;gap:9px">
+          <span style="color:var(--ac)">${ico(m.icone || 'check', 16)}</span><b>${esc(m.nome)}</b></div></td>
+        <td class="mut">${esc(desc(m))}</td>
+        <td class="num">${m.meta ?? '—'}</td>
+        <td><span class="pill ${m.ativo ? 'ok' : 'dim'}">${m.ativo ? 'visível' : 'oculto'}</span></td>
+        <td class="act">
+          <button class="btn sm ghost" data-act="ver-metrica" data-id="${m.id}">${m.ativo ? 'Ocultar' : 'Mostrar'}</button>
+          <button class="btn sm ghost" data-act="edit-metrica" data-id="${m.id}">${ico('edit',13)}</button>
+          <button class="btn sm ghost" data-act="del-metrica" data-id="${m.id}" data-t="${esc(m.nome)}">${ico('trash',13)}</button>
+        </td></tr>`).join('')}</tbody></table></div>`
+      : vazio('chart', 'Nenhuma métrica', 'Escolha o que quer acompanhar na Rotina semanal.',
+          { act:'nova-metrica', label:'Criar métrica' })}
+      </div>
+
+      <div class="card"><div class="ch"><h3>Como a métrica é montada</h3></div><div class="cb">
+        <p class="sm2" style="margin-bottom:14px">Em vez de um campo de fórmula livre — que parece flexível
+          e quebra calado quando alguém digita errado — a métrica é montada por partes. A combinação
+          cobre o mesmo alcance e o sistema consegue validar antes de salvar.</p>
+        <div class="sw"><div><div class="lb">O que medir</div>
+          <div class="ds">${Object.values(TIPOS_METRICA).map(t => t.t).join(' · ')}</div></div></div>
+        <div class="sw"><div><div class="lb">Em que período</div>
+          <div class="ds">Hoje · Esta semana · Este mês</div></div></div>
+        <div class="sw"><div><div class="lb">Filtrando o quê</div>
+          <div class="ds">Minhas ou do time · rotina ou pontual · por setor · por tag</div></div></div>
+        <div class="sw" style="border:0"><div><div class="lb">Meta</div>
+          <div class="ds">Opcional. Define a cor do cartão: verde quando bate, vermelho quando fica longe.
+            Em "Atrasadas" a lógica inverte — menos é melhor.</div></div></div>
+      </div></div>`;
   }
 
   if (abaCfg === 'acesso') {
@@ -3246,6 +3494,64 @@ function formConvite(pessoa) {
     listaConvites();
     return true;
   }, 'Criar convite');
+}
+
+function formSetor(row, dup) {
+  form(dup ? 'Duplicar setor' : row ? 'Editar setor' : 'Novo setor', [
+    { k:'nome', label:'Nome do setor', req:true, value:row?.nome, ph:'Ex.: Comercial' },
+    { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao },
+    { k:'cor', label:'Cor', value:row?.cor, ph:'#ff6b00',
+      hint:'Opcional. Vazio, o sistema deriva uma cor fixa a partir do nome.' },
+    { k:'ordem', label:'Ordem na lista', type:'number', value:row?.ordem ?? 0 },
+    { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value: row ? row.ativo : true }
+  ], async d => {
+    if (d.cor && !/^#[0-9a-f]{6}$/i.test(d.cor)) { toast('Cor no formato #rrggbb.', { tipo:'bad' }); return false; }
+    const ok = await grava('setores', d, dup ? null : row?.id);
+    if (ok) await recarregaBase();
+    return ok;
+  });
+}
+
+/* Reordena trocando de lugar com o vizinho. Simples e previsível. */
+async function moveMetrica(id, passo) {
+  const ms = [...cache.metricas].sort((a, b) => a.ordem - b.ordem);
+  const i = ms.findIndex(m => m.id === id), j = i + passo;
+  if (i < 0 || j < 0 || j >= ms.length) return;
+  await Promise.all([
+    grava('metricas_painel', { ordem: ms[j].ordem }, ms[i].id),
+    grava('metricas_painel', { ordem: ms[i].ordem }, ms[j].id)
+  ]);
+  await recarregaBase(); pinta();
+}
+
+function formMetrica(row) {
+  const tagsConhecidas = [...new Set(cache.metricas.map(m => m.tag).filter(Boolean))];
+  form(row ? 'Editar métrica' : 'Nova métrica', [
+    { k:'nome', label:'Nome do cartão', req:true, value:row?.nome, ph:'Ex.: Semana em check' },
+    { k:'tipo', label:'O que medir', type:'select', value:row?.tipo || 'percentual',
+      opts:Object.entries(TIPOS_METRICA).map(([v, o]) => ({ v, t:`${o.t} — ${o.d}` })) },
+    { k:'periodo', label:'Período', type:'select', value:row?.periodo || 'hoje',
+      opts:[{ v:'hoje', t:'Hoje' }, { v:'semana', t:'Esta semana' }, { v:'mes', t:'Este mês' }] },
+    { k:'escopo', label:'De quem', type:'select', value:row?.escopo || 'minha',
+      opts:[{ v:'minha', t:'Minhas tarefas' }, { v:'time', t:'Do time inteiro' }] },
+    { k:'natureza', label:'Natureza', type:'select', value:row?.natureza || 'tudo',
+      opts:[{ v:'tudo', t:'Rotina e pontual' }, { v:'rotina', t:'Só rotina' }, { v:'pontual', t:'Só pontual' }] },
+    ...(cache.temSetores ? [{ k:'setor_id', label:'Só deste setor', type:'select',
+      value:row?.setor_id, opts:optSetores('— todos os setores —') }] : []),
+    { k:'tag', label:'Só desta tag', value:row?.tag,
+      hint:tagsConhecidas.length ? 'Em uso: ' + tagsConhecidas.join(', ') : 'Opcional.' },
+    { k:'meta', label:'Meta', type:'number', value:row?.meta,
+      hint:'Opcional. Verde quando bate. Em "Atrasadas" a lógica inverte: menos é melhor.' },
+    { k:'icone', label:'Ícone', type:'select', value:row?.icone || 'check',
+      opts:['check','chart','clock','cal','star','zap','alert','users','target','money','refresh']
+        .map(v => ({ v, t:v })) },
+    { k:'ativo', type:'checkbox', label:'Visível', cap:'Aparece no painel', value: row ? row.ativo : true }
+  ], async d => {
+    if (!row) d.ordem = (cache.metricas.reduce((a, m) => Math.max(a, m.ordem), 0) || 0) + 1;
+    const ok = await grava('metricas_painel', d, row?.id);
+    if (ok) await recarregaBase();
+    return ok;
+  });
 }
 
 function formCargo(row, dup) {

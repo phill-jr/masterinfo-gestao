@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 264">
+  <!-- Símbolo MasterInfo: dois leques de ondas que se encaixam.
+       Laranja abrindo para baixo, preto abrindo para cima. -->
+  <g fill="none" stroke-width="30" stroke-linecap="round">
+    <g stroke="#F47216">
+      <path d="M 4 168 A 144 144 0 0 1 292 168"/>
+      <path d="M 56 168 A 92 92 0 0 1 240 168"/>
+      <path d="M 108 168 A 40 40 0 0 1 188 168"/>
+    </g>
+    <g stroke="#111111">
+      <path d="M 188 96 A 144 144 0 0 0 476 96"/>
+      <path d="M 240 96 A 92 92 0 0 0 424 96"/>
+      <path d="M 292 96 A 40 40 0 0 0 372 96"/>
+    </g>
+  </g>
+</svg>
