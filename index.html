@@ -503,6 +503,7 @@ const P = {
   arrowR:'M5 12h14M12 5l7 7-7 7',
   arrowL:'M19 12H5M12 19l-7-7 7-7',
   trash:'M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2',
+  copy:'M9 9h10a2 2 0 012 2v10a2 2 0 01-2 2H9a2 2 0 01-2-2V11a2 2 0 012-2zM5 15H4a2 2 0 01-2-2V3a2 2 0 012-2h10a2 2 0 012 2v1',
   edit:'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z',
   user:'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8',
   star:'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
@@ -661,6 +662,18 @@ async function apaga(tab, id) {
   if (error) { toast(error.message, { tipo: 'bad' }); return false; }
   return true;
 }
+/* Quantos registros de `tab` apontam para este id. Usado para avisar,
+   antes de excluir, o que vai junto. */
+async function conta(tab, col, id) {
+  const { count } = await sb.from(tab).select('id', { count: 'exact', head: true }).eq(col, id);
+  return count || 0;
+}
+/* "Meta Ads" → "Meta Ads (cópia)" → "Meta Ads (cópia 2)"… */
+function nomeLivre(base, usados) {
+  let n = `${base} (cópia)`, i = 2;
+  while (usados.includes(n)) n = `${base} (cópia ${i++})`;
+  return n;
+}
 async function recarregaBase() {
   const [u, c] = await Promise.all([
     q('usuarios', x => x.order('nome')),
@@ -752,7 +765,7 @@ function form(titulo, campos, onSave, ok) {
 function confirma(titulo, texto, onSim, { perigo = true, palavra } = {}) {
   modal({
     titulo, ok: perigo ? 'Excluir' : 'Confirmar', largura: 420,
-    corpo: `<p style="color:var(--txt2);font-size:13.5px;line-height:1.6">${texto}</p>
+    corpo: `<div style="color:var(--txt2);font-size:13.5px;line-height:1.6">${texto}</div>
       ${palavra ? `<div><label>Digite <b>${esc(palavra)}</b> para confirmar</label>
         <input data-w placeholder="${esc(palavra)}"></div>` : ''}`,
     onOk: async mask => {
@@ -1408,6 +1421,51 @@ R.config = {
     'novo-canal': () => formCanal(),
     async 'edit-user'(b) { const [r] = await q('usuarios', x => x.eq('id', b.dataset.id)); if (r) formUser(r); },
     async 'edit-canal'(b) { const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id)); if (r) formCanal(r); },
+
+    /* Duplicar: copia tudo menos a identidade e o nome, que é único.
+       Abre o formulário para você ajustar antes de salvar. */
+    async 'dup-canal'(b) {
+      const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id));
+      if (!r) return;
+      const { id, created_at, updated_at, ...copia } = r;
+      copia.nome = nomeLivre(r.nome, cache.canais.map(c => c.nome));
+      formCanal(copia, true);
+    },
+
+    /* Excluir: antes de perguntar, conta o que vai junto. Metas e
+       lançamentos financeiros são apagados em cascata; o resto só
+       perde o vínculo com o canal. */
+    async 'del-canal'(b) {
+      const id = b.dataset.id, nome = b.dataset.t;
+      const [metas, fin, acoes, camp, cont, fun, pess] = await Promise.all([
+        conta('metas','canal_id',id),          conta('financeiro_mkt','canal_id',id),
+        conta('acoes','canal_id',id),          conta('campanhas','canal_id',id),
+        conta('producao_conteudo','canal_id',id), conta('funil','canal_id',id),
+        conta('usuarios','canal_principal_id',id)
+      ]);
+      const cascata = metas + fin;
+      const solta = acoes + camp + cont + fun + pess;
+      const linha = (n, t) => n ? `<li>${n} ${t}</li>` : '';
+
+      confirma(`Excluir "${nome}"`, `
+        ${cascata ? `<p style="color:var(--bad);font-weight:600;margin-bottom:8px">
+            Isto apaga junto, sem volta:</p>
+          <ul style="margin:0 0 14px 18px;color:var(--bad)">
+            ${linha(metas,'meta(s)')}${linha(fin,'lançamento(s) financeiro(s)')}</ul>` : ''}
+        ${solta ? `<p style="margin-bottom:8px">Estes registros <b>não</b> são apagados — apenas ficam sem canal:</p>
+          <ul style="margin:0 0 14px 18px;color:var(--txt2)">
+            ${linha(acoes,'ação(ões)')}${linha(camp,'campanha(s)')}${linha(cont,'conteúdo(s)')}
+            ${linha(fun,'registro(s) de funil')}${linha(pess,'pessoa(s) com este canal principal')}</ul>` : ''}
+        ${!cascata && !solta ? '<p>Nada depende deste canal. Pode excluir tranquilo.</p>' : ''}
+        <p class="sm2">Se a ideia é só tirar da frente sem perder histórico, edite o canal e desmarque
+          <b>Ativo</b> — ele some das listas e mantém tudo.</p>`,
+        async () => {
+          const ok = await apaga('canais_venda', id);
+          if (ok) { await recarregaBase(); toast(`Canal "${nome}" excluído.`); }
+          return ok;
+        },
+        cascata ? { palavra: 'EXCLUIR' } : {});
+    },
     async 'csv-user'() { csv('usuarios', cache.usuarios); },
     async 'csv-canal'() { csv('canais', cache.canais); },
     vincular() {
@@ -1469,8 +1527,11 @@ function cfgCorpo() {
       <tbody>${cs.map(c => `<tr><td><b>${esc(c.nome)}</b></td><td class="mut">${esc(c.tipo.replace('_',' '))}</td>
         <td class="mut">${esc(nomeUser(c.responsavel_id))}</td>
         <td><span class="pill ${c.ativo?'ok':'dim'}">${c.ativo?'ativo':'inativo'}</span></td>
-        <td class="act"><button class="btn sm ghost" data-act="edit-canal" data-id="${c.id}">${ico('edit',13)}</button></td>
-      </tr>`).join('')}</tbody></table></div>`
+        <td class="act">
+          <button class="btn sm ghost" data-act="edit-canal" data-id="${c.id}" title="Editar">${ico('edit',13)}</button>
+          <button class="btn sm ghost" data-act="dup-canal" data-id="${c.id}" title="Duplicar">${ico('copy',13)}</button>
+          <button class="btn sm ghost" data-act="del-canal" data-id="${c.id}" data-t="${esc(c.nome)}" title="Excluir">${ico('trash',13)}</button>
+        </td></tr>`).join('')}</tbody></table></div>`
       : vazio('target', 'Nenhum canal', 'Cadastre os canais que você opera de verdade.', { act:'novo-canal', label:'Adicionar canal' })}</div>`;
   }
 
@@ -1606,8 +1667,8 @@ function formUser(row) {
     { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value:row ? row.ativo : true }
   ], async d => { const ok = await grava('usuarios', d, row?.id); if (ok) await recarregaBase(); return ok; });
 }
-function formCanal(row) {
-  form(row ? 'Editar canal' : 'Novo canal', [
+function formCanal(row, dup) {
+  form(dup ? 'Duplicar canal' : row ? 'Editar canal' : 'Novo canal', [
     { k:'nome', label:'Nome', req:true, value:row?.nome },
     { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'organico', opts:[
       { v:'organico', t:'Orgânico' }, { v:'trafego_pago', t:'Tráfego pago' }, { v:'indicacao', t:'Indicação' },
