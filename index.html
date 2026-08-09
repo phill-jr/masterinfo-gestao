@@ -855,6 +855,8 @@ const NAV = [
     itens:['acoes', 'agenda', 'metas', 'campanhas'] },
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
+  { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
+    itens:['rotinasTime', 'horarios', 'pdi'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 const AREAS = { comercial:'Comercial', marketing:'Marketing' };
@@ -1448,6 +1450,397 @@ R.time = {
   }
 };
 
+/* ═══════════════════════════════════════════════════════════════════
+   DESENVOLVIMENTO — rotinas do time, horários e PDI
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Rotinas do time ──────────────────────────────────────────────
+   Mesmas rotinas da tela de Ações, mas olhadas pela ótica de quem
+   executa: quem carrega o quê e quem está cumprindo. */
+R.rotinasTime = {
+  label: 'Rotinas do time', curto: 'Rotinas do time', icone: 'refresh', titulo: 'Rotinas do time',
+  async dados() {
+    const desde = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    const [modelos, ocor] = await Promise.all([
+      q('acoes', x => x.neq('recorrencia', 'nenhuma').order('titulo')),
+      q('acoes', x => x.not('acao_modelo_id', 'is', null).gte('prazo', desde))
+    ]);
+    return { modelos, ocor };
+  },
+  render({ modelos, ocor }) {
+    const porModelo = {};
+    ocor.forEach(o => {
+      const m = (porModelo[o.acao_modelo_id] ||= { total: 0, feitas: 0 });
+      m.total++; if (o.status === 'concluida') m.feitas++;
+    });
+
+    const rec = m => m.recorrencia === 'semanal'
+        ? (m.recorrencia_dias || []).map(d => DIAS[d]).join(', ')
+      : m.recorrencia === 'mensal'    ? `dia ${m.recorrencia_dia_mes}`
+      : m.recorrencia === 'quinzenal' ? 'a cada 14 dias'
+      : m.recorrencia.replace('_', ' ');
+
+    // Agrupa por pessoa; quem não tem dono cai em "Sem responsável"
+    const grupos = {};
+    modelos.forEach(m => { (grupos[m.responsavel_id || 'sem'] ||= []).push(m); });
+
+    const geral = Object.values(porModelo).reduce((a, x) =>
+      ({ t: a.t + x.total, f: a.f + x.feitas }), { t: 0, f: 0 });
+    const pctGeral = geral.t ? Math.round(100 * geral.f / geral.t) : null;
+
+    const bloco = (chave, lista) => {
+      const u = cache.usuarios.find(x => x.id === chave);
+      const soma = lista.reduce((a, m) => {
+        const p = porModelo[m.id] || { total:0, feitas:0 };
+        return { t: a.t + p.total, f: a.f + p.feitas };
+      }, { t:0, f:0 });
+      const pct = soma.t ? Math.round(100 * soma.f / soma.t) : null;
+      const cls = pct == null ? '' : pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'bad';
+
+      return `<div class="card"><div class="ch">
+          ${u ? avatar(u, 30) : `<div class="av" style="width:30px;height:30px">?</div>`}
+          <div><h3>${esc(u?.nome || 'Sem responsável')}</h3>
+            <div class="sm2">${esc(u?.cargo || 'ninguém assumiu estas rotinas')}</div></div>
+          <div class="push" style="align-items:center">
+            <span class="sm2">${lista.length} rotina(s)</span>
+            ${pct == null ? '<span class="pill dim">sem histórico</span>' : `
+              <div style="text-align:right"><div class="bar" style="width:110px">
+                <i class="${cls}" style="width:${pct}%"></i></div>
+                <div class="sm2" style="margin-top:3px">${pct}% cumprida (30d)</div></div>`}
+          </div></div>
+        <div class="t-scroll"><table><thead><tr>
+          <th>Rotina</th><th>Quando</th><th>Canal</th><th class="num">Geradas</th>
+          <th class="num">Concluídas</th><th>Cumprimento</th><th>Estado</th><th></th>
+        </tr></thead><tbody>${lista.map(m => {
+          const p = porModelo[m.id] || { total:0, feitas:0 };
+          const pc2 = p.total ? Math.round(100 * p.feitas / p.total) : null;
+          const c2 = pc2 == null ? '' : pc2 >= 80 ? 'ok' : pc2 >= 50 ? 'warn' : 'bad';
+          return `<tr><td><b>${esc(m.titulo)}</b></td>
+            <td class="mut">${esc(rec(m))}</td>
+            <td class="mut">${esc(nomeCanal(m.canal_id))}</td>
+            <td class="num">${p.total}</td><td class="num">${p.feitas}</td>
+            <td>${pc2 == null ? '<span class="mut">—</span>'
+              : `<div class="bar" style="max-width:120px"><i class="${c2}" style="width:${pc2}%"></i></div>`}</td>
+            <td><span class="pill ${m.status === 'aberta' ? 'ok' : 'dim'}">${m.status === 'aberta' ? 'ativa' : 'pausada'}</span></td>
+            <td class="act">
+              <button class="btn sm ghost" data-act="dono" data-id="${m.id}" title="Trocar responsável">${ico('users',13)}</button>
+              <button class="btn sm ghost" data-act="pausar" data-id="${m.id}" data-v="${m.status === 'aberta' ? 'cancelada' : 'aberta'}">${m.status === 'aberta' ? 'Pausar' : 'Ativar'}</button>
+            </td></tr>`;
+        }).join('')}</tbody></table></div></div>`;
+    };
+
+    const ordem = Object.keys(grupos).sort((a, b) =>
+      a === 'sem' ? 1 : b === 'sem' ? -1 : (nomeUser(a) > nomeUser(b) ? 1 : -1));
+
+    return `<div class="head"><div><h2>Rotinas do time</h2>
+        <div class="sub">Quem carrega o quê, e quem está cumprindo. Cumprimento dos últimos 30 dias.</div></div>
+        <div class="push"><button class="btn" data-act="nova">${ico('plus',15)}Nova rotina</button></div></div>
+      ${modelos.length ? `
+        <div class="tiles stg">
+          <div class="tile"><div class="ic">${ico('refresh',18)}</div><div class="n">${modelos.length}</div>
+            <div class="l">Rotinas ativas</div></div>
+          <div class="tile"><div class="ic">${ico('users',18)}</div>
+            <div class="n">${Object.keys(grupos).filter(k => k !== 'sem').length}</div>
+            <div class="l">Pessoas com rotina</div></div>
+          <div class="tile ${pctGeral != null && pctGeral < 50 ? 'bad' : pctGeral != null && pctGeral < 80 ? 'warn' : 'ok'}">
+            <div class="ic">${ico('check',18)}</div><div class="n">${pctGeral == null ? '—' : pctGeral + '%'}</div>
+            <div class="l">Cumprimento geral</div><div class="h">${geral.f} de ${geral.t} ocorrências</div></div>
+          <div class="tile ${grupos.sem ? 'warn' : ''}"><div class="ic">${ico('alert',18)}</div>
+            <div class="n">${grupos.sem?.length || 0}</div><div class="l">Sem responsável</div></div>
+        </div>
+        ${ordem.map(k => bloco(k, grupos[k])).join('')}`
+      : `<div class="card">${vazio('refresh', 'Nenhuma rotina cadastrada',
+          'Cadastre o que se repete toda semana e o sistema passa a criar as tarefas sozinho, todo dia.',
+          { act:'nova', label:'Criar rotina' })}</div>`}`;
+  },
+  acoes: {
+    nova() { R.acoes.acoes.modelo(); },
+    async pausar(b) { if (await grava('acoes', { status: b.dataset.v }, b.dataset.id)) { toast('Atualizado.'); pinta(); } },
+    async dono(b) {
+      const [r] = await q('acoes', x => x.eq('id', b.dataset.id));
+      if (!r) return;
+      form(`Responsável por "${r.titulo}"`, [
+        { k:'responsavel_id', label:'Quem executa', type:'select', value:r.responsavel_id, opts:optUsuarios() }
+      ], d => grava('acoes', d, r.id), 'Trocar');
+    }
+  }
+};
+
+/* ── Horários ─────────────────────────────────────────────────────
+   Escala semanal. Dia sem linha no banco = folga. */
+const SEMANA = [[1,'Segunda'],[2,'Terça'],[3,'Quarta'],[4,'Quinta'],[5,'Sexta'],[6,'Sábado'],[0,'Domingo']];
+const hm = t => (t || '').slice(0, 5);
+const minutosDia = h => {
+  const [a, b] = [hm(h.entrada), hm(h.saida)].map(x => {
+    const [H, M] = x.split(':').map(Number); return H * 60 + M;
+  });
+  return Math.max(0, b - a - (h.intervalo_min || 0));
+};
+const hhmm = min => `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+
+R.horarios = {
+  label: 'Horários', curto: 'Horários', icone: 'clock', titulo: 'Horários do time',
+  async dados() { return { hs: await q('horarios') }; },
+  render({ hs }) {
+    const pessoas = cache.usuarios.filter(u => u.ativo);
+    const mapa = {};
+    hs.forEach(h => { (mapa[h.usuario_id] ||= {})[h.dia_semana] = h; });
+
+    const agora = new Date();
+    const hojeDia = agora.getDay();
+    const minAgora = agora.getHours() * 60 + agora.getMinutes();
+    const trabalhando = p => {
+      const h = mapa[p.id]?.[hojeDia]; if (!h) return false;
+      const [ini, fim] = [hm(h.entrada), hm(h.saida)].map(x => {
+        const [H, M] = x.split(':').map(Number); return H * 60 + M; });
+      return minAgora >= ini && minAgora <= fim;
+    };
+    const emExpediente = pessoas.filter(trabalhando);
+
+    return `<div class="head"><div><h2>Horários do time</h2>
+        <div class="sub">Escala da semana. Dia em branco é folga.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="csv">${ico('down',15)}CSV</button>
+          <button class="btn" data-act="def">${ico('clock',15)}Definir horário</button></div></div>
+
+      ${pessoas.length ? `
+      <div class="tiles stg">
+        <div class="tile ok"><div class="ic">${ico('users',18)}</div><div class="n">${emExpediente.length}</div>
+          <div class="l">Em expediente agora</div>
+          <div class="h">${emExpediente.map(p => p.nome.split(' ')[0]).join(', ') || 'ninguém'}</div></div>
+        <div class="tile"><div class="ic">${ico('clock',18)}</div>
+          <div class="n">${hhmm(pessoas.reduce((a, p) =>
+            a + Object.values(mapa[p.id] || {}).reduce((x, h) => x + minutosDia(h), 0), 0))}</div>
+          <div class="l">Carga total da semana</div></div>
+        <div class="tile ${pessoas.some(p => !mapa[p.id]) ? 'warn' : ''}"><div class="ic">${ico('alert',18)}</div>
+          <div class="n">${pessoas.filter(p => !mapa[p.id]).length}</div>
+          <div class="l">Sem horário definido</div></div>
+      </div>
+
+      <div class="card"><div class="ch"><h3>Escala semanal</h3></div>
+        <div class="t-scroll"><table><thead><tr><th>Pessoa</th>
+          ${SEMANA.map(([d, n]) => `<th${d === hojeDia ? ' style="color:var(--ac)"' : ''}>${n}</th>`).join('')}
+          <th class="num">Semana</th><th></th></tr></thead>
+        <tbody>${pessoas.map(p => {
+          const dias = mapa[p.id] || {};
+          const total = Object.values(dias).reduce((a, h) => a + minutosDia(h), 0);
+          return `<tr>
+            <td><div style="display:flex;align-items:center;gap:10px">${avatar(p, 28)}
+              <div><b>${esc(p.nome)}</b><div class="sm2">${esc(p.cargo || '—')}</div></div></div></td>
+            ${SEMANA.map(([d]) => {
+              const h = dias[d];
+              return `<td class="mut" style="white-space:nowrap${d === hojeDia ? ';background:var(--ac-bg)' : ''}">${
+                h ? `<b style="color:var(--txt)">${hm(h.entrada)}–${hm(h.saida)}</b>${
+                  h.intervalo_min ? `<div class="sm2">${h.intervalo_min}min almoço</div>` : ''}`
+                  : '<span style="opacity:.4">folga</span>'}</td>`;
+            }).join('')}
+            <td class="num"><b>${total ? hhmm(total) : '—'}</b></td>
+            <td class="act"><button class="btn sm ghost" data-act="edit" data-id="${p.id}">${ico('edit',13)}</button></td>
+          </tr>`;
+        }).join('')}</tbody></table></div></div>`
+      : `<div class="card">${vazio('users', 'Time vazio',
+          'Cadastre as pessoas em Configurações → Time e canais para montar a escala.')}</div>`}`;
+  },
+  acoes: {
+    def: () => formHorario(),
+    edit(b) { formHorario(b.dataset.id); },
+    async csv() {
+      const hs = await q('horarios');
+      csv('horarios', hs.map(h => ({
+        pessoa: nomeUser(h.usuario_id),
+        dia: SEMANA.find(([d]) => d === h.dia_semana)?.[1] || h.dia_semana,
+        entrada: hm(h.entrada), saida: hm(h.saida),
+        intervalo_min: h.intervalo_min, horas_liquidas: hhmm(minutosDia(h))
+      })));
+    }
+  }
+};
+
+async function formHorario(usuarioId) {
+  const atuais = usuarioId ? await q('horarios', x => x.eq('usuario_id', usuarioId)) : [];
+  const base = atuais[0];
+  form('Definir horário', [
+    { k:'usuario_id', label:'Pessoa', type:'select', req:true, value:usuarioId,
+      opts:cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome })) },
+    { k:'_dias', label:'Dias de trabalho', req:true,
+      value: atuais.length ? atuais.map(h => h.dia_semana).sort().join(',') : '1,2,3,4,5',
+      hint:'0=dom, 1=seg … 6=sáb, separados por vírgula. Os dias que você NÃO listar viram folga.' },
+    { k:'entrada', label:'Entrada', type:'time', req:true, value: base ? hm(base.entrada) : '08:00' },
+    { k:'saida', label:'Saída', type:'time', req:true, value: base ? hm(base.saida) : '18:00' },
+    { k:'intervalo_min', label:'Intervalo (minutos)', type:'number', value: base?.intervalo_min ?? 60,
+      hint:'Descontado do total de horas da semana.' },
+    { k:'observacao', label:'Observação', value: base?.observacao }
+  ], async d => {
+    const dias = String(d._dias || '').split(',').map(s => parseInt(s, 10))
+      .filter(n => n >= 0 && n <= 6);
+    if (!dias.length) { toast('Informe ao menos um dia.', { tipo:'bad' }); return false; }
+    if (d.saida <= d.entrada) { toast('A saída precisa ser depois da entrada.', { tipo:'bad' }); return false; }
+    // Regrava a semana inteira: o que não foi listado deixa de existir.
+    await sb.from('horarios').delete().eq('usuario_id', d.usuario_id);
+    const { error } = await sb.from('horarios').insert(dias.map(dia => ({
+      usuario_id: d.usuario_id, dia_semana: dia, entrada: d.entrada, saida: d.saida,
+      intervalo_min: d.intervalo_min ?? 0, observacao: d.observacao
+    })));
+    if (error) { toast(error.message, { tipo:'bad' }); return false; }
+    toast('Horário salvo.');
+    return true;
+  });
+}
+
+/* ── PDI ──────────────────────────────────────────────────────────
+   Ciclos de um mês com prova binária e recompensa. */
+R.pdi = {
+  label: 'PDI', curto: 'PDI', icone: 'star', titulo: 'PDI e feedback',
+  async dados() {
+    const [ciclos, fbs] = await Promise.all([
+      q('pdi', x => x.order('ciclo_inicio', { ascending: false })),
+      q('feedbacks', x => x.order('data', { ascending: false }).limit(60))
+    ]);
+    return { ciclos, fbs };
+  },
+  render({ ciclos, fbs }) {
+    const pessoas = cache.usuarios.filter(u => u.ativo);
+    const atual = {}, historico = {};
+    ciclos.forEach(c => {
+      if (c.status === 'em_andamento' && !atual[c.usuario_id]) atual[c.usuario_id] = c;
+      else (historico[c.usuario_id] ||= []).push(c);
+    });
+    const ultimoFb = {};
+    fbs.forEach(f => { if (!ultimoFb[f.usuario_id]) ultimoFb[f.usuario_id] = f; });
+
+    const cartao = p => {
+      const c = atual[p.id];
+      const dias = c ? Math.ceil((new Date(c.ciclo_fim + 'T12:00:00') - new Date()) / 864e5) : null;
+      const fb = ultimoFb[p.id];
+      const diasFb = fb ? Math.floor((new Date() - new Date(fb.data + 'T12:00:00')) / 864e5) : null;
+      return `<div class="card" style="margin:0">
+        <div class="ch">${avatar(p, 34)}
+          <div style="flex:1;min-width:0"><h3>${esc(p.nome)}</h3>
+            <div class="sm2">${esc(p.cargo || '—')}</div></div>
+          ${c ? (dias < 0 ? '<span class="pill bad">ciclo vencido</span>'
+                : dias <= 7 ? `<span class="pill warn">${dias}d para o fim</span>`
+                : `<span class="pill info">${dias} dias</span>`)
+              : '<span class="pill dim">sem ciclo</span>'}</div>
+        <div class="cb">
+          ${c ? `
+            <div style="margin-bottom:14px"><div class="sm2">Objetivo do ciclo</div>
+              <div style="font-weight:600;margin-top:2px">${esc(c.objetivo)}</div></div>
+            ${c.marco_atual ? `<div style="margin-bottom:14px"><div class="sm2">Marco atual</div>
+              <div style="margin-top:2px">${esc(c.marco_atual)}</div></div>` : ''}
+            ${c.prova ? `<div style="margin-bottom:14px;padding:11px 13px;background:var(--surface2);
+                border-radius:var(--r);border-left:3px solid var(--ac)">
+              <div class="sm2">Prova de aprovação</div>
+              <div style="margin-top:2px">${esc(c.prova)}</div>
+              ${c.recompensa ? `<div class="sm2" style="margin-top:7px">🎁 ${esc(c.recompensa)}</div>` : ''}</div>` : ''}
+            <div class="sm2" style="margin-bottom:14px">Ciclo ${dtl(c.ciclo_inicio)} → ${dtl(c.ciclo_fim)}</div>
+            <div style="display:flex;gap:7px;flex-wrap:wrap">
+              <button class="btn sm" data-act="aprovar" data-id="${c.id}" data-n="${esc(p.nome)}">Aprovar</button>
+              <button class="btn sm ghost" data-act="reprovar" data-id="${c.id}" data-n="${esc(p.nome)}">Não passou</button>
+              <button class="btn sm ghost" data-act="marco" data-id="${c.id}">Atualizar marco</button>
+            </div>`
+          : `<p class="sm2" style="margin-bottom:14px">Sem ciclo em andamento.
+              Um ciclo é um mês, com uma prova objetiva no fim.</p>
+             <button class="btn sm" data-act="novo" data-u="${p.id}">${ico('plus',13)}Abrir ciclo</button>`}
+
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+                      display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="flex:1"><div class="sm2">Último feedback</div>
+              <div style="font-size:13px">${fb
+                ? `${dtl(fb.data)} <span class="pill ${diasFb > 30 ? 'bad' : diasFb > 15 ? 'warn' : 'ok'}">${diasFb}d</span>`
+                : '<span class="pill bad">nunca</span>'}</div></div>
+            <button class="btn sm ghost" data-act="fb" data-u="${p.id}">Registrar</button>
+          </div>
+          ${historico[p.id]?.length ? `<div class="sm2" style="margin-top:12px">
+            Ciclos anteriores: ${historico[p.id].slice(0,4).map(h =>
+              `<span class="pill ${h.status==='aprovado'?'ok':h.status==='reprovado'?'bad':'dim'}"
+                title="${esc(h.objetivo)}">${dt(h.ciclo_fim)}</span>`).join(' ')}</div>` : ''}
+        </div></div>`;
+    };
+
+    const semCiclo = pessoas.filter(p => !atual[p.id]).length;
+    const vencidos = pessoas.filter(p => atual[p.id] &&
+      new Date(atual[p.id].ciclo_fim + 'T12:00:00') < new Date()).length;
+
+    return `<div class="head"><div><h2>PDI e feedback</h2>
+        <div class="sub">Ciclos de um mês, com prova binária e recompensa. Passou ou não passou.</div></div>
+        <div class="push"><button class="btn" data-act="novo">${ico('plus',15)}Novo ciclo</button></div></div>
+      ${pessoas.length ? `
+        <div class="tiles stg">
+          <div class="tile"><div class="ic">${ico('users',18)}</div><div class="n">${pessoas.length}</div>
+            <div class="l">Pessoas ativas</div></div>
+          <div class="tile ${semCiclo ? 'warn' : 'ok'}"><div class="ic">${ico('star',18)}</div>
+            <div class="n">${pessoas.length - semCiclo}</div><div class="l">Com ciclo em andamento</div></div>
+          <div class="tile ${vencidos ? 'bad' : ''}"><div class="ic">${ico('alert',18)}</div>
+            <div class="n">${vencidos}</div><div class="l">Ciclos vencidos</div></div>
+          <div class="tile"><div class="ic">${ico('check',18)}</div>
+            <div class="n">${ciclos.filter(c => c.status === 'aprovado').length}</div>
+            <div class="l">Ciclos aprovados</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px" class="stg">
+          ${pessoas.map(cartao).join('')}</div>`
+      : `<div class="card">${vazio('users', 'Time vazio',
+          'Cadastre as pessoas em Configurações → Time e canais para acompanhar PDI.')}</div>`}`;
+  },
+  acoes: {
+    novo(b) {
+      const d = new Date(), ini = hoje().slice(0,8) + '01';
+      const fim = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().slice(0,10);
+      form('Novo ciclo de PDI', [
+        { k:'usuario_id', label:'Pessoa', type:'select', req:true, value:b?.dataset.u,
+          opts:cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome })) },
+        { k:'ciclo_inicio', label:'Início', type:'date', req:true, value:ini },
+        { k:'ciclo_fim', label:'Fim', type:'date', req:true, value:fim },
+        { k:'objetivo', label:'Objetivo', type:'textarea', req:true,
+          ph:'O que essa pessoa precisa saber fazer no fim do mês?' },
+        { k:'marco_atual', label:'Marco atual' },
+        { k:'prova', label:'Prova de aprovação', type:'textarea',
+          hint:'Binário: passou ou não passou. Se precisa de interpretação, não é prova.' },
+        { k:'recompensa', label:'Recompensa' }
+      ], d2 => grava('pdi', d2));
+    },
+    fb(b) {
+      form('Registrar feedback', [
+        { k:'usuario_id', label:'Pessoa', type:'select', req:true, value:b?.dataset.u,
+          opts:cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome })) },
+        { k:'data', label:'Data', type:'date', value:hoje() },
+        { k:'tipo', label:'Tipo', type:'select', value:'um_a_um', opts:[
+          { v:'um_a_um', t:'1 a 1' }, { v:'corretivo', t:'Corretivo' },
+          { v:'reconhecimento', t:'Reconhecimento' }, { v:'avaliacao_ciclo', t:'Avaliação de ciclo' }] },
+        { k:'notas', label:'Notas', type:'textarea', ph:'O que foi dito e o que ficou combinado.' }
+      ], d => { d.autor_id = eu?.id || null; return grava('feedbacks', d); });
+    },
+    async marco(b) {
+      const [c] = await q('pdi', x => x.eq('id', b.dataset.id));
+      if (!c) return;
+      form('Atualizar marco', [
+        { k:'marco_atual', label:'Onde a pessoa está agora', type:'textarea', value:c.marco_atual }
+      ], d => grava('pdi', d, c.id), 'Atualizar');
+    },
+    aprovar(b) { fechaCiclo(b.dataset.id, b.dataset.n, 'aprovado'); },
+    reprovar(b) { fechaCiclo(b.dataset.id, b.dataset.n, 'reprovado'); }
+  }
+};
+
+function fechaCiclo(id, nome, status) {
+  const aprovado = status === 'aprovado';
+  confirma(aprovado ? 'Aprovar ciclo' : 'Ciclo não aprovado',
+    `<p>${aprovado
+      ? `A prova de <b>${esc(nome)}</b> foi cumprida. O ciclo é encerrado como aprovado e a recompensa passa a valer.`
+      : `A prova de <b>${esc(nome)}</b> não foi cumprida. O ciclo encerra sem aprovação — o próximo pode repetir o mesmo objetivo.`}</p>
+     <p class="sm2" style="margin-top:10px">Um feedback de avaliação é registrado junto, para não ficar decisão sem conversa.</p>`,
+    async () => {
+      const [c] = await q('pdi', x => x.eq('id', id));
+      if (!await grava('pdi', { status, avaliado_em: hoje() }, id)) return false;
+      await grava('feedbacks', {
+        usuario_id: c?.usuario_id, autor_id: eu?.id || null, data: hoje(),
+        tipo: 'avaliacao_ciclo',
+        notas: `Ciclo de PDI ${aprovado ? 'aprovado' : 'não aprovado'}. Objetivo: ${c?.objetivo || ''}`
+      });
+      toast(aprovado ? 'Ciclo aprovado.' : 'Ciclo encerrado sem aprovação.');
+      return true;
+    }, { perigo: !aprovado });
+}
+
 /* ───────────────────────── CONFIGURAÇÕES ───────────────────────── */
 R.config = {
   label: 'Configurações', icone: 'cog', titulo: 'Configurações',
@@ -2012,12 +2405,14 @@ function navHTML() {
   return NAV.map(sec => {
     if (sec.tipo === 'item')  return elo(sec.r, null);
     if (sec.tipo === 'secao') return `<div class="grp">${sec.label}</div>` + sec.itens.map(k => elo(k, null)).join('');
-    const aberto = pref.abertos.includes(sec.id) || area === sec.id;
-    return `<button class="gt ${aberto ? 'aberto' : ''} ${area === sec.id ? 'ativo' : ''}" data-grupo="${sec.id}">
+    // Grupos com `semArea` são só organização visual: não filtram nada.
+    const a = sec.semArea ? null : sec.id;
+    const dentro = sec.semArea ? sec.itens.includes(rota) : area === sec.id;
+    const aberto = pref.abertos.includes(sec.id) || dentro;
+    return `<button class="gt ${aberto ? 'aberto' : ''} ${dentro ? 'ativo' : ''}" data-grupo="${sec.id}">
         ${ico(sec.icone)}<b>${sec.label}</b>
-        <span class="ct" data-ct="area-${sec.id}" hidden></span>
         <span class="chev">${ico('chevron', 14)}</span></button>
-      <div class="sub ${aberto ? 'aberto' : ''}"><div>${sec.itens.map(k => elo(k, sec.id)).join('')}</div></div>`;
+      <div class="sub ${aberto ? 'aberto' : ''}"><div>${sec.itens.map(k => elo(k, a)).join('')}</div></div>`;
   }).join('');
 }
 
