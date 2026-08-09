@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Inter+Tight:wght@600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Projeto fixo. Preenchido em config.js, o sistema nunca mais pergunta. -->
+<script src="config.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════
    TOKENS
@@ -1332,15 +1334,21 @@ function cfgCorpo() {
         <button class="btn danger" data-act="limpar">${ico('trash',15)}Limpar dados locais</button></div>`;
 
   if (abaCfg === 'conexao') {
-    const c = LS.get(CFG_KEY, {});
+    const fixa = cfgFixa(), c = fixa || LS.get(CFG_KEY, {});
     return bloco('Projeto Supabase', `
       <div class="sw"><div><div class="lb">URL do projeto</div>
-        <div class="ds" style="font-family:ui-monospace,monospace;word-break:break-all">${esc(c.url || '—')}</div></div></div>
-      <div class="sw"><div><div class="lb">Chave anon</div>
-        <div class="ds">${c.key ? esc(c.key.slice(0,14)) + '…' + esc(c.key.slice(-6)) : '—'}</div></div>
+        <div class="ds" style="font-family:ui-monospace,monospace;word-break:break-all">${esc(c.url || '—')}</div></div>
         <span class="ct pill ok">conectado</span></div>
+      <div class="sw"><div><div class="lb">Chave anon</div>
+        <div class="ds">${c.key ? esc(c.key.slice(0,14)) + '…' + esc(c.key.slice(-6)) : '—'}</div></div></div>
+      <div class="sw"><div><div class="lb">Como está configurado</div>
+        <div class="ds">${fixa
+          ? 'Projeto <b>fixo no sistema</b> (arquivo <code>config.js</code>). Vale em qualquer navegador e qualquer máquina — nunca mais vai pedir.'
+          : 'Digitado neste navegador e salvo localmente. Para não precisar digitar de novo em outra máquina, preencha o <code>config.js</code>.'}</div></div></div>
       <div class="sw" style="border:0"><div><div class="lb">Sobre a chave</div>
-        <div class="ds">A chave anon é pública por natureza. Quem protege os dados é o RLS do banco, que exige login — não o segredo dela.</div></div></div>`);
+        <div class="ds">A chave anon é pública por natureza — todo app Supabase publica a dele. Quem protege os dados é o RLS,
+          que exige login. Por isso o cadastro público precisa ficar <b>desligado</b> no Supabase (Authentication → Sign In / Providers →
+          desmarcar "Allow new users to sign up"), senão qualquer pessoa cria conta e entra.</div></div></div>`);
   }
 
   const at = [['⌘ K / Ctrl K','Abrir a busca de comandos'],['N','Nova ação'],['G depois I','Ir para Início'],
@@ -1660,7 +1668,7 @@ function telaLogin() {
       <div><label>Senha</label><input id="s" type="password" autocomplete="current-password"></div>
       <div class="err" hidden></div>
       <button class="btn" id="go" style="justify-content:center">${ico('arrowR',15)}Entrar</button>
-      <button class="btn ghost" id="tr" style="justify-content:center">Trocar de projeto</button>
+      ${cfgFixa() ? '' : '<button class="btn ghost" id="tr" style="justify-content:center">Trocar de projeto</button>'}
     </div></div></div>`;
   const entrar = async () => {
     const err = $('.err'), b = $('#go');
@@ -1673,11 +1681,18 @@ function telaLogin() {
   };
   $('#go').onclick = entrar;
   $('#s').onkeydown = e => { if (e.key === 'Enter') entrar(); };
-  $('#tr').onclick = () => { LS.del(CFG_KEY); location.reload(); };
+  if ($('#tr')) $('#tr').onclick = () => { LS.del(CFG_KEY); location.reload(); };
+}
+
+/* Projeto fixo vindo do config.js — vale para qualquer navegador e máquina.
+   Só cai na tela de conexão se o config.js não estiver preenchido. */
+function cfgFixa() {
+  const c = window.MI_CONFIG;
+  return (c && /^https:\/\/.+\.supabase\.co$/.test(c.url || '') && (c.key || '').length > 40) ? c : null;
 }
 
 async function iniciar() {
-  const c = LS.get(CFG_KEY);
+  const c = cfgFixa() || LS.get(CFG_KEY);
   if (!c?.url) return telaConexao();
   if (!sb) sb = window.supabase.createClient(c.url, c.key, { auth: { persistSession: true, autoRefreshToken: true } });
 
