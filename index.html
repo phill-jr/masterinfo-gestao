@@ -466,6 +466,62 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 
 .zone{border:1px solid var(--bad);border-radius:var(--r-lg);padding:18px;background:var(--bad-bg)}
 
+/* ── tags ────────────────────────────────────────────────────── */
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tags span{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:20px;
+  border:1px solid transparent;text-transform:lowercase}
+
+/* ── filtros do check ────────────────────────────────────────── */
+.filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+.tagfiltro{display:flex;gap:5px;flex-wrap:wrap}
+.tagfiltro button{font-size:12px;font-weight:600;padding:4px 11px;border-radius:20px;
+  border:1px solid var(--line);background:var(--surface);color:var(--dim);transition:all .15s}
+.tagfiltro button:hover{border-color:var(--line2)}
+.tagfiltro button.on{background:var(--txt);color:var(--bg);border-color:var(--txt)}
+
+/* ── progresso do dia ────────────────────────────────────────── */
+.progresso{display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:24px;margin-bottom:22px}
+.anel{position:relative;width:132px;height:132px;flex:none}
+.anel svg{width:100%;height:100%;transform:rotate(-90deg)}
+.anel circle{fill:none;stroke-width:9;stroke-linecap:round}
+.anel .tr{stroke:var(--surface3)}
+.anel .fr{stroke:var(--ac);transition:stroke-dashoffset .7s var(--ease)}
+.anel .fr.cheio{stroke:var(--ok)}
+.anel .mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.anel .mid .p{font-family:"Inter Tight";font-size:27px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.anel .mid .s{font-size:12px;color:var(--dim);margin-top:3px}
+.lado{display:grid;gap:12px;min-width:0}
+.lado .linha{display:flex;align-items:center;gap:14px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+.lado .lb{font-size:13px;font-weight:600}
+.lado .ds{font-size:12px;color:var(--dim);margin-top:1px}
+.lado .v{margin-left:auto;font-family:"Inter Tight";font-size:21px;font-weight:700;white-space:nowrap}
+.lado .v.ok{color:var(--ok)} .lado .v.bad{color:var(--bad)}
+.heat .grade{display:flex;gap:4px;flex-wrap:wrap}
+.heat .grade span{width:20px;height:20px;border-radius:5px;background:var(--surface3);
+  border:1px solid var(--line);animation:fadeIn .4s both}
+.heat .grade span.pouco{background:color-mix(in srgb,var(--ac) 28%,transparent);border-color:transparent}
+.heat .grade span.meio {background:color-mix(in srgb,var(--ac) 60%,transparent);border-color:transparent}
+.heat .grade span.cheio{background:var(--ok);border-color:transparent}
+.heat .grade span.vazio{opacity:.45}
+@media(max-width:720px){.progresso{grid-template-columns:1fr;justify-items:center;text-align:center}
+  .lado{width:100%}}
+
+/* ── lista do check ──────────────────────────────────────────── */
+.grupo{padding:13px 18px 7px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--dim);font-weight:700;background:var(--surface2);display:flex;align-items:center;gap:8px}
+.grupo span{margin-left:auto;font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+.chk-item{display:flex;align-items:flex-start;gap:13px;padding:12px 18px;
+  border-bottom:1px solid var(--line);transition:background .13s,opacity .2s}
+.chk-item:hover{background:var(--surface2)}
+.chk-item .g{flex:1;min-width:0}
+.chk-item .t{font-weight:600;font-size:13.5px;transition:color .2s}
+.chk-item .m{font-size:12px;color:var(--dim);margin-top:2px}
+.chk-item.feito{opacity:.55}
+.chk-item.feito .t{text-decoration:line-through;color:var(--dim)}
+.chk-item .tick{margin-top:1px}
+
 /* ── régua de dias da semana ─────────────────────────────────── */
 .regua{display:inline-flex;gap:3px}
 .regua span{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;
@@ -759,8 +815,12 @@ async function recarregaBase() {
   cache.usuarios = u; cache.canais = c;
   cache.cargos = g || []; cache.temCargos = g !== null;
   if (cache.temHora === undefined) {
-    const { error } = await sb.from('acoes').select('hora').limit(1);
-    cache.temHora = !error;
+    const [h, t] = await Promise.all([
+      sb.from('acoes').select('hora').limit(1),
+      sb.from('acoes').select('tags').limit(1)
+    ]);
+    cache.temHora = !h.error;
+    cache.temTags = !t.error;
   }
 }
 
@@ -913,7 +973,7 @@ const NAV = [
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
-    itens:['rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks'] },
+    itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 const AREAS = { comercial:'Comercial', marketing:'Marketing' };
@@ -1041,9 +1101,14 @@ function formAcao(row) {
     { k:'bloqueia_id', label:'Está travando quem?', type:'select', value:row?.bloqueia_id,
       opts:optUsuarios('— ninguém —'), hint:'Preenchido, a pendência sobe na fila mesmo sem prazo.' },
     { k:'prazo', label:'Prazo', type:'date', value:row?.prazo },
+    ...(cache.temTags ? [{ k:'_tags', label:'Tags', value:(row?.tags || []).join(', '),
+      ph:'comercial, conteúdo', hint:'Separadas por vírgula.' }] : []),
     { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila', value:row?.urgente,
       hint:'Use pouco. Se tudo é urgente, nada é.' }
-  ], d => grava('acoes', d, row?.id));
+  ], d => {
+    if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
+    return grava('acoes', d, row?.id);
+  });
 }
 
 /* ───────────────────────── AÇÕES ───────────────────────── */
@@ -1166,8 +1231,11 @@ R.acoes = {
         { k:'recorrencia_inicio', label:'Início da contagem', type:'date', value:hoje(),
           hint:'Só para "Quinzenal". Repete a cada 14 dias a partir daqui.' },
         ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
-          hint:'Opcional. Serve para ordenar o dia na tela Rotina semanal.' }] : [])
+          hint:'Opcional. Serve para ordenar o dia na tela Rotina semanal.' }] : []),
+        ...(cache.temTags ? [{ k:'_tags', label:'Tags', ph:'comercial, prospecção',
+          hint:'Separadas por vírgula. Servem para filtrar o check do dia.' }] : [])
       ], d => {
+        if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
         const dias = d._dias; delete d._dias;
         d.recorrencia_dias = d.recorrencia === 'semanal'
           ? String(dias || '').split(',').map(s => parseInt(s, 10)).filter(n => n >= 0 && n <= 6) : null;
@@ -1542,6 +1610,191 @@ R.time = {
    DESENVOLVIMENTO — rotinas do time, horários e PDI
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ── tags ─────────────────────────────────────────────────────────
+   Texto livre. A cor sai do próprio nome, então a mesma tag tem
+   sempre a mesma cor sem ninguém precisar escolher. */
+const CORES_TAG = ['#6366f1','#10b981','#f59e0b','#ec4899','#06b6d4','#8b5cf6','#ef4444','#14b8a6'];
+function corTag(t) {
+  let h = 0;
+  for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return CORES_TAG[h % CORES_TAG.length];
+}
+const leTags = txt => {
+  const l = String(txt || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+  return l.length ? [...new Set(l)] : null;
+};
+const chipsTags = tags => !tags?.length ? '' :
+  `<div class="tags">${tags.map(t => {
+    const c = corTag(t);
+    return `<span style="color:${c};background:${c}22;border-color:${c}44">${esc(t)}</span>`;
+  }).join('')}</div>`;
+
+/* ── Check do dia ─────────────────────────────────────────────────
+   Onde você marca o que fez e vê o quanto da rotina saiu. O número
+   sozinho não serve: por isso vem com os últimos 14 dias do lado,
+   que é onde constância aparece. */
+R.checkDiario = {
+  label: 'Check do dia', curto: 'Check do dia', icone: 'check', titulo: 'Check do dia',
+  filtro: { periodo: 'hoje', quem: 'minha', tag: '' },
+  async dados() {
+    const de = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+    return { acoes: await q('acoes', x =>
+      x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo')) };
+  },
+  render({ acoes }) {
+    const f = R.checkDiario.filtro;
+    if (f.quem === 'minha' && !eu) f.quem = 'todos';
+
+    const meus = acoes.filter(a =>
+      (f.quem !== 'minha' || a.responsavel_id === eu?.id) &&
+      (!f.tag || (a.tags || []).includes(f.tag)) &&
+      a.status !== 'cancelada');
+
+    // Intervalo do período escolhido
+    const ini = f.periodo === 'hoje' ? hoje()
+              : f.periodo === 'semana' ? seg()
+              : hoje().slice(0, 8) + '01';
+    const fim = f.periodo === 'hoje' ? hoje()
+              : f.periodo === 'semana' ? new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)
+              : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
+
+    const lista = meus.filter(a => a.prazo >= ini && a.prazo <= fim);
+    const feitas = lista.filter(a => a.status === 'concluida');
+    const pct = lista.length ? Math.round(100 * feitas.length / lista.length) : null;
+
+    // Últimos 14 dias: constância só aparece na sequência
+    const dias14 = [...Array(14)].map((_, i) => {
+      const d = new Date(Date.now() - (13 - i) * 864e5).toISOString().slice(0, 10);
+      const doDia = meus.filter(a => a.prazo === d);
+      const ok = doDia.filter(a => a.status === 'concluida').length;
+      return { d, total: doDia.length, ok, pct: doDia.length ? Math.round(100 * ok / doDia.length) : null };
+    });
+
+    // Sequência de dias fechados em 100%, contando de trás para frente.
+    // Dia sem nenhuma rotina não conta nem a favor nem contra.
+    let streak = 0;
+    for (let i = dias14.length - 1; i >= 0; i--) {
+      if (dias14[i].total === 0) continue;
+      if (dias14[i].pct === 100) streak++; else break;
+    }
+
+    const tagsUsadas = [...new Set(meus.flatMap(a => a.tags || []))].sort();
+    const atrasadas = lista.filter(a => a.status !== 'concluida' && a.prazo < hoje());
+
+    const item = a => {
+      const feito = a.status === 'concluida';
+      return `<div class="chk-item ${feito ? 'feito' : ''}">
+        <button class="tick ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
+          data-v="${feito ? 'aberta' : 'concluida'}">${ico('check', 12)}</button>
+        <div class="g">
+          <div class="t">${esc(a.titulo)}</div>
+          <div class="m">${a.hora ? '<b>' + hm(a.hora) + '</b> · ' : ''}${
+            f.periodo !== 'hoje' ? dt(a.prazo) + ' · ' : ''}${
+            esc(nomeUser(a.responsavel_id))}${a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div>
+          ${chipsTags(a.tags)}
+        </div>
+        ${a.prazo < hoje() && !feito ? '<span class="pill bad">atrasada</span>' : ''}
+        ${feito && a.concluida_em ? `<span class="sm2">${hora(a.concluida_em)}</span>` : ''}</div>`;
+    };
+
+    // No dia, agrupa por turno; em período maior, agrupa por data
+    const grupos = {};
+    if (f.periodo === 'hoje') {
+      const turno = a => {
+        if (!a.hora) return '4. Sem horário';
+        const h = +hm(a.hora).slice(0, 2);
+        return h < 12 ? '1. Manhã' : h < 18 ? '2. Tarde' : '3. Noite';
+      };
+      lista.forEach(a => { (grupos[turno(a)] ||= []).push(a); });
+      Object.values(grupos).forEach(g => g.sort((a, b) => (a.hora || '99') > (b.hora || '99') ? 1 : -1));
+    } else {
+      lista.forEach(a => { (grupos[a.prazo] ||= []).push(a); });
+    }
+    const chaves = Object.keys(grupos).sort().reverse();
+    const rotuloGrupo = k => f.periodo === 'hoje' ? k.slice(3)
+      : (k === hoje() ? 'Hoje · ' : '') + new Date(k + 'T12:00:00')
+          .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'2-digit' });
+
+    const raio = 52, volta = 2 * Math.PI * raio;
+
+    return `<div class="head"><div><h2>Check do dia</h2>
+        <div class="sub">Marque o que saiu. O que importa não é o dia perfeito, é a sequência.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar rotinas de hoje</button>
+        </div></div>
+
+      <div class="filtros">
+        <div class="seg">${[['hoje','Hoje'],['semana','Semana'],['mes','Mês']].map(([v,l]) =>
+          `<button data-act="periodo" data-v="${v}" class="${f.periodo===v?'on':''}">${l}</button>`).join('')}</div>
+        <div class="seg">${[['minha','Minha'],['todos','Time']].map(([v,l]) =>
+          `<button data-act="quem" data-v="${v}" class="${f.quem===v?'on':''}"${
+            v==='minha' && !eu ? ' disabled' : ''}>${l}</button>`).join('')}</div>
+        ${cache.temTags && tagsUsadas.length ? `<div class="tagfiltro">
+          <button data-act="tag" data-v="" class="${!f.tag?'on':''}">todas</button>
+          ${tagsUsadas.map(t => `<button data-act="tag" data-v="${esc(t)}" class="${f.tag===t?'on':''}"
+            style="${f.tag===t?`background:${corTag(t)};border-color:${corTag(t)};color:#fff`:`color:${corTag(t)}`}">${esc(t)}</button>`).join('')}
+        </div>` : ''}
+      </div>
+
+      <div class="progresso">
+        <div class="anel">
+          <svg viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="${raio}" class="tr"/>
+            <circle cx="60" cy="60" r="${raio}" class="fr ${pct === 100 ? 'cheio' : ''}"
+              style="stroke-dasharray:${volta};stroke-dashoffset:${volta * (1 - (pct || 0) / 100)}"/>
+          </svg>
+          <div class="mid"><div class="p">${pct == null ? '—' : pct + '%'}</div>
+            <div class="s">${feitas.length}/${lista.length}</div></div>
+        </div>
+        <div class="lado">
+          <div class="linha"><div><div class="lb">Sequência</div>
+            <div class="ds">Dias seguidos fechando 100%</div></div>
+            <div class="v ${streak >= 3 ? 'ok' : ''}">${streak}${streak === 1 ? ' dia' : ' dias'}</div></div>
+          <div class="linha"><div><div class="lb">Em aberto</div>
+            <div class="ds">${atrasadas.length ? atrasadas.length + ' com prazo vencido' : 'nada atrasado'}</div></div>
+            <div class="v ${atrasadas.length ? 'bad' : ''}">${lista.length - feitas.length}</div></div>
+          <div class="heat">
+            <div class="lb" style="margin-bottom:8px">Últimos 14 dias</div>
+            <div class="grade">${dias14.map(x => `<span title="${dtl(x.d)} — ${
+              x.total ? x.ok + '/' + x.total : 'nada previsto'}"
+              class="${x.total === 0 ? 'vazio' : x.pct === 100 ? 'cheio' : x.pct >= 50 ? 'meio' : 'pouco'}"></span>`).join('')}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><h3>${f.periodo === 'hoje' ? 'A rotina de hoje'
+          : f.periodo === 'semana' ? 'Esta semana' : 'Este mês'}</h3>
+          <span class="push sm2">${lista.length} item(ns)</span></div>
+        ${lista.length ? chaves.map(k => `
+          <div class="grupo">${rotuloGrupo(k)}
+            <span>${grupos[k].filter(a => a.status === 'concluida').length}/${grupos[k].length}</span></div>
+          ${grupos[k].map(item).join('')}`).join('')
+        : vazio('check',
+            f.periodo === 'hoje' ? 'Nada previsto para hoje' : 'Nada neste período',
+            'Se você tem rotinas cadastradas, clique em "Gerar rotinas de hoje". Se não tem, comece criando uma em Rotina semanal.',
+            { act:'gerar', label:'Gerar rotinas de hoje' })}
+      </div>`;
+  },
+  acoes: {
+    periodo(b) { R.checkDiario.filtro.periodo = b.dataset.v; pinta(); },
+    quem(b)    { R.checkDiario.filtro.quem = b.dataset.v; pinta(); },
+    tag(b)     { R.checkDiario.filtro.tag = b.dataset.v; pinta(); },
+    async gerar() {
+      const { data, error } = await sb.rpc('gerar_acoes_do_dia');
+      if (error) return toast(error.message, { tipo:'bad' });
+      toast(data ? `${data} rotina(s) criada(s).` : 'Nenhuma rotina nova para hoje.', { tipo: data ? 'ok' : 'info' });
+      pinta();
+    },
+    async virar(b) {
+      const novo = b.dataset.v;
+      b.classList.toggle('done', novo === 'concluida');   // resposta imediata
+      if (await grava('acoes', { status: novo }, b.dataset.id)) pinta();
+      else pinta();
+    }
+  }
+};
+
 /* ── Rotina semanal ───────────────────────────────────────────────
    A semana inteira em sete colunas. É a pergunta "como é a minha
    segunda-feira?" respondida sem precisar abrir cada rotina. */
@@ -1578,7 +1831,8 @@ R.rotinaSemanal = {
       </div>
       <div class="t">${esc(m.titulo)}</div>
       <div class="m">${esc(nomeUser(m.responsavel_id))}${
-        m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div></div>`;
+        m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div>
+      ${chipsTags(m.tags)}</div>`;
 
     const carga = ORDEM_SEMANA.map(d => doDia(d).length);
     const pico = Math.max(...carga, 1);
