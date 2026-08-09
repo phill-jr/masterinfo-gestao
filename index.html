@@ -687,6 +687,15 @@ async function q(fonte, build) {
   if (error) { toast(error.message, { tipo: 'bad' }); console.error(fonte, error); return []; }
   return data || [];
 }
+/* Para tabelas que podem ainda não existir no banco. Devolve null em
+   vez de encher a tela de erro — a interface se adapta. */
+async function qOpcional(fonte, build) {
+  let s = sb.from(fonte).select('*');
+  if (build) s = build(s);
+  const { data, error } = await s;
+  return error ? null : (data || []);
+}
+
 async function grava(tab, row, id) {
   const r = id ? await sb.from(tab).update(row).eq('id', id) : await sb.from(tab).insert(row);
   if (r.error) { toast(r.error.message, { tipo: 'bad' }); return false; }
@@ -713,10 +722,18 @@ async function recarregaBase() {
   const [u, c, g] = await Promise.all([
     q('usuarios', x => x.order('nome')),
     q('canais_venda', x => x.order('nome')),
-    q('cargos', x => x.order('nome'))
+    qOpcional('cargos', x => x.order('nome'))
   ]);
-  cache.usuarios = u; cache.canais = c; cache.cargos = g;
+  cache.usuarios = u; cache.canais = c;
+  cache.cargos = g || []; cache.temCargos = g !== null;
 }
+
+/* Com o cadastro de cargos no ar, vira lista. Sem ele, continua texto
+   livre — ninguém fica travado esperando migração de banco. */
+const campoCargo = row => cache.temCargos
+  ? { k:'cargo_id', label:'Cargo', type:'select', value:row?.cargo_id, opts:optCargos(),
+      hint:'A lista vem do cadastro de cargos, em Configurações → Time e canais.' }
+  : { k:'cargo', label:'Cargo', value:row?.cargo, ph:'Ex.: Gestor de Marketing' };
 const nomeCargo = id => cache.cargos.find(c => c.id === id)?.nome || '—';
 const optCargos = (v = '— sem cargo —') => [{ v:'', t:v },
   ...cache.cargos.filter(c => c.ativo).map(c => ({ v:c.id, t:c.nome }))];
@@ -2190,10 +2207,9 @@ R.config = {
     async 'salva-perfil'() {
       const nome = ($('#pf-nome')?.value || '').trim();
       if (!nome) return toast('O nome não pode ficar vazio.', { tipo:'bad' });
-      const dados = {
-        nome, cargo_id: $('#pf-cargo')?.value || null,
-        canal_principal_id: $('#pf-canal')?.value || null
-      };
+      const dados = { nome, canal_principal_id: $('#pf-canal')?.value || null };
+      const cg = $('#pf-cargo')?.value || null;
+      if (cache.temCargos) dados.cargo_id = cg; else dados.cargo = cg;
       if (!await grava('usuarios', dados, eu.id)) return;
       await recarregaBase();
       eu = cache.usuarios.find(u => u.id === eu.id);
@@ -2205,7 +2221,7 @@ R.config = {
         .map(p => p[0].toUpperCase() + p.slice(1)).join(' ');
       form('Criar meu perfil', [
         { k:'nome', label:'Nome', req:true, value:sugestao },
-        { k:'cargo_id', label:'Cargo', type:'select', opts:optCargos() },
+        campoCargo(null),
         { k:'canal_principal_id', label:'Canal principal', type:'select', opts:optCanais() }
       ], async d => {
         d.auth_user_id = sessao.user.id;
@@ -2270,8 +2286,10 @@ function cfgCorpo() {
       </div>
       <div class="g2" style="margin-bottom:14px">
         <div><label>Nome</label><input id="pf-nome" value="${esc(eu.nome || '')}"></div>
-        <div><label>Cargo</label><select id="pf-cargo">${optCargos().map(o =>
-          `<option value="${esc(o.v)}"${String(o.v) === String(eu.cargo_id ?? '') ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>
+        <div><label>Cargo</label>${cache.temCargos
+          ? `<select id="pf-cargo">${optCargos().map(o =>
+              `<option value="${esc(o.v)}"${String(o.v) === String(eu.cargo_id ?? '') ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select>`
+          : `<input id="pf-cargo" value="${esc(eu.cargo || '')}" placeholder="Ex.: Gestor de Marketing">`}</div>
       </div>
       <div class="g2" style="margin-bottom:20px">
         <div><label>Canal principal</label><select id="pf-canal">${optCanais().map(o =>
@@ -2299,10 +2317,14 @@ function cfgCorpo() {
       </tr>`).join('')}</tbody></table></div>`
       : vazio('users', 'Comece por você', 'Cadastre-se primeiro, depois o resto do time.', { act:'novo-user', label:'Adicionar pessoa' })}</div>
 
-      <div class="card"><div class="ch"><h3>Cargos</h3><span class="pill dim">${cache.cargos.length}</span>
+      <div class="card"><div class="ch"><h3>Cargos</h3>
+      ${cache.temCargos ? `<span class="pill dim">${cache.cargos.length}</span>
       <div class="push"><button class="btn sm ghost" data-act="csv-cargo">${ico('down',13)}CSV</button>
-      <button class="btn sm" data-act="novo-cargo">${ico('plus',13)}Cargo</button></div></div>
-      ${cache.cargos.length ? `<div class="t-scroll"><table><thead><tr>
+      <button class="btn sm" data-act="novo-cargo">${ico('plus',13)}Cargo</button></div>` : ''}</div>
+      ${!cache.temCargos ? `<div class="cb"><div class="err" style="display:block">
+        O cadastro de cargos ainda não existe neste banco. Enquanto isso, o cargo continua
+        funcionando como texto livre em cada pessoa — nada quebra.</div></div>`
+      : cache.cargos.length ? `<div class="t-scroll"><table><thead><tr>
         <th>Cargo</th><th>Descrição</th><th class="num">Pessoas</th><th>Estado</th><th></th></tr></thead>
       <tbody>${cache.cargos.map(g => {
         const quantos = us.filter(u => u.cargo_id === g.id).length;
@@ -2505,8 +2527,7 @@ function cfgCorpo() {
 function formUser(row) {
   form(row ? 'Editar pessoa' : 'Nova pessoa', [
     { k:'nome', label:'Nome', req:true, value:row?.nome },
-    { k:'cargo_id', label:'Cargo', type:'select', value:row?.cargo_id, opts:optCargos(),
-      hint:'A lista vem do cadastro de cargos, logo abaixo nesta mesma tela.' },
+    campoCargo(row),
     { k:'canal_principal_id', label:'Canal principal', type:'select', value:row?.canal_principal_id, opts:optCanais() },
     { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value:row ? row.ativo : true }
   ], async d => { const ok = await grava('usuarios', d, row?.id); if (ok) await recarregaBase(); return ok; });
@@ -2558,7 +2579,8 @@ function formConvite(pessoa) {
       hint:'Precisa ser o mesmo e-mail que ela vai usar para criar a conta.' },
     { k:'nome', label:'Nome', value:pessoa?.nome,
       hint:pessoa ? '' : 'Usado para criar a pessoa no time quando o convite for aceito.' },
-    { k:'cargo_id', label:'Cargo', type:'select', value:pessoa?.cargo_id, opts:optCargos() },
+    ...(cache.temCargos
+      ? [{ k:'cargo_id', label:'Cargo', type:'select', value:pessoa?.cargo_id, opts:optCargos() }] : []),
     { k:'expira_em', label:'Válido até', type:'date',
       value: new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10) }
   ], async d => {
