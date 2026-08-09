@@ -539,6 +539,29 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .legenda b{display:inline-flex;align-items:center;gap:6px;font-weight:500}
 .legenda i{width:9px;height:9px;border-radius:3px;display:block}
 
+/* ── calendário ──────────────────────────────────────────────── */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal .cab{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);
+  font-weight:700;text-align:center;padding:4px 0 8px}
+.cal .cel{min-height:92px;border:1px solid var(--line);border-radius:var(--r);padding:7px;
+  background:var(--surface);transition:border-color .15s,transform .15s var(--ease);overflow:hidden}
+.cal .cel.fora{background:transparent;border-color:transparent}
+.cal .cel.fds{background:var(--surface2)}
+.cal .cel.temAlgo{cursor:pointer}
+.cal .cel.temAlgo:hover{border-color:var(--ac);transform:translateY(-2px)}
+.cal .cel.hoje{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-bg)}
+.cal .num{font-size:12px;font-weight:700;color:var(--dim);margin-bottom:5px;display:flex;
+  align-items:center;gap:5px}
+.cal .cel.hoje .num{color:var(--ac)}
+.cal .num span{background:var(--ac);color:var(--ac-fg);font-size:9px;padding:0 5px;
+  border-radius:20px;text-transform:uppercase;letter-spacing:.05em}
+.cal .ev{font-size:10.5px;line-height:1.35;padding:2px 5px;border-radius:4px;margin-bottom:3px;
+  background:var(--ac-bg);color:var(--ac);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal .ev b{font-variant-numeric:tabular-nums}
+.cal .mais{font-size:10px;color:var(--dim);padding-left:5px}
+@media(max-width:760px){.cal{gap:3px}.cal .cel{min-height:66px;padding:4px}
+  .cal .ev{font-size:9px;padding:1px 3px}}
+
 /* ── régua de dias da semana ─────────────────────────────────── */
 .regua{display:inline-flex;gap:3px}
 .regua span{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;
@@ -1852,12 +1875,101 @@ R.checkDiario = {
   }
 };
 
+/* ── calendário das rotinas ───────────────────────────────────────
+   Mesma regra de recorrência que o banco usa para gerar o dia. Se as
+   duas divergirem, o calendário vira ficção. */
+function caiNoDia(m, iso) {
+  const d = new Date(iso + 'T12:00:00'), dow = d.getDay(), dia = d.getDate();
+  switch (m.recorrencia) {
+    case 'diaria':     return true;
+    case 'dias_uteis': return dow >= 1 && dow <= 5;
+    case 'semanal':    return (m.recorrencia_dias || []).includes(dow);
+    case 'quinzenal':
+      if (!m.recorrencia_inicio || iso < m.recorrencia_inicio) return false;
+      return Math.round((d - new Date(m.recorrencia_inicio + 'T12:00:00')) / 864e5) % 14 === 0;
+    case 'mensal': {
+      const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      return dia === Math.min(m.recorrencia_dia_mes || 1, ultimo);
+    }
+  }
+  return false;
+}
+
+let _calModelos = [];
+
+function calendario(modelos, mesRef) {
+  _calModelos = modelos;
+  const hj = hoje();
+  const [ano, mes] = (mesRef || hj.slice(0, 7)).split('-').map(Number);
+  const primeiro = new Date(ano, mes - 1, 1);
+  const ultimo   = new Date(ano, mes, 0).getDate();
+  // Segunda como primeiro dia da semana
+  const desloca  = (primeiro.getDay() + 6) % 7;
+  const iso = d => `${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+  const passo = n => {
+    const d = new Date(ano, mes - 1 + n, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+  };
+  const titulo = primeiro.toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+
+  const celulas = [];
+  for (let i = 0; i < desloca; i++) celulas.push('<div class="cel fora"></div>');
+  for (let d = 1; d <= ultimo; d++) {
+    const data = iso(d);
+    const doDia = modelos.filter(m => caiNoDia(m, data))
+      .sort((a, b) => (a.hora || '99') > (b.hora || '99') ? 1 : -1);
+    const fds = [0, 6].includes(new Date(data + 'T12:00:00').getDay());
+    celulas.push(`<div class="cel ${data === hj ? 'hoje' : ''} ${fds ? 'fds' : ''} ${doDia.length ? 'temAlgo' : ''}"
+      ${doDia.length ? `data-act="dia" data-d="${data}"` : ''}>
+      <div class="num">${d}${data === hj ? '<span>hoje</span>' : ''}</div>
+      ${doDia.slice(0, 3).map(m => `<div class="ev" title="${esc(m.titulo)}">
+        ${m.hora ? `<b>${hm(m.hora)}</b> ` : ''}${esc(m.titulo)}</div>`).join('')}
+      ${doDia.length > 3 ? `<div class="mais">+${doDia.length - 3}</div>` : ''}</div>`);
+  }
+
+  return `<div class="card"><div class="ch">
+      <button class="ib" data-act="mes" data-v="${passo(-1)}">${ico('arrowL',16)}</button>
+      <h3 style="min-width:190px;text-align:center">${titulo[0].toUpperCase() + titulo.slice(1)}</h3>
+      <button class="ib" data-act="mes" data-v="${passo(1)}">${ico('arrowR',16)}</button>
+      <div class="push">
+        <button class="btn sm ghost" data-act="mes" data-v="${hj.slice(0,7)}">Hoje</button></div></div>
+    <div class="cb">
+      <div class="cal">
+        ${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(n => `<div class="cab">${n}</div>`).join('')}
+        ${celulas.join('')}
+      </div>
+      <div class="sm2" style="margin-top:12px">Mostra onde cada rotina cai, incluindo as mensais e as
+        quinzenais. Clique num dia para ver a lista completa.</div>
+    </div></div>`;
+}
+
+function detalheDoDia(data) {
+  const lista = _calModelos.filter(m => caiNoDia(m, data))
+    .sort((a, b) => (a.hora || '99') > (b.hora || '99') ? 1 : -1);
+  const d = new Date(data + 'T12:00:00');
+  const t = d.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+  modal({
+    titulo: t[0].toUpperCase() + t.slice(1), ok: 'Fechar', largura: 460,
+    onOk: () => true,
+    corpo: lista.map(m => `<div style="display:flex;gap:12px;align-items:flex-start;
+        padding:11px 0;border-bottom:1px solid var(--line)">
+        <span class="pill ${m.hora ? 'ac' : 'dim'}" style="min-width:56px;justify-content:center">
+          ${m.hora ? hm(m.hora) : '—'}</span>
+        <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px">${esc(m.titulo)}</div>
+          <div class="sm2">${esc(nomeUser(m.responsavel_id))}${
+            m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div>
+          ${chipsTags(m.tags)}</div></div>`).join('')
+      || '<p class="sm2">Nada previsto.</p>'
+  });
+}
+
 /* ── Rotina semanal ───────────────────────────────────────────────
    A semana inteira em sete colunas. É a pergunta "como é a minha
    segunda-feira?" respondida sem precisar abrir cada rotina. */
 R.rotinaSemanal = {
   label: 'Rotina semanal', curto: 'Rotina semanal', icone: 'cal', titulo: 'Rotina semanal',
-  filtro: { quem: 'minha' },
+  filtro: { quem: 'minha', vista: 'kanban', mes: null },
   async dados() {
     return { modelos: await q('acoes', x => x.neq('recorrencia', 'nenhuma').eq('status', 'aberta')) };
   },
@@ -1902,6 +2014,8 @@ R.rotinaSemanal = {
     return `<div class="head"><div><h2>Rotina semanal</h2>
         <div class="sub">Sua semana inteira em uma tela. Cada coluna é um dia, em ordem de horário.</div></div>
         <div class="push">
+          <div class="seg">${[['kanban','Kanban'],['lista','Lista'],['calendario','Calendário']].map(([v,l]) =>
+            `<button data-act="vista" data-v="${v}" class="${f.vista===v?'on':''}">${l}</button>`).join('')}</div>
           <div class="seg">${[['minha','Minha rotina'],['todos','Todo o time']].map(([v,l]) =>
             `<button data-act="quem" data-v="${v}" class="${f.quem===v?'on':''}"${
               v==='minha' && !eu ? ' disabled title="Crie seu perfil primeiro"' : ''}>${l}</button>`).join('')}</div>
@@ -1927,19 +2041,39 @@ R.rotinaSemanal = {
             <div class="n">${mensais.length}</div><div class="l">Mensais</div></div>
         </div>
 
-        <div class="semana">${ORDEM_SEMANA.map((d, i) => {
+        ${f.vista === 'kanban' ? `
+        <div class="semana">${ORDEM_SEMANA.map(d => {
           const lista = doDia(d);
-          const nome = NOME_DIA[d];
           return `<div class="col ${d === hojeDia ? 'hoje' : ''} ${d === 0 || d === 6 ? 'fds' : ''}">
-            <h4>${nome}${d === hojeDia ? '<span class="agora">hoje</span>' : ''}
+            <h4>${NOME_DIA[d]}${d === hojeDia ? '<span class="agora">hoje</span>' : ''}
               <span>${lista.length}</span></h4>
             <div class="carga"><i style="width:${100 * lista.length / pico}%"></i></div>
             ${lista.length ? lista.map(cartao).join('')
               : `<div class="livre">${d === 0 || d === 6 ? 'folga' : 'dia livre'}</div>`}
           </div>`;
-        }).join('')}</div>
+        }).join('')}</div>` : ''}
 
-        ${mensais.length ? `<div class="card" style="margin-top:20px">
+        ${f.vista === 'lista' ? `
+        <div class="card"><div class="ch"><h3>Todas as rotinas</h3>
+          <span class="push sm2">${semanais.length + mensais.length} no total</span></div>
+          <div class="t-scroll"><table><thead><tr>
+            <th>Rotina</th><th>Dias de execução</th><th>Hora</th><th>Responsável</th><th>Canal</th><th>Tags</th><th></th>
+          </tr></thead><tbody>${[...semanais, ...mensais]
+            .sort((a, b) => emMin(a.hora) - emMin(b.hora) || (a.titulo > b.titulo ? 1 : -1))
+            .map(m => `<tr>
+              <td><b>${esc(m.titulo)}</b>${m.recorrencia === 'quinzenal'
+                ? ' <span class="pill info">quinzenal</span>' : ''}</td>
+              <td>${reguaDias(m)}</td>
+              <td class="mut">${m.hora ? '<b style="color:var(--txt)">' + hm(m.hora) + '</b>' : '—'}</td>
+              <td class="mut">${esc(nomeUser(m.responsavel_id))}</td>
+              <td class="mut">${m.canal_id ? esc(nomeCanal(m.canal_id)) : '—'}</td>
+              <td>${chipsTags(m.tags) || '<span class="mut">—</span>'}</td>
+              <td class="act"><button class="btn sm ghost" data-act="editar" data-id="${m.id}">${ico('edit',13)}</button></td>
+            </tr>`).join('')}</tbody></table></div></div>` : ''}
+
+        ${f.vista === 'calendario' ? calendario(meus, f.mes) : ''}
+
+        ${f.vista !== 'lista' && mensais.length ? `<div class="card" style="margin-top:20px">
           <div class="ch"><h3>Rotinas mensais</h3>
             <span class="push sm2">não caem num dia fixo da semana</span></div>
           ${mensais.map(m => `<div class="row" data-act="editar" data-id="${m.id}" style="cursor:pointer">
@@ -1957,7 +2091,10 @@ R.rotinaSemanal = {
           { act:'nova', label:'Criar rotina' })}</div>`}`;
   },
   acoes: {
-    quem(b) { R.rotinaSemanal.filtro.quem = b.dataset.v; pinta(); },
+    quem(b)  { R.rotinaSemanal.filtro.quem = b.dataset.v; pinta(); },
+    vista(b) { R.rotinaSemanal.filtro.vista = b.dataset.v; pinta(); },
+    mes(b)   { R.rotinaSemanal.filtro.mes = b.dataset.v; pinta(); },
+    dia(b)   { detalheDoDia(b.dataset.d); },
     nova() { R.acoes.acoes.modelo(); },
     async editar(b) {
       const [m] = await q('acoes', x => x.eq('id', b.dataset.id));
