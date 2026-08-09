@@ -1094,7 +1094,8 @@ R.inicio = {
         <div><h2>${saudacao()}${eu?.nome ? ', ' + esc(eu.nome.split(' ')[0]) : ''} 👋</h2>
           <div class="sub">${dataExtenso()}</div></div>
         <div class="push">
-          <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar rotinas de hoje</button>
+          <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar hoje</button>
+          <button class="btn ghost" data-act="gerar-semana">${ico('cal',15)}Gerar a semana</button>
           <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
           <button class="btn pontual" data-act="nova">${ico('zap',15)}Tarefa pontual</button></div></div>
       ${onboarding}
@@ -1119,7 +1120,20 @@ R.inicio = {
     async gerar() {
       const { data, error } = await sb.rpc('gerar_acoes_do_dia');
       if (error) return toast(error.message, { tipo: 'bad' });
-      toast(data ? `${data} rotina(s) criada(s) para hoje.` : 'Nenhuma rotina nova para hoje.', { tipo: data ? 'ok' : 'info' });
+      toast(data ? `${data} tarefa(s) criada(s) para hoje.` : 'Hoje já estava gerado.',
+        { tipo: data ? 'ok' : 'info' });
+      pinta();
+    },
+    async 'gerar-semana'() {
+      const de = seg();
+      const ate = new Date(new Date(de + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
+      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
+      if (error) {
+        return toast(/function|does not exist/i.test(error.message)
+          ? 'A geração por semana ainda não existe no banco (correção 07).' : error.message, { tipo: 'bad' });
+      }
+      toast(data ? `${data} tarefa(s) criada(s) de ${dt(de)} a ${dt(ate)}.`
+                 : 'A semana já estava gerada.', { tipo: data ? 'ok' : 'info' });
       pinta();
     },
     nova: () => formPontual(),
@@ -1709,7 +1723,7 @@ const chipsTags = tags => !tags?.length ? '' :
    sozinho não serve: por isso vem com os últimos 14 dias do lado,
    que é onde constância aparece. */
 R.checkDiario = {
-  label: 'Check do dia', curto: 'Check do dia', icone: 'check', titulo: 'Check do dia',
+  label: 'Checklist', curto: 'Checklist', icone: 'check', titulo: 'Checklist',
   filtro: { periodo: 'hoje', quem: 'minha', tag: '', natureza: 'tudo' },
   async dados() {
     const de = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
@@ -1797,10 +1811,13 @@ R.checkDiario = {
 
     const raio = 52, volta = 2 * Math.PI * raio;
 
-    return `<div class="head"><div><h2>Check do dia</h2>
+    return `<div class="head"><div><h2>Checklist</h2>
         <div class="sub">Marque o que saiu. O que importa não é o dia perfeito, é a sequência.</div></div>
         <div class="push">
-          <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar rotinas de hoje</button>
+          <button class="btn ghost" data-act="gerar" title="Cria as tarefas das rotinas de hoje">
+            ${ico('refresh',15)}Gerar hoje</button>
+          <button class="btn ghost" data-act="gerar-semana" title="Cria as tarefas de segunda a domingo desta semana">
+            ${ico('cal',15)}Gerar a semana</button>
           <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
           <button class="btn pontual" data-act="nova-pontual">${ico('zap',15)}Tarefa pontual</button>
         </div></div>
@@ -1875,7 +1892,21 @@ R.checkDiario = {
     async gerar() {
       const { data, error } = await sb.rpc('gerar_acoes_do_dia');
       if (error) return toast(error.message, { tipo:'bad' });
-      toast(data ? `${data} rotina(s) criada(s).` : 'Nenhuma rotina nova para hoje.', { tipo: data ? 'ok' : 'info' });
+      toast(data ? `${data} tarefa(s) criada(s) para hoje.` : 'Hoje já estava gerado.',
+        { tipo: data ? 'ok' : 'info' });
+      pinta();
+    },
+    async 'gerar-semana'() {
+      const de = seg();
+      const ate = new Date(new Date(de + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
+      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
+      if (error) {
+        return toast(/function|does not exist/i.test(error.message)
+          ? 'A geração por semana ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
+      }
+      toast(data ? `${data} tarefa(s) criada(s) de ${dt(de)} a ${dt(ate)}.`
+                 : 'A semana já estava gerada.', { tipo: data ? 'ok' : 'info' });
+      R.checkDiario.filtro.periodo = 'semana';
       pinta();
     },
     async virar(b) {
@@ -3603,6 +3634,7 @@ async function palette() {
     { g:'Ações', t:'Nova ação', ic:'plus', sc:'N', run:() => formAcao() },
     { g:'Ações', t:'Nova rotina recorrente', ic:'refresh', run:() => R.acoes.acoes.modelo() },
     { g:'Ações', t:'Gerar rotinas de hoje', ic:'zap', run:() => R.inicio.acoes.gerar() },
+    { g:'Ações', t:'Gerar a semana inteira', ic:'cal', run:() => R.inicio.acoes['gerar-semana']() },
     { g:'Ações', t:'Nova campanha', ic:'target', run:() => formCampanha() },
     { g:'Ações', t:'Registrar feedback', ic:'users', run:() => R.time.acoes.fb() },
     { g:'Sistema', t:`Tema ${pref.theme === 'dark' ? 'claro' : 'escuro'}`, ic:pref.theme === 'dark' ? 'sun' : 'moon',
