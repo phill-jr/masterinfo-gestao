@@ -1741,15 +1741,19 @@ const chipsTags = tags => !tags?.length ? '' :
    que é onde constância aparece. */
 R.checkDiario = {
   label: 'Checklist', curto: 'Checklist', icone: 'check', titulo: 'Checklist',
-  filtro: { periodo: 'hoje', quem: 'minha', tag: '', natureza: 'tudo' },
+  filtro: { periodo: 'hoje', quem: 'minha', tag: '', natureza: 'tudo', data: null },
   async dados() {
     const de = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
-    return { acoes: await q('acoes', x =>
-      x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo')) };
+    const [acoes, modelos] = await Promise.all([
+      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo')),
+      q('acoes', x => x.neq('recorrencia', 'nenhuma').eq('status', 'aberta'))
+    ]);
+    return { acoes, modelos };
   },
-  render({ acoes }) {
+  render({ acoes, modelos }) {
     const f = R.checkDiario.filtro;
     if (f.quem === 'minha' && !eu) f.quem = 'todos';
+    if (f.periodo === 'dia' && !f.data) f.data = hoje();
 
     // Veio de uma rotina recorrente, ou apareceu solta hoje?
     const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
@@ -1761,14 +1765,28 @@ R.checkDiario = {
       a.status !== 'cancelada');
 
     // Intervalo do período escolhido
-    const ini = f.periodo === 'hoje' ? hoje()
+    const ini = f.periodo === 'dia' ? f.data
+              : f.periodo === 'hoje' ? hoje()
               : f.periodo === 'semana' ? seg()
               : hoje().slice(0, 8) + '01';
-    const fim = f.periodo === 'hoje' ? hoje()
+    const fim = f.periodo === 'dia' ? f.data
+              : f.periodo === 'hoje' ? hoje()
               : f.periodo === 'semana' ? new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)
               : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
 
-    const lista = meus.filter(a => a.prazo >= ini && a.prazo <= fim);
+    let lista = meus.filter(a => a.prazo >= ini && a.prazo <= fim);
+
+    /* Dia escolhido que ainda não foi gerado: em vez de mostrar tela
+       vazia, calcula a partir das rotinas o que VAI cair ali. É uma
+       previsão, não tarefa — por isso não dá para marcar. */
+    const previsao = f.periodo === 'dia' && !lista.length
+      ? (modelos || [])
+          .filter(m => caiNoDia(m, f.data))
+          .filter(m => (f.quem !== 'minha' || !eu || m.responsavel_id === eu.id) &&
+                       (!f.tag || (m.tags || []).includes(f.tag)) &&
+                       (f.natureza !== 'pontual'))
+          .sort((a, b) => (a.hora || '99') > (b.hora || '99') ? 1 : -1)
+      : [];
     const feitas = lista.filter(a => a.status === 'concluida');
     const pct = lista.length ? Math.round(100 * feitas.length / lista.length) : null;
 
@@ -1843,8 +1861,15 @@ R.checkDiario = {
         ${dd('Período', 'periodo', [
           { v:'hoje', t:'Hoje', i:'clock' },
           { v:'semana', t:'Esta semana', i:'cal' },
-          { v:'mes', t:'Este mês', i:'chart' }
+          { v:'mes', t:'Este mês', i:'chart' },
+          { v:'dia', t:'Um dia específico', i:'cal', d:'Ver com antecedência como vai ser' }
         ], f.periodo)}
+        ${f.periodo === 'dia' ? `<input type="date" data-act="escolhe-data" value="${esc(f.data || hoje())}"
+          style="width:auto;font-weight:600">
+          <span class="pill ${f.data === hoje() ? 'ac' : f.data > hoje() ? 'info' : 'dim'}">${
+            f.data === hoje() ? 'hoje'
+            : f.data > hoje() ? 'daqui a ' + Math.round((new Date(f.data + 'T12:00:00') - new Date(hoje() + 'T12:00:00')) / 864e5) + ' dia(s)'
+            : 'passado'}</span>` : ''}
         ${dd('De quem', 'quem', [
           { v:'minha', t:'Minhas', i:'user' },
           { v:'todos', t:'Do time', i:'users' }
@@ -1858,6 +1883,25 @@ R.checkDiario = {
           [{ v:'', t:'Todas as tags' }, ...tagsUsadas.map(t => ({ v:t, t }))], f.tag) : ''}
       </div>
 
+      ${previsao.length ? `
+        <div class="card"><div class="ch">
+          <h3>${(() => { const d = new Date(f.data + 'T12:00:00')
+              .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+            return d[0].toUpperCase() + d.slice(1); })()}</h3>
+          <span class="pill info">previsão</span>
+          <div class="push"><button class="btn" data-act="gerar-dia">${ico('zap',15)}Gerar este dia</button></div></div>
+        <div class="cb" style="padding-bottom:4px"><p class="sm2">
+          As tarefas deste dia ainda não foram criadas. Isto é o que as suas rotinas
+          <b>vão gerar</b> — dá para se preparar, mas ainda não dá para marcar.
+          Clique em "Gerar este dia" se quiser antecipar.</p></div>
+        ${previsao.map(m => `<div class="chk-item rotina" style="opacity:.85">
+          <span class="tick" style="border-style:dashed;cursor:default"></span>
+          <div class="g"><div class="t">${esc(m.titulo)}</div>
+            <div class="m">${m.hora ? '<b>' + hm(m.hora) + '</b> · ' : ''}${esc(nomeUser(m.responsavel_id))}${
+              m.setor_id ? ' · ' + esc(nomeSetor(m.setor_id)) : ''}</div>
+            ${chipsTags(m.tags)}</div>
+          <span class="pill dim">prevista</span></div>`).join('')}
+        </div>` : `
       <div class="progresso">
         <div class="anel">
           <svg viewBox="0 0 120 120">
@@ -1886,7 +1930,11 @@ R.checkDiario = {
 
       <div class="card">
         <div class="ch"><h3>${f.periodo === 'hoje' ? 'A rotina de hoje'
-          : f.periodo === 'semana' ? 'Esta semana' : 'Este mês'}</h3>
+          : f.periodo === 'semana' ? 'Esta semana'
+          : f.periodo === 'mes' ? 'Este mês'
+          : (() => { const d = new Date(f.data + 'T12:00:00')
+              .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+             return d[0].toUpperCase() + d.slice(1); })()}</h3>
           <span class="push sm2">${lista.length} item(ns)</span></div>
         <div class="legenda">
           <b><i style="background:var(--ac)"></i> Rotina — se repete</b>
@@ -1898,16 +1946,27 @@ R.checkDiario = {
             <span>${grupos[k].filter(a => a.status === 'concluida').length}/${grupos[k].length}</span></div>
           ${grupos[k].map(item).join('')}`).join('')
         : vazio('check',
-            f.periodo === 'hoje' ? 'Nada previsto para hoje' : 'Nada neste período',
-            'Se você tem rotinas cadastradas, clique em "Gerar rotinas de hoje". Se não tem, comece criando uma em Rotina semanal.',
-            { act:'gerar', label:'Gerar rotinas de hoje' })}
-      </div>`;
+            f.periodo === 'hoje' ? 'Nada previsto para hoje'
+            : f.periodo === 'dia' ? 'Nenhuma rotina cai neste dia'
+            : 'Nada neste período',
+            'Se você tem rotinas cadastradas, clique em "Gerar hoje". Se não tem, comece criando uma em Rotina semanal.',
+            { act:'gerar', label:'Gerar hoje' })}
+      </div>`}`;
   },
   acoes: {
     periodo(b)  { R.checkDiario.filtro.periodo = b.dataset.v; pinta(); },
     quem(b)     { R.checkDiario.filtro.quem = b.dataset.v; pinta(); },
     tag(b)      { R.checkDiario.filtro.tag = b.dataset.v; pinta(); },
     natureza(b) { R.checkDiario.filtro.natureza = b.dataset.v; pinta(); },
+    'escolhe-data'(el) { R.checkDiario.filtro.data = el.value || hoje(); pinta(); },
+    async 'gerar-dia'() {
+      const d = R.checkDiario.filtro.data;
+      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: d, p_ate: d });
+      if (error) return toast(error.message, { tipo:'bad' });
+      toast(data ? `${data} tarefa(s) criada(s) para ${dt(d)}.` : 'Nada a gerar neste dia.',
+        { tipo: data ? 'ok' : 'info' });
+      pinta();
+    },
     'nova-rotina'()  { R.acoes.acoes.modelo(); },
     'nova-pontual'() { formPontual(); },
     async gerar() {
