@@ -4483,6 +4483,196 @@ function finMontaCSV(linhas, mapa, inverter) {
   }).filter(Boolean);
 }
 
+/* ── PDF ──────────────────────────────────────────────────────────
+   Extrato em PDF não tem colunas de verdade: tem texto solto com
+   coordenadas. Por isso a leitura aqui é geométrica, e não por
+   expressão regular em cima da linha inteira — número colado em
+   número é justamente onde o regex erra e some com o saldo ou com o
+   valor. Junta-se o texto por altura (y) para formar a linha, e as
+   colunas de dinheiro saem do agrupamento das bordas direitas (x),
+   que é onde banco nenhum foge: valor é sempre alinhado à direita.
+
+   O pdf.js só é baixado quando um PDF é solto — quem manda OFX não
+   paga o megabyte da biblioteca. */
+let pdfjsPromessa = null;
+function finCarregaPDFjs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (pdfjsPromessa) return pdfjsPromessa;
+  const BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+  pdfjsPromessa = new Promise((ok, erro) => {
+    const s = document.createElement('script');
+    s.src = BASE + 'pdf.min.js';
+    s.onload = () => {
+      if (!window.pdfjsLib) { pdfjsPromessa = null; return erro(new Error('O leitor de PDF carregou mas não se registrou.')); }
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = BASE + 'pdf.worker.min.js';
+      ok(window.pdfjsLib);
+    };
+    s.onerror = () => { pdfjsPromessa = null;
+      erro(new Error('Não deu para baixar o leitor de PDF. Confira a conexão e tente de novo.')); };
+    document.head.appendChild(s);
+  });
+  return pdfjsPromessa;
+}
+
+/* Dinheiro no padrão brasileiro: sempre duas casas depois da
+   vírgula. Aceita R$, parênteses, sinal e o D/C de débito e crédito
+   que alguns bancos grudam no fim. */
+const RE_DINHEIRO = /^[-+]?\(?\s*(?:r\$)?\s*(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}\)?\s*[dc]?$/i;
+const finEhDinheiro = t => RE_DINHEIRO.test(String(t ?? '').trim());
+
+const FIN_MESES = { jan:1, fev:2, mar:3, abr:4, mai:5, jun:6,
+                    jul:7, ago:8, set:9, out:10, nov:11, dez:12 };
+
+/* Data no começo da linha. Devolve também quantos tokens consumiu,
+   porque "05 AGO" às vezes vem partido em dois pelo pdf.js. */
+function finDataDaLinha(tokens) {
+  const t0 = String(tokens[0]?.t ?? '').trim(), t1 = String(tokens[1]?.t ?? '').trim();
+  const ano4 = a => a == null ? null : (String(a).length === 2 ? 2000 + Number(a) : Number(a));
+
+  let m = t0.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+  if (m) return { dia:+m[1], mes:+m[2], ano:ano4(m[3]), usou:1 };
+
+  m = t0.match(/^(\d{1,2})\s+([a-zà-ú]{3,})\.?(?:\s+(\d{2,4}))?$/i);
+  if (m && FIN_MESES[finNorm(m[2]).slice(0, 3)])
+    return { dia:+m[1], mes:FIN_MESES[finNorm(m[2]).slice(0, 3)], ano:ano4(m[3]), usou:1 };
+
+  if (/^\d{1,2}$/.test(t0) && FIN_MESES[finNorm(t1).slice(0, 3)])
+    return { dia:+t0, mes:FIN_MESES[finNorm(t1).slice(0, 3)], ano:null, usou:2 };
+
+  return null;
+}
+
+/* Junta pedaços vizinhos num token só: o pdf.js entrega o texto
+   picado por mudança de fonte, e "1.234,56" costuma vir em cacos. */
+function finTokensDaLinha(itens) {
+  const out = [];
+  for (const i of itens) {
+    const u = out[out.length - 1];
+    if (u && i.x - (u.x + u.w) < 2.6) { u.t += i.t; u.w = (i.x + i.w) - u.x; }
+    else out.push({ x:i.x, w:i.w, t:i.t });
+  }
+  return out.map(t => ({ x:t.x, w:t.w, dir:t.x + t.w, t:String(t.t).replace(/\s+/g, ' ').trim() }))
+            .filter(t => t.t);
+}
+
+async function finLePDF(buffer, senha) {
+  const pdfjs = await finCarregaPDFjs();
+  /* Cópia, não view: o pdf.js transfere o buffer para o worker e o
+     original fica destacado. Sem isso, a segunda tentativa — a que
+     vai com a senha — estouraria em cima de um buffer morto. */
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(buffer.slice(0)), password: senha || undefined,
+    isEvalSupported: false, disableFontFace: true
+  }).promise;
+
+  const paginas = doc.numPages;
+  const linhas = []; let bruto = '';
+  for (let p = 1; p <= paginas; p++) {
+    const conteudo = await (await doc.getPage(p)).getTextContent();
+    const itens = conteudo.items
+      .filter(i => i.str && i.str.trim())
+      .map(i => ({ x:i.transform[4], y:i.transform[5], w:i.width || 0, t:i.str }));
+
+    const porY = [];
+    itens.forEach(i => {
+      const l = porY.find(l => Math.abs(l.y - i.y) <= 2.5);
+      if (l) l.itens.push(i); else porY.push({ y:i.y, pagina:p, itens:[i] });
+    });
+    porY.sort((a, b) => b.y - a.y);           // no PDF, y cresce para cima
+    porY.forEach(l => {
+      l.itens.sort((a, b) => a.x - b.x);
+      l.tokens = finTokensDaLinha(l.itens);
+      l.texto = l.tokens.map(t => t.t).join(' ');
+      delete l.itens;
+      bruto += l.texto + '\n';
+      linhas.push(l);
+    });
+  }
+  doc.destroy?.();
+  return { linhas, bruto, paginas };
+}
+
+/* Colunas de dinheiro pela borda direita dos números. Cluster com
+   menos de duas ocorrências é ruído (um total no rodapé, um número
+   solto no cabeçalho) e não vira coluna. */
+function finColunasPDF(linhas) {
+  const xs = [];
+  linhas.forEach(l => l.tokens.forEach(t => { if (finEhDinheiro(t.t)) xs.push(t.dir); }));
+  if (!xs.length) return [];
+  xs.sort((a, b) => a - b);
+  const grupos = [];
+  xs.forEach(x => {
+    const g = grupos[grupos.length - 1];
+    if (g && x - g.fim <= 14) { g.fim = x; g.n++; g.soma += x; }
+    else grupos.push({ ini:x, fim:x, n:1, soma:x });
+  });
+  return grupos.filter(g => g.n >= 2)
+    .map((g, i) => ({ i, centro:g.soma / g.n, ini:g.ini - 9, fim:g.fim + 9, n:g.n }));
+}
+
+const finAnoProvavel = bruto => {
+  const achados = String(bruto).match(/\b(20\d{2})\b/g) || [];
+  if (!achados.length) return new Date().getFullYear();
+  const conta = {};
+  achados.forEach(a => conta[a] = (conta[a] || 0) + 1);
+  return Number(Object.entries(conta).sort((a, b) => b[1] - a[1])[0][0]);
+};
+
+/* Amostra de cada coluna, para a tela poder mostrar "é esta?" em vez
+   de pedir que o usuário adivinhe qual número é o valor. */
+function finAmostraColuna(linhas, col) {
+  const v = [];
+  for (const l of linhas) {
+    for (const t of l.tokens)
+      if (finEhDinheiro(t.t) && t.dir >= col.ini && t.dir <= col.fim) { v.push(t.t); break; }
+    if (v.length >= 3) break;
+  }
+  return v;
+}
+
+function finMontaPDF(imp) {
+  const { linhas, colunas, mapa, inverter } = imp;
+  const naCol = (l, ci) => {
+    if (ci < 0 || !colunas[ci]) return null;
+    const c = colunas[ci];
+    for (const t of l.tokens)
+      if (finEhDinheiro(t.t) && t.dir >= c.ini && t.dir <= c.fim) return finValor(t.t);
+    return null;
+  };
+
+  const brutos = [];
+  let ano = mapa.ano, mesAnterior = null;
+  for (const l of linhas) {
+    const d = finDataDaLinha(l.tokens);
+    if (!d) continue;
+
+    let valor = null;
+    if (mapa.valor >= 0) valor = naCol(l, mapa.valor);
+    else {
+      const s = Math.abs(naCol(l, mapa.saida) || 0), e = Math.abs(naCol(l, mapa.entrada) || 0);
+      if (s || e) valor = e - s;
+    }
+    if (valor == null || valor === 0) continue;
+
+    /* Extrato que só traz dia/mês vira ano errado na virada. Se o mês
+       cai de repente (dezembro → janeiro), é ano novo. */
+    if (d.ano) ano = d.ano;
+    else if (mesAnterior != null && d.mes < mesAnterior - 6) ano++;
+    mesAnterior = d.mes;
+
+    const desc = l.tokens.slice(d.usou)
+      .filter(t => !finEhDinheiro(t.t))
+      .map(t => t.t).join(' ').replace(/\s+/g, ' ').trim();
+
+    brutos.push({
+      data: `${ano}-${String(d.mes).padStart(2, '0')}-${String(d.dia).padStart(2, '0')}`,
+      valor: inverter ? -valor : valor,
+      descricao: desc || 'Lançamento', fitid: null
+    });
+  }
+  return brutos;
+}
+
 /* ── categorização ────────────────────────────────────────────────
    Regra do usuário sempre vence a semente. É isso que faz o sistema
    ficar mais certo com o uso em vez de repetir o mesmo erro. */
@@ -4999,8 +5189,9 @@ R.finImportar = {
       <div class="fz" id="fz">
         <div class="ic">${ico('down',22)}</div>
         <h4>Arraste o arquivo aqui ou clique para escolher</h4>
-        <p>.ofx · .csv · .txt — no seu banco, procure por "exportar extrato" ou "OFX / Money".<br>
-          O OFX é o mais confiável: já vem com data, valor e descrição separados.</p>
+        <p>.ofx · .csv · .pdf — no seu banco, procure por "exportar extrato" ou "OFX / Money".<br>
+          Nessa ordem de confiança: OFX já vem com data, valor e descrição separados; CSV depende de acertar
+          as colunas; PDF é o mais trabalhoso, porque cada banco desenha do seu jeito.</p>
       </div>
       <div class="card" style="margin-top:20px">
         <div class="ch"><h3>Como funciona</h3></div>
@@ -5012,8 +5203,21 @@ R.finImportar = {
           5. Reimportar o mesmo mês não duplica nada — cada lançamento tem uma digital.
         </div></div>`;
 
+    if (imp.lendo) return `${cabeca}
+      <div class="card"><div class="cb" style="text-align:center;padding:46px 18px">
+        <div class="skel" style="width:190px;height:16px;margin:0 auto 12px"></div>
+        <div style="color:var(--dim);font-size:13.5px">Lendo o PDF…
+          ${window.pdfjsLib ? '' : '<br>Baixando o leitor, só desta vez.'}</div>
+      </div></div>`;
+
     if (imp.erro) return `${cabeca}
-      <div class="card"><div class="cb"><div class="err" style="display:block">${esc(imp.erro)}</div></div></div>`;
+      <div class="card"><div class="cb"><div class="err" style="display:block">${esc(imp.erro)}</div></div>
+        ${imp.linhas && imp.tipo === 'pdf' ? `<div class="cb" style="border-top:1px solid var(--line)">
+          <label>Primeiras linhas que eu li do arquivo</label>
+          <div class="t-scroll" style="max-height:220px;overflow:auto;font-size:12px;
+               font-family:ui-monospace,monospace;color:var(--txt2);line-height:1.7">
+            ${imp.linhas.slice(0, 30).map(l => esc(l.texto)).join('<br>')}</div></div>` : ''}
+      </div>`;
 
     /* CSV precisa saber quais colunas são o quê antes da prévia. */
     const mapaCSV = imp.tipo === 'csv' ? `<div class="card" style="margin-bottom:18px">
@@ -5038,6 +5242,34 @@ R.finImportar = {
           <label>Inverter o sinal — marque se as compras vieram como valor positivo (comum em fatura de cartão)</label></div>
       </div></div>` : '';
 
+    /* No PDF não existe coluna nomeada: o que dá para mostrar é a
+       posição dos números na folha e uma amostra de cada uma, para
+       o usuário reconhecer qual é o valor e qual é o saldo. */
+    const mapaPDF = imp.tipo === 'pdf' && imp.colunas ? `<div class="card" style="margin-bottom:18px">
+      <div class="ch"><h3>${ico('filter',15)} Colunas de valores encontradas</h3>
+        <div class="push"><span class="sm2">${imp.paginas} página(s) · ${imp.linhas.length} linhas de texto</span></div></div>
+      <div class="cb">
+        <div class="fmap">
+          ${[['valor','Valor do lançamento'], ['saida','Saída (se separada)'], ['entrada','Entrada (se separada)']]
+            .map(([k, rot]) => `<div><label>${rot}</label>
+              <select data-act="mappdf" data-k="${k}">
+                <option value="-1">— não usar —</option>
+                ${imp.colunas.map(c => `<option value="${c.i}"${imp.mapa[k] === c.i ? ' selected' : ''}>
+                  Coluna ${c.i + 1} · ${esc(finAmostraColuna(imp.linhas, c).join('  ') || '—')}
+                </option>`).join('')}</select></div>`).join('')}
+          ${imp.precisaAno ? `<div><label>Ano do extrato</label>
+            <input type="number" data-act="anopdf" value="${imp.mapa.ano}" min="2000" max="2100"></div>` : ''}
+        </div>
+        <div class="hint" style="margin-top:10px">
+          ${imp.colunas.length > 1
+            ? 'A última coluna do extrato quase sempre é o saldo, não o valor — por isso o palpite é a penúltima. Confira pela amostra ao lado de cada opção.'
+            : 'Só uma coluna de valores neste arquivo.'}
+          ${imp.precisaAno ? ' O PDF não trazia o ano nas datas; confirme o campo acima.' : ''}
+        </div>
+        <div class="chk" style="margin-top:12px"><input type="checkbox" data-act="inverterpdf" ${imp.inverter ? 'checked' : ''}>
+          <label>Inverter o sinal — marque se as compras vieram como valor positivo (comum em fatura de cartão)</label></div>
+      </div></div>` : '';
+
     const itens = imp.itens || [];
     const novos = itens.filter(i => i.usar);
     const dups  = itens.filter(i => i.duplicado);
@@ -5051,7 +5283,7 @@ R.finImportar = {
         <button class="btn sm ghost" data-act="nova-conta">${ico('plus',13)}Nova conta</button>
         <span class="sm2">${esc(imp.nome)}${imp.contaOFX ? ` · conta ${esc(imp.contaOFX)}` : ''}</span></div>
 
-      ${mapaCSV}
+      ${mapaCSV}${mapaPDF}
 
       ${itens.length ? `<div class="tiles stg">
           <div class="tile"><div class="ic">${ico('inbox',18)}</div><div class="n">${num(novos.length)}</div>
@@ -5084,6 +5316,8 @@ R.finImportar = {
         : `<div class="card"><div class="cb">${vazio('alert', 'Não achei lançamentos',
             imp.tipo === 'csv'
               ? 'Confira o mapeamento das colunas acima — provavelmente a data ou o valor está apontando para a coluna errada.'
+              : imp.tipo === 'pdf'
+              ? 'Li o texto, mas nenhuma linha tinha data e valor ao mesmo tempo. Tente outra coluna de valores acima.'
               : 'O arquivo foi lido mas não tinha nenhum bloco de lançamento. Confirme que é o extrato, e não o comprovante.')}</div></div>`}`;
   },
   pos() {
@@ -5105,6 +5339,9 @@ R.finImportar = {
     map(el) { fin.imp.mapa[el.dataset.k] = Number(el.value); finRemontaCSV(); },
     cab(el)      { fin.imp.mapa.cabecalho = el.checked; finRemontaCSV(); },
     inverter(el) { fin.imp.inverter = el.checked; finRemontaCSV(); },
+    mappdf(el)   { fin.imp.mapa[el.dataset.k] = Number(el.value); finRemontaPDF(); },
+    anopdf(el)   { fin.imp.mapa.ano = Number(el.value) || fin.imp.mapa.ano; finRemontaPDF(); },
+    inverterpdf(el) { fin.imp.inverter = el.checked; finRemontaPDF(); },
     'p-usar'(el) { fin.imp.itens[+el.dataset.i].usar = el.checked;
       el.closest('tr').classList.toggle('fora', !el.checked); },
     'p-cat'(el)  { fin.imp.itens[+el.dataset.i].categoria_id = el.value || null; },
@@ -5137,17 +5374,25 @@ R.finImportar = {
 
 function finEscolheArquivo() {
   const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = '.ofx,.csv,.txt,text/csv,application/x-ofx';
+  inp.type = 'file';
+  inp.accept = '.ofx,.csv,.txt,.pdf,text/csv,application/pdf,application/x-ofx';
   inp.onchange = () => { if (inp.files[0]) finLeArquivo(inp.files[0]); };
   inp.click();
 }
 
-async function finLeArquivo(file) {
-  const texto = finDecodifica(await file.arrayBuffer());
-  const ehOFX = /\.ofx$/i.test(file.name) || /<STMTTRN>/i.test(texto);
-  fin.imp = { nome: file.name, conta_id: fin.contas[0]?.id || '', inverter: false };
+const finEhPDF = (file, buffer) =>
+  /\.pdf$/i.test(file.name) || file.type === 'application/pdf' ||
+  String.fromCharCode(...new Uint8Array(buffer).slice(0, 5)) === '%PDF-';
 
-  if (ehOFX) {
+async function finLeArquivo(file, senha) {
+  const buffer = await file.arrayBuffer();
+  fin.imp = { nome: file.name, conta_id: fin.contas[0]?.id || '', inverter: false, lendo: true };
+
+  if (finEhPDF(file, buffer)) { await finLeArquivoPDF(file, buffer, senha); return; }
+
+  const texto = finDecodifica(buffer);
+  fin.imp.lendo = false;
+  if (/\.ofx$/i.test(file.name) || /<STMTTRN>/i.test(texto)) {
     const { itens, conta } = finLeOFX(texto);
     fin.imp.tipo = 'ofx'; fin.imp.contaOFX = conta; fin.imp.brutos = itens;
   } else {
@@ -5160,6 +5405,66 @@ async function finLeArquivo(file) {
   await finRecalcula();
 }
 
+async function finLeArquivoPDF(file, buffer, senha) {
+  fin.imp.tipo = 'pdf';
+  pinta();                                   // mostra "lendo o PDF…" enquanto o pdf.js baixa
+  let lido;
+  try {
+    lido = await finLePDF(buffer, senha);
+  } catch (e) {
+    fin.imp.lendo = false;
+    /* Extrato de banco costuma vir travado com CPF ou data de
+       nascimento. Vale pedir a senha em vez de dizer "deu erro". */
+    if (e?.name === 'PasswordException') { finPedeSenhaPDF(file, buffer); return; }
+    fin.imp.erro = 'Não deu para abrir esse PDF: ' + (e?.message || e);
+    return pinta();
+  }
+  fin.imp.lendo = false;
+
+  if (lido.bruto.trim().length < 40) {
+    fin.imp.erro = 'Esse PDF não tem texto dentro — é imagem digitalizada, e daí não há o que ler. '
+      + 'Peça no banco a versão OFX ou CSV do mesmo extrato.';
+    return pinta();
+  }
+
+  const colunas = finColunasPDF(lido.linhas);
+  if (!colunas.length) {
+    fin.imp.erro = 'Li o texto do PDF mas não achei nenhuma coluna de valores nele. '
+      + 'Confirme que é o extrato, e não o comprovante ou o informe de rendimentos.';
+    fin.imp.linhas = lido.linhas; fin.imp.paginas = lido.paginas;
+    return pinta();
+  }
+
+  /* A última coluna quase sempre é o saldo corrente, não o valor do
+     lançamento — por isso a penúltima é o palpite. */
+  const valorProvavel = colunas.length > 1 ? colunas.length - 2 : 0;
+  const temAnoNoTexto = lido.linhas.some(l => finDataDaLinha(l.tokens)?.ano);
+
+  Object.assign(fin.imp, {
+    linhas: lido.linhas, colunas, paginas: lido.paginas, precisaAno: !temAnoNoTexto,
+    mapa: { valor: valorProvavel, saida:-1, entrada:-1, ano: finAnoProvavel(lido.bruto) }
+  });
+  fin.imp.brutos = finMontaPDF(fin.imp);
+  await finRecalcula();
+}
+
+function finPedeSenhaPDF(file, buffer) {
+  modal({
+    titulo: 'Esse PDF está com senha', ok: 'Abrir', largura: 440,
+    corpo: `<div style="color:var(--txt2);font-size:13.5px;line-height:1.6;margin-bottom:15px">
+        Banco costuma travar o extrato com os primeiros dígitos do CPF ou a data de nascimento.
+        A senha é usada só para abrir o arquivo aqui no navegador — ela não é guardada nem enviada.</div>
+      <div><label>Senha do arquivo</label><input type="password" data-s autocomplete="off"></div>`,
+    onOk: async mask => {
+      const senha = mask.querySelector('[data-s]').value;
+      if (!senha) { const e = mask.querySelector('.err');
+        e.textContent = 'Digite a senha.'; e.hidden = false; return false; }
+      await finLeArquivoPDF(file, buffer, senha);
+      return true;
+    }
+  });
+}
+
 /* Ordenado do mais recente para o mais antigo, como o extrato. */
 async function finRecalcula() {
   const brutos = [...(fin.imp.brutos || [])].sort((a, b) => b.data.localeCompare(a.data));
@@ -5168,6 +5473,10 @@ async function finRecalcula() {
 }
 async function finRemontaCSV() {
   fin.imp.brutos = finMontaCSV(fin.imp.linhas, fin.imp.mapa, fin.imp.inverter);
+  await finRecalcula();
+}
+async function finRemontaPDF() {
+  fin.imp.brutos = finMontaPDF(fin.imp);
   await finRecalcula();
 }
 
