@@ -528,6 +528,31 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 @media(max-width:720px){.progresso{grid-template-columns:1fr;justify-items:center;text-align:center}
   .lado{width:100%}}
 
+/* ── linha do tempo do dia ───────────────────────────────────── */
+.tl-item{display:grid;grid-template-columns:56px 20px 1fr;align-items:stretch;padding:0 18px}
+.tl-item:hover .tl-corpo{background:var(--surface2)}
+.tl-hora{font-size:12.5px;font-weight:700;color:var(--txt2);padding:13px 0 0;text-align:right;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl-hora.vazia{color:var(--dim);font-weight:500;font-size:11px}
+.tl-rail{position:relative}
+.tl-rail::before{content:"";position:absolute;left:9px;top:0;bottom:0;width:2px;background:var(--line)}
+.tl-item:first-of-type .tl-rail::before{top:14px}
+.tl-item:last-of-type .tl-rail::before{bottom:calc(100% - 22px)}
+.tl-rail .pt{position:absolute;left:4px;top:15px;width:12px;height:12px;border-radius:50%;
+  background:var(--ac);box-shadow:0 0 0 3px var(--surface);transition:background .2s}
+.tl-item.pontual .tl-rail .pt{background:var(--pt)}
+.tl-item.feito .tl-rail .pt{background:var(--line2)}
+.tl-item.previsto .tl-rail .pt{background:var(--surface);border:2px dashed var(--line2);box-shadow:none}
+.tl-corpo{display:flex;gap:12px;align-items:flex-start;padding:11px 0 11px 4px;
+  border-bottom:1px solid var(--line);transition:background .13s;border-radius:0 8px 8px 0}
+.tl-item:last-of-type .tl-corpo{border-bottom:0}
+.tl-corpo .g{flex:1;min-width:0}
+.tl-corpo .t{font-weight:600;font-size:13.5px}
+.tl-corpo .m{font-size:12px;color:var(--dim);margin-top:2px}
+.tl-item.feito .tl-corpo{opacity:.5}
+.tl-item.feito .t{text-decoration:line-through;color:var(--dim)}
+@media(max-width:600px){.tl-item{grid-template-columns:44px 16px 1fr;padding:0 12px}}
+
 /* ── lista do check ──────────────────────────────────────────── */
 .grupo{padding:13px 18px 7px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
   color:var(--dim);font-weight:700;background:var(--surface2);display:flex;align-items:center;gap:8px}
@@ -1809,26 +1834,33 @@ R.checkDiario = {
     const tagsUsadas = [...new Set(meus.flatMap(a => a.tags || []))].sort();
     const atrasadas = lista.filter(a => a.status !== 'concluida' && a.prazo < hoje());
 
+    const porDia = f.periodo === 'hoje' || f.periodo === 'dia';
+
     const item = a => {
       const feito = a.status === 'concluida';
       const rot = ehRotina(a);
-      return `<div class="chk-item ${rot ? 'rotina' : 'pontual'} ${feito ? 'feito' : ''}">
-        <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
-          data-v="${feito ? 'aberta' : 'concluida'}">${ico('check', 12)}</button>
-        <div class="g">
-          <div class="t">${esc(a.titulo)}</div>
-          <div class="m">${a.hora ? '<b>' + hm(a.hora) + '</b> · ' : ''}${
-            f.periodo !== 'hoje' ? dt(a.prazo) + ' · ' : ''}${
-            esc(nomeUser(a.responsavel_id))}${a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div>
-          ${chipsTags(a.tags)}
-        </div>
-        ${a.prazo < hoje() && !feito ? '<span class="pill bad">atrasada</span>' : ''}
-        ${feito && a.concluida_em ? `<span class="sm2">${hora(a.concluida_em)}</span>` : ''}</div>`;
+      return `<div class="tl-item ${rot ? 'rotina' : 'pontual'} ${feito ? 'feito' : ''}">
+        <div class="tl-hora ${a.hora ? '' : 'vazia'}">${a.hora ? hm(a.hora) : 'sem hora'}</div>
+        <div class="tl-rail"><span class="pt"></span></div>
+        <div class="tl-corpo">
+          <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
+            data-v="${feito ? 'aberta' : 'concluida'}">${ico('check', 12)}</button>
+          <div class="g">
+            <div class="t">${esc(a.titulo)}</div>
+            <div class="m">${!porDia ? dt(a.prazo) + ' · ' : ''}${
+              esc(nomeUser(a.responsavel_id))}${
+              a.setor_id ? ' · ' + esc(nomeSetor(a.setor_id)) : ''}${
+              a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div>
+            ${chipsTags(a.tags)}
+          </div>
+          ${a.prazo < hoje() && !feito ? '<span class="pill bad">atrasada</span>' : ''}
+          ${feito && a.concluida_em ? `<span class="sm2">✓ ${hora(a.concluida_em)}</span>` : ''}
+        </div></div>`;
     };
 
     // No dia, agrupa por turno; em período maior, agrupa por data
     const grupos = {};
-    if (f.periodo === 'hoje') {
+    if (porDia) {
       const turno = a => {
         if (!a.hora) return '4. Sem horário';
         const h = +hm(a.hora).slice(0, 2);
@@ -1839,8 +1871,9 @@ R.checkDiario = {
     } else {
       lista.forEach(a => { (grupos[a.prazo] ||= []).push(a); });
     }
-    const chaves = Object.keys(grupos).sort().reverse();
-    const rotuloGrupo = k => f.periodo === 'hoje' ? k.slice(3)
+    const chaves = Object.keys(grupos).sort();
+    if (!porDia) chaves.reverse();
+    const rotuloGrupo = k => porDia ? k.slice(3)
       : (k === hoje() ? 'Hoje · ' : '') + new Date(k + 'T12:00:00')
           .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'2-digit' });
 
@@ -1849,10 +1882,13 @@ R.checkDiario = {
     return `<div class="head"><div><h2>Checklist</h2>
         <div class="sub">Marque o que saiu. O que importa não é o dia perfeito, é a sequência.</div></div>
         <div class="push">
-          <button class="btn ghost" data-act="gerar" title="Cria as tarefas das rotinas de hoje">
-            ${ico('refresh',15)}Gerar hoje</button>
-          <button class="btn ghost" data-act="gerar-semana" title="Cria as tarefas de segunda a domingo desta semana">
-            ${ico('cal',15)}Gerar a semana</button>
+          ${dd(null, 'gerar-quando', [
+            { v:'hoje',   t:'Hoje',            i:'clock' },
+            { v:'amanha', t:'Amanhã',          i:'arrowR', d:'Deixar o dia seguinte pronto' },
+            { v:'semana', t:'Esta semana',     i:'cal',    d:'De segunda a domingo' },
+            { v:'prox',   t:'Próximos 7 dias', i:'refresh' },
+            { v:'dia',    t:'O dia escolhido', i:'target', d:'Usa a data do filtro' }
+          ], '', { fixo:'Gerar rotinas', icone:'zap' })}
           <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
           <button class="btn pontual" data-act="nova-pontual">${ico('zap',15)}Tarefa pontual</button>
         </div></div>
@@ -1894,13 +1930,16 @@ R.checkDiario = {
           As tarefas deste dia ainda não foram criadas. Isto é o que as suas rotinas
           <b>vão gerar</b> — dá para se preparar, mas ainda não dá para marcar.
           Clique em "Gerar este dia" se quiser antecipar.</p></div>
-        ${previsao.map(m => `<div class="chk-item rotina" style="opacity:.85">
-          <span class="tick" style="border-style:dashed;cursor:default"></span>
-          <div class="g"><div class="t">${esc(m.titulo)}</div>
-            <div class="m">${m.hora ? '<b>' + hm(m.hora) + '</b> · ' : ''}${esc(nomeUser(m.responsavel_id))}${
-              m.setor_id ? ' · ' + esc(nomeSetor(m.setor_id)) : ''}</div>
-            ${chipsTags(m.tags)}</div>
-          <span class="pill dim">prevista</span></div>`).join('')}
+        ${previsao.map(m => `<div class="tl-item rotina previsto">
+          <div class="tl-hora ${m.hora ? '' : 'vazia'}">${m.hora ? hm(m.hora) : 'sem hora'}</div>
+          <div class="tl-rail"><span class="pt"></span></div>
+          <div class="tl-corpo">
+            <span class="tick" style="border-style:dashed;cursor:default"></span>
+            <div class="g"><div class="t">${esc(m.titulo)}</div>
+              <div class="m">${esc(nomeUser(m.responsavel_id))}${
+                m.setor_id ? ' · ' + esc(nomeSetor(m.setor_id)) : ''}</div>
+              ${chipsTags(m.tags)}</div>
+            <span class="pill dim">prevista</span></div></div>`).join('')}
         </div>` : `
       <div class="progresso">
         <div class="anel">
@@ -1959,12 +1998,32 @@ R.checkDiario = {
     tag(b)      { R.checkDiario.filtro.tag = b.dataset.v; pinta(); },
     natureza(b) { R.checkDiario.filtro.natureza = b.dataset.v; pinta(); },
     'escolhe-data'(el) { R.checkDiario.filtro.data = el.value || hoje(); pinta(); },
-    async 'gerar-dia'() {
-      const d = R.checkDiario.filtro.data;
-      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: d, p_ate: d });
-      if (error) return toast(error.message, { tipo:'bad' });
-      toast(data ? `${data} tarefa(s) criada(s) para ${dt(d)}.` : 'Nada a gerar neste dia.',
+    async 'gerar-dia'() { await R.checkDiario.acoes['gerar-quando']({ dataset:{ v:'dia' } }); },
+
+    async 'gerar-quando'(b) {
+      const f = R.checkDiario.filtro;
+      const mais = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+      const faixas = {
+        hoje:   [hoje(), hoje()],
+        amanha: [mais(1), mais(1)],
+        semana: [seg(), new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)],
+        prox:   [hoje(), mais(6)],
+        dia:    [f.data || hoje(), f.data || hoje()]
+      };
+      const [de, ate] = faixas[b.dataset.v] || faixas.hoje;
+
+      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
+      if (error) {
+        return toast(/function|does not exist/i.test(error.message)
+          ? 'A geração por período ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
+      }
+      const quando = de === ate ? dt(de) : `${dt(de)} a ${dt(ate)}`;
+      toast(data ? `${data} tarefa(s) criada(s) — ${quando}.` : `Nada novo a gerar em ${quando}.`,
         { tipo: data ? 'ok' : 'info' });
+
+      // Leva a tela para onde o usuário acabou de gerar
+      if (b.dataset.v === 'amanha') { f.periodo = 'dia'; f.data = mais(1); }
+      else if (b.dataset.v === 'semana' || b.dataset.v === 'prox') f.periodo = 'semana';
       pinta();
     },
     'nova-rotina'()  { R.acoes.acoes.modelo(); },
@@ -3786,12 +3845,15 @@ async function palette() {
 /* ── seletor em menu ──────────────────────────────────────────────
    `dd()` desenha o botão; o clique é interceptado na delegação da
    view e abre a lista vertical. */
-function dd(rotulo, act, opcoes, atual) {
+function dd(rotulo, act, opcoes, atual, extra = {}) {
   const sel = opcoes.find(o => String(o.v) === String(atual ?? '')) || opcoes[0];
-  return `<button class="dd" data-act="dd" data-alvo="${esc(act)}" data-atual="${esc(atual ?? '')}"
-    data-opts='${esc(JSON.stringify(opcoes))}'>
+  // `fixo` transforma o seletor em botão de ação: o rótulo não muda
+  const texto = extra.fixo || (sel ? sel.t : '—');
+  return `<button class="dd ${extra.cls || ''}" data-act="dd" data-alvo="${esc(act)}"
+    data-atual="${esc(atual ?? '')}" data-opts='${esc(JSON.stringify(opcoes))}'>
+    ${extra.icone ? ico(extra.icone, 15) : ''}
     ${rotulo ? `<span class="rot">${esc(rotulo)}</span>` : ''}
-    <b>${esc(sel ? sel.t : '—')}</b><span class="cv">${ico('chevron', 13)}</span></button>`;
+    <b>${esc(texto)}</b><span class="cv">${ico('chevron', 13)}</span></button>`;
 }
 
 function abreSeletor(botao) {
