@@ -226,6 +226,23 @@ nav .sub a svg{width:15px;height:15px}
 .who .n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who .s{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+/* troca Empresa ⇄ Pessoal */
+.modo{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px;padding:9px 10px;
+  border:1px solid var(--line);border-radius:var(--r);background:var(--surface2);
+  color:var(--txt2);text-align:left;transition:all .16s var(--ease)}
+.modo:hover{border-color:var(--ac);color:var(--txt);background:var(--ac-bg)}
+.modo .ic{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;
+  background:var(--surface3);color:var(--ac);transition:all .16s var(--ease)}
+.modo:hover .ic{background:var(--ac);color:var(--ac-fg)}
+.modo .tx{min-width:0;flex:1;overflow:hidden}
+.modo .tx b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modo .tx i{display:block;font-size:10.5px;font-style:normal;color:var(--dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.modo>svg:last-child{flex:none;opacity:.45;transition:transform .16s var(--ease)}
+.modo:hover>svg:last-child{opacity:.9;transform:translateX(2px)}
+.app.mini .modo{justify-content:center;padding-left:0;padding-right:0}
+.app.mini .modo .tx,.app.mini .modo>svg:last-child{display:none}
+
 /* topbar */
 main{min-width:0;display:flex;flex-direction:column}
 .top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 26px;
@@ -682,6 +699,33 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .semana .livre{text-align:center;color:var(--dim);font-size:12px;padding:18px 6px;opacity:.6}
 @media(max-width:900px){.semana{grid-template-columns:repeat(7,minmax(150px,1fr))}}
 
+/* ── gestão pessoal ──────────────────────────────────────────── */
+.fz{border:1.5px dashed var(--line2);border-radius:var(--r-lg);padding:38px 18px;text-align:center;
+  background:var(--surface2);transition:all .18s var(--ease);cursor:pointer}
+.fz:hover,.fz.sobre{border-color:var(--ac);background:var(--ac-bg)}
+.fz .ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin:0 auto 13px;
+  background:var(--surface3);color:var(--ac)}
+.fz.sobre .ic{background:var(--ac);color:var(--ac-fg)}
+.fz h4{font-size:15px;font-weight:600}
+.fz p{font-size:12.5px;color:var(--dim);margin-top:5px;line-height:1.55}
+.fmap{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:13px}
+.fprev{max-height:52vh;overflow:auto}
+.fprev td{padding:7px 12px}
+.fprev th{position:sticky;top:0;z-index:2}
+.fprev select{padding:4px 8px;font-size:12px;border-radius:7px}
+.fprev tr.fora{opacity:.42}
+.fdot{width:9px;height:9px;border-radius:3px;flex:none;display:inline-block}
+.fgasto{display:flex;align-items:center;gap:13px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.fgasto:last-child{border-bottom:0}
+.fgasto .g{flex:1;min-width:0}
+.fgasto .t{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+.fgasto .m{font-size:11.5px;color:var(--dim);margin-top:4px}
+.fgasto .bar{margin-top:6px;width:100%;min-width:0}
+.fgasto .v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fgasto .v b{font-size:14px}
+.fgasto .v div{font-size:11.5px;color:var(--dim);margin-top:2px}
+.fsaldo{font-family:"Inter Tight";font-size:33px;font-weight:700;letter-spacing:-.035em}
+
 /* miniaturas dos grafismos */
 .gprev{height:74px;position:relative;overflow:hidden;background:var(--bg)}
 .gp-aurora::before,.gp-aurora::after{content:"";position:absolute;border-radius:50%;filter:blur(16px)}
@@ -769,7 +813,8 @@ const LS = {
   del: k => localStorage.removeItem(k)
 };
 const pref = Object.assign(
-  { theme:'light', accent:'orange', density:'normal', mini:false, ob:true, abertos:['comercial','marketing'] },
+  { theme:'light', accent:'orange', density:'normal', mini:false, ob:true,
+    modo:'empresa', abertos:['comercial','marketing'] },
   LS.get(PREF_KEY, {}));
 if (!Array.isArray(pref.abertos)) pref.abertos = ['comercial', 'marketing'];
 
@@ -1102,7 +1147,7 @@ const R = {};
 /* Menu em dois níveis. Comercial e Marketing abrem as mesmas telas,
    mas filtradas pelos canais daquela área — é isso que faz o submenu
    ter sentido em vez de virar atalho duplicado. */
-const NAV = [
+const NAV_EMPRESA = [
   { tipo:'item',  r:'inicio' },
   { tipo:'grupo', id:'comercial', label:'Comercial', icone:'money',
     itens:['acoes', 'agenda', 'metas', 'campanhas'] },
@@ -1112,6 +1157,31 @@ const NAV = [
     itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
+
+/* ── os dois modos ────────────────────────────────────────────────
+   Empresa e Pessoal não são duas seções da mesma lista: são dois
+   menus. O botão no rodapé da barra troca de um para o outro.
+   O motivo de separar em vez de empilhar: o Pessoal é privado (RLS
+   por dono, ver sql/CORRECAO-12.sql) e misturá-lo com as telas do
+   time convida ao engano de achar que alguém mais está vendo. */
+const NAV_PESSOAL = [
+  { tipo:'secao', label:'Financeiro',
+    itens:['finPainel', 'finLancamentos', 'finImportar', 'finCategorias'] }
+];
+const MODOS = {
+  empresa: { nome:'Empresa',  desc:'Comercial, marketing e time', icone:'users',
+             nav:NAV_EMPRESA, inicio:'inicio' },
+  pessoal: { nome:'Pessoal',  desc:'Só você enxerga',             icone:'user',
+             nav:NAV_PESSOAL, inicio:'finPainel' }
+};
+if (!MODOS[pref.modo]) pref.modo = 'empresa';
+
+/* Em que modo mora cada rota. Serve para o Ctrl+K, os atalhos e o
+   link colado por alguém caírem no menu certo em vez de abrir a
+   tela com a barra lateral errada do lado. */
+const ROTAS_PESSOAIS = new Set(NAV_PESSOAL.flatMap(s => s.itens));
+const modoDaRota = r => ROTAS_PESSOAIS.has(r) ? 'pessoal' : 'empresa';
+
 const AREAS = { comercial:'Comercial', marketing:'Marketing' };
 
 /* ── filtro por área ───────────────────────────────────────────────
@@ -4203,6 +4273,1099 @@ function formCanal(row, dup) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   GESTÃO PESSOAL — extrato, categorias e regras
+   ───────────────────────────────────────────────────────────────────
+   Único bloco privado do sistema: a RLS aqui é `dono = auth.uid()`,
+   não `tem_acesso()`. Ninguém do time vê o extrato de ninguém — nem
+   quem administra. Por isso também não existe view de resumo: view
+   roda com privilégio de quem a criou e vazaria a soma de todo
+   mundo. Toda conta é feita aqui no navegador, sobre linhas que a
+   RLS já filtrou.  Detalhes em sql/CORRECAO-12.sql.
+   ═══════════════════════════════════════════════════════════════════ */
+const fin = {
+  mes: hoje().slice(0, 7),
+  conta: '', categoria: '', busca: '', sinal: '',
+  cats: [], contas: [], regras: [], temBanco: null,
+  imp: null,          // rascunho da importação em andamento
+  abaCat: 'categorias'
+};
+
+async function finBase() {
+  const [cats, contas, regras] = await Promise.all([
+    qOpcional('fin_categorias', x => x.order('ordem').order('nome')),
+    qOpcional('fin_contas',     x => x.order('nome')),
+    qOpcional('fin_regras',     x => x.order('prioridade'))
+  ]);
+  fin.temBanco = cats !== null;
+  fin.cats = cats || []; fin.contas = contas || []; fin.regras = regras || [];
+}
+
+const finSemBanco = () => `<div class="head"><div><h2>Gestão Pessoal</h2></div></div>
+  <div class="card"><div class="cb">${vazio('db', 'Ainda não está no banco',
+    'Rode sql/CORRECAO-12.sql com o aplicar-sql.py. Nada aqui funciona antes disso — e nenhum dado seu foi perdido.')}</div></div>`;
+
+const finCat    = id => fin.cats.find(c => c.id === id) || null;
+const finCatId  = nome => fin.cats.find(c => c.nome === nome)?.id || null;
+const finGrupo  = id => finCat(id)?.grupo || 'variavel';
+const finCor    = id => finCat(id)?.cor || 'var(--dim)';
+const finNomeCat= id => finCat(id)?.nome || 'Sem categoria';
+const finNomeConta = id => fin.contas.find(c => c.id === id)?.nome || '—';
+const optFinCats = (v = '— sem categoria —') => [{ v:'', t:v },
+  ...fin.cats.map(c => ({ v:c.id, t:c.nome, i:c.icone || 'money' }))];
+
+/* ── leitura de texto ─────────────────────────────────────────────
+   Extrato de banco brasileiro vem tanto em UTF-8 quanto em Latin-1.
+   Tenta o primeiro em modo estrito; se estourar, é o segundo. */
+function finDecodifica(buffer) {
+  const bytes = new Uint8Array(buffer);
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+  catch { return new TextDecoder('windows-1252').decode(bytes); }
+}
+
+const finNorm = s => String(s ?? '').toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/* Valor em formato brasileiro, americano ou com C/D no fim.
+   "1.234,56" · "-50,00" · "R$ 12,90" · "(80,00)" · "35,00 D" */
+function finValor(bruto) {
+  let t = String(bruto ?? '').replace(/[\s\u00a0]/g, '').replace(/r\$/ig, '');
+  if (!t) return null;
+  const neg = /^\(.*\)$/.test(t) || t.includes('-') || /d$/i.test(t);
+  t = t.replace(/[()]/g, '').replace(/[^0-9.,]/g, '');
+  if (!t) return null;
+  if (t.includes(',') && t.includes('.')) {
+    t = t.lastIndexOf(',') > t.lastIndexOf('.')
+      ? t.replace(/\./g, '').replace(',', '.')     // 1.234,56
+      : t.replace(/,/g, '');                        // 1,234.56
+  } else if (t.includes(',')) {
+    t = t.replace(',', '.');
+  } else if (/\.\d{3}$/.test(t)) {
+    t = t.replace(/\./g, '');                       // 1.234 é milhar, não decimal
+  }
+  const n = Number(t);
+  if (!isFinite(n)) return null;
+  return neg ? -Math.abs(n) : n;
+}
+
+/* dd/mm/aaaa · aaaa-mm-dd · aaaammdd */
+function finData(bruto) {
+  const t = String(bruto ?? '').trim();
+  let m = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+  if (m) {
+    const ano = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${ano}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  }
+  m = t.match(/^(\d{8})$/);
+  if (m) return `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`;
+  return null;
+}
+
+/* ── OFX ──────────────────────────────────────────────────────────
+   OFX 1.x é SGML: as tags de valor abrem e não fecham. Por isso o
+   campo é lido até a quebra de linha ou a próxima tag, e não com
+   um par <x>…</x>. O bloco <STMTTRN> esse sim fecha, nas duas
+   versões — é ele que delimita cada lançamento. */
+function finLeOFX(txt) {
+  const campo = (bloco, tag) => {
+    const m = bloco.match(new RegExp('<' + tag + '>([^<\\r\\n]*)', 'i'));
+    return m ? m[1].trim() : '';
+  };
+  const blocos = txt.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) || [];
+  const itens = blocos.map(b => {
+    const d = campo(b, 'DTPOSTED').replace(/[^0-9]/g, '').slice(0, 8);
+    const nome = campo(b, 'NAME'), memo = campo(b, 'MEMO');
+    const desc = [nome, memo].filter(Boolean)
+      .filter((v, i, a) => a.findIndex(x => finNorm(x) === finNorm(v)) === i).join(' · ');
+    return {
+      data: d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : null,
+      valor: finValor(campo(b, 'TRNAMT')),
+      descricao: desc || campo(b, 'TRNTYPE') || 'Lançamento',
+      fitid: campo(b, 'FITID') || null
+    };
+  }).filter(i => i.data && i.valor != null);
+  return { itens, conta: campo(txt, 'ACCTID'), banco: campo(txt, 'ORG') };
+}
+
+/* ── CSV ────────────────────────────────────────────────────────── */
+function finLeCSV(txt) {
+  const t = txt.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const primeira = t.split('\n').find(l => l.trim()) || '';
+  const del = [';', ',', '\t']
+    .map(d => [d, primeira.split(d).length])
+    .sort((a, b) => b[1] - a[1])[0][0];
+
+  const linhas = []; let cel = '', linha = [], aspas = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (aspas) {
+      if (c === '"') { if (t[i + 1] === '"') { cel += '"'; i++; } else aspas = false; }
+      else cel += c;
+    } else if (c === '"') aspas = true;
+    else if (c === del) { linha.push(cel.trim()); cel = ''; }
+    else if (c === '\n') { linha.push(cel.trim()); linhas.push(linha); linha = []; cel = ''; }
+    else cel += c;
+  }
+  if (cel || linha.length) { linha.push(cel.trim()); linhas.push(linha); }
+  return linhas.filter(l => l.some(c => c !== ''));
+}
+
+/* Adivinha quais colunas são data, descrição e valor. Primeiro pelo
+   cabeçalho; se ele não ajudar, pelo conteúdo — a coluna em que
+   quase tudo vira data é a data, e assim por diante. */
+function finAdivinhaColunas(linhas) {
+  const cab = linhas[0] || [];
+  const corpo = linhas.slice(1, 40);
+  const n = Math.max(...linhas.map(l => l.length));
+  const acha = re => cab.findIndex(c => re.test(finNorm(c)));
+
+  let iData  = acha(/^(data|date|dt)( |$)|data lancamento|data mov/);
+  let iDesc  = acha(/desc|histor|lancamento|estabelec|memo|titulo|detalhe|operacao/);
+  let iValor = acha(/^valor|^amount|^montante|^quantia/);
+  const iSaida = acha(/debito|saida|despesa/);
+  const iEntra = acha(/credito|entrada|recebimento/);
+
+  /* "Valor débito" não é a coluna única de valor — é metade de um
+     par. Sem isso o extrato do Itaú e do Bradesco entraria com todo
+     mundo positivo. */
+  if (iValor >= 0 && /debito|credito|saida|entrada/.test(finNorm(cab[iValor]))) iValor = -1;
+  const separadas = iValor < 0 && iSaida >= 0 && iEntra >= 0;
+
+  const taxa = (col, fn) => {
+    const vals = corpo.map(l => l[col]).filter(v => v !== undefined && v !== '');
+    if (!vals.length) return 0;
+    return vals.filter(v => fn(v) != null).length / vals.length;
+  };
+  if (iData < 0)  { let melhor = -1, top = .6;
+    for (let c = 0; c < n; c++) { const p = taxa(c, finData); if (p > top) { top = p; melhor = c; } }
+    iData = melhor; }
+  if (iValor < 0 && !separadas) { let melhor = -1, top = .6;
+    for (let c = 0; c < n; c++) { if (c === iData) continue;
+      const p = taxa(c, finValor); if (p > top) { top = p; melhor = c; } }
+    iValor = melhor; }
+  if (iDesc < 0)  { let melhor = -1, top = 0;
+    for (let c = 0; c < n; c++) { if (c === iData || c === iValor) continue;
+      const m = corpo.reduce((a, l) => a + String(l[c] || '').length, 0);
+      if (m > top) { top = m; melhor = c; } }
+    iDesc = melhor; }
+
+  /* Cabeçalho é a linha cuja coluna de data não tem data dentro.
+     Testar "alguma célula não é data" pegaria qualquer linha, já que
+     descrição nunca é data — e comeria o primeiro lançamento dos
+     arquivos que vêm sem cabeçalho. */
+  const cabecalho = iData >= 0
+    ? finData(cab[iData]) == null
+    : !cab.some(c => finData(c) != null);
+
+  return { data:iData, desc:iDesc, valor:separadas ? -1 : iValor,
+           saida:separadas ? iSaida : -1, entrada:separadas ? iEntra : -1,
+           cabecalho };
+}
+
+function finMontaCSV(linhas, mapa, inverter) {
+  const corpo = mapa.cabecalho ? linhas.slice(1) : linhas;
+  return corpo.map(l => {
+    const data = finData(l[mapa.data]);
+    let valor = null;
+    if (mapa.valor >= 0) valor = finValor(l[mapa.valor]);
+    else {
+      const s = Math.abs(finValor(l[mapa.saida]) || 0), e = Math.abs(finValor(l[mapa.entrada]) || 0);
+      if (s || e) valor = e - s;
+    }
+    if (!data || valor == null || valor === 0) return null;
+    return {
+      data, valor: inverter ? -valor : valor,
+      descricao: String(l[mapa.desc] ?? '').replace(/\s+/g, ' ').trim() || 'Lançamento',
+      fitid: null
+    };
+  }).filter(Boolean);
+}
+
+/* ── categorização ────────────────────────────────────────────────
+   Regra do usuário sempre vence a semente. É isso que faz o sistema
+   ficar mais certo com o uso em vez de repetir o mesmo erro. */
+const FIN_SEMENTES = [
+  { c:'Fatura do cartão', p:['pagamento de fatura','pagto fatura','pgto fatura','pagamento fatura','fatura cartao','pagamento cartao de credito'] },
+  { c:'Investimentos',    p:['aplicacao','resgate','cdb','tesouro direto','nu invest','xp investimentos','rico investimentos','clear corretora','btg pactual','easynvest','avenue','binance','mercado bitcoin','previdencia','rendimento','poupanca'] },
+  { c:'Salário',          p:['salario','pro labore','prolabore','folha de pagamento','provento','adiantamento salarial'] },
+  { c:'Assinaturas',      p:['netflix','spotify','disney plus','hbo','globoplay','deezer','amazon prime','prime video','youtube premium','apple com bill','itunes','google one','google storage','icloud','dropbox','adobe','canva','openai','chatgpt','anthropic','microsoft','office 365','paramount','crunchyroll','telecine','directv','sky brasil'] },
+  { c:'Compras',          p:['mercado livre','mercadolivre','mercado pago','mercadopago','amazon','shopee','aliexpress','shein','magazine luiza','magalu','americanas','submarino','casas bahia','ponto frio','renner','riachuelo','zara','hering','nike','adidas','centauro','decathlon','netshoes','kabum','pichau','terabyte','fast shop','apple store'] },
+  { c:'Alimentação fora', p:['ifood','rappi','uber eats','ubereats','restaurante','lanchonete','pizzaria','hamburg','burger','mcdonald','subway','outback','habibs','giraffas','padaria','panificadora','cafeteria','starbucks','confeitaria','churrascaria','sushi','temaki','acai','sorveteria','doceria','espetinho'] },
+  { c:'Mercado',          p:['supermercado','hipermercado','atacad','assai','carrefour','angeloni','condor','muffato','festval','bompreco','pao de acucar','tenda atacado','sonda','sams club','makro','cooper','hortifruti','sacolao','acougue','minimercado','mercearia','mercado'] },
+  { c:'Combustível',      p:['posto ','auto posto','ipiranga','shell ','br distribuidora','petrobras','ale combustiveis','combustivel','gasolina','etanol'] },
+  { c:'Transporte',       p:['uber','99app','99 tecnologia','99 pop','cabify','indriver','taxi','estacionamento','estapar','zona azul','pedagio','sem parar','conectcar','veloe','buser','clickbus','rodoviaria','localiza','movida','unidas','locadora'] },
+  { c:'Saúde',            p:['farmacia','drogaria','droga raia','drogasil','pacheco','panvel','nissei','pague menos','unimed','amil','hapvida','sulamerica saude','bradesco saude','porto saude','odonto','clinica','laboratorio','hospital','dentista','psicolog','fisioterap','oftalmo','consulta medica','academia','smart fit','smartfit','gympass','wellhub','crossfit','pilates'] },
+  { c:'Educação',         p:['escola','colegio','faculdade','universidade','unicesumar','estacio','anhanguera','uninter','curso','udemy','alura','hotmart','kiwify','eduzz','coursera','wizard','material escolar','livraria'] },
+  { c:'Moradia',          p:['aluguel','condominio','imobiliaria','financiamento imobiliario','iptu'] },
+  { c:'Casa e contas',    p:['copel','celesc','cemig','enel','light servicos','cpfl','energisa','neoenergia','energia eletrica','sanepar','casan','sabesp','corsan','embasa','agua e esgoto','comgas','gas natural','ultragaz','liquigas','supergasbras','material de construcao','leroy merlin','telhanorte','havan'] },
+  { c:'Telefone e internet', p:['vivo','claro ','tim celular','tim brasil','tim s a','oi fibra','oi movel','net servicos','algar','sercomtel','masterinfo','provedor','telefonia','recarga celular'] },
+  { c:'Pets',             p:['petz','cobasi','petshop','pet shop','veterinar','agropecuaria','racao'] },
+  { c:'Cuidado pessoal',  p:['barbearia','barber','salao','cabeleireiro','manicure','estetica','perfumaria','boticario','natura','avon','sephora'] },
+  { c:'Lazer',            p:['cinema','cinemark','ingresso com','ingressorapido','teatro','festival','parque','hotel','pousada','airbnb','booking','decolar','latam','gol linhas','azul linhas','cvc','viagem','steam games','playstation','xbox','nintendo','riot games','epic games','twitch'] },
+  { c:'Impostos e taxas', p:['darf','das simples','inss','fgts','ipva','licenciamento','detran','receita federal','prefeitura','multa de transito','cartorio','junta comercial'] },
+  { c:'Tarifas e juros',  p:['tarifa','anuidade','iof','juros','encargo','cesta de servicos','pacote de servicos','manutencao de conta','multa por atraso'] },
+  { c:'Empréstimos',      p:['emprestimo','consignado','financiamento','crediario','parcelamento de fatura','credito pessoal'] },
+  { c:'Transferências',   p:['pix enviado','pix recebido','transferencia','transf ','ted ','doc ','envio pix','recebimento pix'] }
+];
+
+function finCategoriza(descricao, valor) {
+  const t = ' ' + finNorm(descricao) + ' ';
+  for (const r of fin.regras) {
+    const p = finNorm(r.padrao);
+    if (p && t.includes(p)) return r.categoria_id;
+  }
+  for (const s of FIN_SEMENTES) {
+    if (s.p.some(p => t.includes(p))) {
+      const id = finCatId(s.c);
+      if (id) return id;
+    }
+  }
+  return finCatId(valor > 0 ? 'Outras receitas' : 'Sem categoria');
+}
+
+/* ── digital do lançamento ────────────────────────────────────────
+   Quando o banco manda FITID, ele é a digital: identificador do
+   próprio banco, melhor que qualquer coisa que a gente monte.
+   Sem FITID, a digital é conta+data+valor+descrição — e a contagem
+   por ocorrência resolve o caso legítimo de dois cafés iguais no
+   mesmo dia, que não podem virar um só. */
+const finBaseImpressao = (it, conta) =>
+  it.fitid ? `fit|${conta || '-'}|${it.fitid}`
+           : [conta || '-', it.data, Number(it.valor).toFixed(2), finNorm(it.descricao).slice(0, 60)].join('|');
+
+async function finPreparaItens(itens, conta_id) {
+  const datas = itens.map(i => i.data).sort();
+  const existentes = new Set();
+  if (datas.length) {
+    const antigos = await q('fin_lancamentos', x =>
+      x.gte('data', datas[0]).lte('data', datas[datas.length - 1]));
+    antigos.forEach(a => existentes.add(a.impressao));
+  }
+  const vistos = new Map();
+  return itens.map(it => {
+    const base = finBaseImpressao(it, conta_id);
+    const n = vistos.get(base) || 0; vistos.set(base, n + 1);
+    const impressao = n ? `${base}#${n}` : base;
+    const duplicado = existentes.has(impressao);
+    return { ...it, impressao, duplicado, usar: !duplicado,
+             categoria_id: finCategoriza(it.descricao, it.valor) };
+  });
+}
+
+/* ── categorias padrão ────────────────────────────────────────────
+   Sem categoria nenhuma a primeira importação não teria onde cair.
+   Criadas na primeira vez que a tela de importar abre; depois é só
+   editar. */
+const FIN_CATS_PADRAO = [
+  { nome:'Salário',             grupo:'receita',       essencial:false, cor:'#16a34a', icone:'money',  ordem:10 },
+  { nome:'Outras receitas',     grupo:'receita',       essencial:false, cor:'#22c55e', icone:'down',   ordem:20 },
+  { nome:'Moradia',             grupo:'fixo',          essencial:true,  cor:'#0ea5e9', icone:'grid',   ordem:30 },
+  { nome:'Casa e contas',       grupo:'fixo',          essencial:true,  cor:'#38bdf8', icone:'zap',    ordem:40 },
+  { nome:'Telefone e internet', grupo:'fixo',          essencial:true,  cor:'#6366f1', icone:'target', ordem:50 },
+  { nome:'Mercado',             grupo:'variavel',      essencial:true,  cor:'#f59e0b', icone:'inbox',  ordem:60 },
+  { nome:'Transporte',          grupo:'variavel',      essencial:true,  cor:'#f97316', icone:'arrowR', ordem:70 },
+  { nome:'Combustível',         grupo:'variavel',      essencial:true,  cor:'#ea580c', icone:'zap',    ordem:80 },
+  { nome:'Saúde',               grupo:'variavel',      essencial:true,  cor:'#ef4444', icone:'help',   ordem:90 },
+  { nome:'Educação',            grupo:'fixo',          essencial:true,  cor:'#8b5cf6', icone:'star',   ordem:100 },
+  { nome:'Pets',                grupo:'variavel',      essencial:false, cor:'#a855f7', icone:'user',   ordem:110 },
+  { nome:'Alimentação fora',    grupo:'variavel',      essencial:false, cor:'#fb923c', icone:'inbox',  ordem:120 },
+  { nome:'Assinaturas',         grupo:'fixo',          essencial:false, cor:'#ec4899', icone:'refresh',ordem:130 },
+  { nome:'Lazer',               grupo:'variavel',      essencial:false, cor:'#d946ef', icone:'film',   ordem:140 },
+  { nome:'Compras',             grupo:'variavel',      essencial:false, cor:'#f43f5e', icone:'copy',   ordem:150 },
+  { nome:'Cuidado pessoal',     grupo:'variavel',      essencial:false, cor:'#fb7185', icone:'user',   ordem:160 },
+  { nome:'Impostos e taxas',    grupo:'fixo',          essencial:true,  cor:'#64748b', icone:'alert',  ordem:170 },
+  { nome:'Tarifas e juros',     grupo:'divida',        essencial:false, cor:'#dc2626', icone:'alert',  ordem:180 },
+  { nome:'Empréstimos',         grupo:'divida',        essencial:true,  cor:'#b91c1c', icone:'money',  ordem:190 },
+  { nome:'Investimentos',       grupo:'investimento',  essencial:false, cor:'#059669', icone:'chart',  ordem:200 },
+  { nome:'Transferências',      grupo:'transferencia', essencial:false, cor:'#94a3b8', icone:'arrowR', ordem:210 },
+  { nome:'Fatura do cartão',    grupo:'transferencia', essencial:false, cor:'#94a3b8', icone:'copy',   ordem:220 },
+  { nome:'Sem categoria',       grupo:'variavel',      essencial:false, cor:'#94a3b8', icone:'help',   ordem:900 }
+];
+
+async function finSemeiaCategorias(silencioso) {
+  const faltam = FIN_CATS_PADRAO.filter(c => !finCatId(c.nome));
+  if (!faltam.length) { if (!silencioso) toast('As categorias padrão já existem.', { tipo:'info' }); return; }
+  const { error } = await sb.from('fin_categorias').insert(faltam);
+  if (error) return toast(error.message, { tipo:'bad' });
+  await finBase();
+  toast(`${faltam.length} categoria(s) criada(s). Ajuste em Categorias.`, { tipo:'info' });
+}
+
+/* ── contas do mês ────────────────────────────────────────────────
+   Transferência não é gasto nem receita: PIX entre contas suas e
+   pagamento de fatura só mudariam o dinheiro de lugar e inflariam
+   os dois lados. Fica fora de toda soma. */
+function finResumo(linhas) {
+  const val = l => Number(l.valor) || 0;
+  const uteis = linhas.filter(l => !l.ignorado && finGrupo(l.categoria_id) !== 'transferencia');
+  const entradas = uteis.filter(l => val(l) > 0), saidas = uteis.filter(l => val(l) < 0);
+  const soma = ls => ls.reduce((a, l) => a + val(l), 0);
+  const entrou = soma(entradas), saiu = -soma(saidas);
+  const ess = -soma(saidas.filter(l => finCat(l.categoria_id)?.essencial));
+  const inv = -soma(saidas.filter(l => finGrupo(l.categoria_id) === 'investimento'));
+  return { entrou, saiu, sobrou: entrou - saiu, essencial: ess,
+           cortavel: saiu - ess - inv, investido: inv,
+           qtd: uteis.length, saidas };
+}
+
+function finPorCategoria(linhas) {
+  const mapa = new Map();
+  linhas.filter(l => !l.ignorado && Number(l.valor) < 0
+                  && finGrupo(l.categoria_id) !== 'transferencia')
+    .forEach(l => {
+      const k = l.categoria_id || 'sem';
+      const a = mapa.get(k) || { id:l.categoria_id, total:0, n:0 };
+      a.total += -Number(l.valor); a.n++; mapa.set(k, a);
+    });
+  return [...mapa.values()].sort((a, b) => b.total - a.total);
+}
+
+const finProxMes = mes => {
+  const [a, m] = mes.split('-').map(Number);
+  return m === 12 ? `${a + 1}-01-01` : `${a}-${String(m + 1).padStart(2, '0')}-01`;
+};
+const finMesAnterior = mes => {
+  const [a, m] = mes.split('-').map(Number);
+  return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`;
+};
+function finOptMeses(n = 24) {
+  const out = [], d = new Date();
+  for (let i = 0; i < n; i++) {
+    const m = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    const v = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+    const t = m.toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+    out.push({ v, t: t[0].toUpperCase() + t.slice(1) });
+  }
+  return out;
+}
+const finLancsDoMes = mes => q('fin_lancamentos', x =>
+  x.gte('data', mes + '-01').lt('data', finProxMes(mes)).order('data', { ascending:false }));
+
+/* ───────────────────────── PAINEL PESSOAL ───────────────────────── */
+R.finPainel = {
+  label:'Painel', curto:'Painel', icone:'chart', titulo:'Meu dinheiro',
+  async dados() {
+    await finBase();
+    if (!fin.temBanco) return { sem:true };
+    const [mes, ant] = await Promise.all([
+      finLancsDoMes(fin.mes), finLancsDoMes(finMesAnterior(fin.mes))
+    ]);
+    const filtra = ls => fin.conta ? ls.filter(l => l.conta_id === fin.conta) : ls;
+    return { mes: filtra(mes), ant: filtra(ant) };
+  },
+  render(d) {
+    if (d.sem) return finSemBanco();
+    const { mes, ant } = d;
+    const r = finResumo(mes), ra = finResumo(ant);
+    const cats = finPorCategoria(mes), catsAnt = finPorCategoria(ant);
+    const antPorCat = new Map(catsAnt.map(c => [c.id || 'sem', c.total]));
+    const maior = cats[0]?.total || 1;
+
+    const varia = (agora, antes) => {
+      if (!antes) return null;
+      return (agora - antes) / antes * 100;
+    };
+    const setaVar = v => v == null ? ''
+      : `<span style="color:${v > 0 ? 'var(--bad)' : 'var(--ok)'}">${v > 0 ? '▲' : '▼'} ${pc(Math.abs(v))}</span>`;
+
+    const filtros = `<div class="filtros">
+      ${dd('Mês', 'mes', finOptMeses(), fin.mes, { icone:'cal' })}
+      ${dd('Conta', 'conta', [{ v:'', t:'Todas as contas' },
+        ...fin.contas.map(c => ({ v:c.id, t:c.nome, i:'db' }))], fin.conta)}
+      <span class="sm2">${r.qtd} lançamento(s)</span></div>`;
+
+    if (!mes.length) return `<div class="head"><div><h2>Meu dinheiro</h2>
+        <div class="sub">Privado. Nem quem administra o sistema enxerga esta tela.</div></div>
+        <div class="push"><button class="btn" data-act="importar">${ico('down',15)}Mandar extrato</button></div></div>
+      ${filtros}
+      <div class="card">${vazio('money', 'Nenhum lançamento neste mês',
+        'Mande o extrato em OFX ou CSV e o sistema separa sozinho onde o dinheiro foi.',
+        { act:'importar', label:'Mandar extrato' })}</div>`;
+
+    const semCat = mes.filter(l => !l.categoria_id || finNomeCat(l.categoria_id) === 'Sem categoria').length;
+    const estourou = cats.filter(c => { const cc = finCat(c.id); return cc?.orcamento && c.total > Number(cc.orcamento); });
+    const subiu = cats.filter(c => antPorCat.get(c.id || 'sem') > 0)
+      .map(c => ({ ...c, dif: c.total - antPorCat.get(c.id || 'sem') }))
+      .sort((a, b) => b.dif - a.dif)[0];
+
+    const alertas = [
+      ...estourou.map(c => ({ cor:'bad', t:`${finNomeCat(c.id)} passou do teto`,
+        s:`${brl(c.total)} de ${brl(finCat(c.id).orcamento)} — ${brl(c.total - Number(finCat(c.id).orcamento))} acima.` })),
+      ...(subiu && subiu.dif > Math.max(150, antPorCat.get(subiu.id || 'sem') * .35)
+        ? [{ cor:'warn', t:`${finNomeCat(subiu.id)} cresceu ${brl(subiu.dif)}`,
+             s:`Era ${brl(antPorCat.get(subiu.id || 'sem'))} no mês passado, agora ${brl(subiu.total)}.` }] : []),
+      ...(r.sobrou < 0 ? [{ cor:'bad', t:'Você gastou mais do que entrou',
+        s:`${brl(-r.sobrou)} a mais. Sem transferências e sem o que está marcado como ignorado.` }] : []),
+      ...(semCat ? [{ cor:'info', t:`${semCat} lançamento(s) sem categoria`,
+        s:'Enquanto estiverem assim, entram no total mas não dizem em quê.' }] : [])
+    ];
+
+    const linhaCat = c => {
+      const cc = finCat(c.id);
+      const antes = antPorCat.get(c.id || 'sem') || 0;
+      const v = varia(c.total, antes);
+      const teto = cc?.orcamento ? Number(cc.orcamento) : null;
+      const usoTeto = teto ? c.total / teto * 100 : null;
+      return `<div class="fgasto">
+        <div class="g">
+          <div class="t"><span class="fdot" style="background:${esc(finCor(c.id))}"></span>
+            ${esc(finNomeCat(c.id))}
+            ${cc?.essencial ? '<span class="pill dim">essencial</span>' : ''}
+            ${teto && c.total > teto ? '<span class="pill bad">passou do teto</span>' : ''}</div>
+          <div class="bar"><i style="width:${Math.max(2, c.total / maior * 100)}%;background:${esc(finCor(c.id))}"></i></div>
+          <div class="m">${c.n} lançamento(s) · ${pc(c.total / (r.saiu || 1) * 100)} do que saiu
+            ${teto ? ` · teto ${brl(teto)} (${pc(usoTeto)})` : ''}</div>
+        </div>
+        <div class="v"><b>${brl(c.total)}</b>
+          <div>${v == null ? 'sem base' : setaVar(v)}</div></div>
+        <button class="ib" data-act="ver-cat" data-id="${c.id || ''}" title="Ver lançamentos">${ico('arrowR',15)}</button>
+      </div>`;
+    };
+
+    const maiores = mes.filter(l => !l.ignorado && Number(l.valor) < 0
+        && finGrupo(l.categoria_id) !== 'transferencia')
+      .sort((a, b) => Number(a.valor) - Number(b.valor)).slice(0, 8);
+
+    return `<div class="head">
+        <div><h2>Meu dinheiro</h2>
+          <div class="sub">Privado — nem quem administra o sistema enxerga esta tela.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="lancamentos">${ico('filter',15)}Lançamentos</button>
+          <button class="btn" data-act="importar">${ico('down',15)}Mandar extrato</button></div></div>
+      ${filtros}
+
+      <div class="tiles stg">
+        <div class="tile ok"><div class="ic">${ico('down',18)}</div><div class="n">${brl(r.entrou)}</div>
+          <div class="l">Entrou</div><div class="h">mês passado ${brl(ra.entrou)}</div></div>
+        <div class="tile bad"><div class="ic">${ico('out',18)}</div><div class="n">${brl(r.saiu)}</div>
+          <div class="l">Saiu</div><div class="h">mês passado ${brl(ra.saiu)} ${setaVar(varia(r.saiu, ra.saiu))}</div></div>
+        <div class="tile ${r.sobrou >= 0 ? 'ok' : 'bad'}"><div class="ic">${ico('money',18)}</div>
+          <div class="n">${brl(r.sobrou)}</div><div class="l">Sobrou</div>
+          <div class="h">${r.entrou ? pc(r.sobrou / r.entrou * 100) + ' do que entrou' : '—'}</div></div>
+        <div class="tile warn"><div class="ic">${ico('zap',18)}</div><div class="n">${brl(r.cortavel)}</div>
+          <div class="l">Dá para cortar</div>
+          <div class="h">essenciais ${brl(r.essencial)}${r.investido ? ` · investido ${brl(r.investido)}` : ''}</div></div>
+      </div>
+
+      ${alertas.length ? `<div class="card" style="margin-bottom:18px">
+        <div class="ch"><h3>${ico('alert',15)} O que salta aos olhos</h3></div>
+        ${alertas.map(a => `<div class="row">
+          <span class="pill ${a.cor}">${a.t}</span>
+          <div class="g"><div class="m">${esc(a.s)}</div></div></div>`).join('')}</div>` : ''}
+
+      <div class="g2">
+        <div class="card">
+          <div class="ch"><h3>Em que você está gastando</h3>
+            <div class="push"><button class="btn sm ghost" data-act="csv">${ico('down',13)}Exportar</button></div></div>
+          ${cats.length ? cats.map(linhaCat).join('')
+            : `<div class="cb">${vazio('chart','Nada saiu neste mês','Só entradas por aqui.')}</div>`}
+        </div>
+        <div class="card">
+          <div class="ch"><h3>Maiores saídas do mês</h3></div>
+          ${maiores.length ? maiores.map(l => `<div class="row">
+            <span class="fdot" style="background:${esc(finCor(l.categoria_id))}"></span>
+            <div class="g"><div class="t">${esc(l.descricao)}</div>
+              <div class="m">${dtl(l.data)} · ${esc(finNomeCat(l.categoria_id))}${
+                l.conta_id ? ' · ' + esc(finNomeConta(l.conta_id)) : ''}</div></div>
+            <b style="color:var(--bad);font-variant-numeric:tabular-nums">${brl(-Number(l.valor))}</b>
+          </div>`).join('') : `<div class="cb">${vazio('inbox','Sem saídas','Nada saiu da conta neste mês.')}</div>`}
+        </div>
+      </div>`;
+  },
+  acoes: {
+    mes(b)   { fin.mes = b.dataset.v; pinta(); },
+    conta(b) { fin.conta = b.dataset.v; pinta(); },
+    importar() { vai('finImportar'); },
+    lancamentos() { vai('finLancamentos'); },
+    'ver-cat'(b) { fin.categoria = b.dataset.id || ''; fin.sinal = 'saida'; vai('finLancamentos'); },
+    async csv() {
+      const ls = await finLancsDoMes(fin.mes);
+      csv(`meus-gastos-${fin.mes}`, finPorCategoria(ls).map(c => ({
+        categoria: finNomeCat(c.id), grupo: finGrupo(c.id),
+        essencial: finCat(c.id)?.essencial ? 'sim' : 'não',
+        lancamentos: c.n, total: Number(c.total).toFixed(2)
+      })));
+    }
+  }
+};
+
+/* ───────────────────────── LANÇAMENTOS ───────────────────────── */
+R.finLancamentos = {
+  label:'Lançamentos', curto:'Lançamentos', icone:'inbox', titulo:'Meus lançamentos',
+  async dados() {
+    await finBase();
+    if (!fin.temBanco) return { sem:true };
+    return { ls: fin.mes === 'tudo'
+      ? await q('fin_lancamentos', x => x.order('data', { ascending:false }).limit(1000))
+      : await finLancsDoMes(fin.mes) };
+  },
+  render(d) {
+    if (d.sem) return finSemBanco();
+    const termo = finNorm(fin.busca);
+    const ls = d.ls.filter(l =>
+      (!fin.conta || l.conta_id === fin.conta) &&
+      (!fin.categoria || l.categoria_id === fin.categoria) &&
+      (!fin.sinal || (fin.sinal === 'saida' ? Number(l.valor) < 0 : Number(l.valor) > 0)) &&
+      (!termo || finNorm(l.descricao).includes(termo)));
+    const total = ls.filter(l => !l.ignorado).reduce((a, l) => a + Number(l.valor), 0);
+
+    const selCat = l => `<select data-act="recat" data-id="${l.id}">
+      ${optFinCats().map(o => `<option value="${esc(o.v)}"${o.v === (l.categoria_id || '') ? ' selected' : ''}>
+        ${esc(o.t)}</option>`).join('')}</select>`;
+
+    return `<div class="head">
+        <div><h2>Meus lançamentos</h2>
+          <div class="sub">Trocou a categoria de um, o sistema oferece guardar a regra e nunca mais errar nesse.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="csv">${ico('down',15)}Exportar</button>
+          <button class="btn ghost" data-act="novo">${ico('plus',15)}Lançar à mão</button>
+          <button class="btn" data-act="importar">${ico('down',15)}Mandar extrato</button></div></div>
+
+      <div class="filtros">
+        ${dd('Mês', 'mes', [{ v:'tudo', t:'Tudo (últimos 1000)' }, ...finOptMeses()], fin.mes, { icone:'cal' })}
+        ${dd('Conta', 'conta', [{ v:'', t:'Todas as contas' },
+          ...fin.contas.map(c => ({ v:c.id, t:c.nome, i:'db' }))], fin.conta)}
+        ${dd('Categoria', 'fcat', optFinCats('Todas as categorias'), fin.categoria)}
+        ${dd('Tipo', 'fsinal', [{ v:'', t:'Entradas e saídas' },
+          { v:'saida', t:'Só saídas', i:'out' }, { v:'entrada', t:'Só entradas', i:'down' }], fin.sinal)}
+        <input data-act="fbusca" value="${esc(fin.busca)}" placeholder="Buscar na descrição…"
+          style="width:auto;min-width:200px">
+        <span class="sm2">${ls.length} linha(s) · saldo ${brl(total)}</span></div>
+
+      <div class="card">${ls.length ? `<div class="t-scroll"><table><thead><tr>
+        <th>Data</th><th>Descrição</th><th>Conta</th><th style="min-width:180px">Categoria</th>
+        <th class="num">Valor</th><th></th></tr></thead><tbody>
+        ${ls.map(l => `<tr${l.ignorado ? ' style="opacity:.45"' : ''}>
+          <td class="mut">${dtl(l.data)}</td>
+          <td><b>${esc(l.descricao)}</b>${l.ignorado ? ' <span class="pill dim">ignorado</span>' : ''}
+            ${l.observacao ? `<div class="m" style="font-size:11.5px;color:var(--dim)">${esc(l.observacao)}</div>` : ''}</td>
+          <td class="mut">${l.conta_id ? esc(finNomeConta(l.conta_id)) : '—'}</td>
+          <td>${selCat(l)}</td>
+          <td class="num" style="color:${Number(l.valor) < 0 ? 'var(--bad)' : 'var(--ok)'};font-weight:600">
+            ${brl(l.valor)}</td>
+          <td class="act">
+            <button class="btn sm ghost" data-act="ignorar" data-id="${l.id}" data-v="${l.ignorado ? '0' : '1'}"
+              title="${l.ignorado ? 'Voltar a contar' : 'Tirar das somas'}">${ico(l.ignorado ? 'check' : 'x', 13)}</button>
+            <button class="btn sm ghost" data-act="editar" data-id="${l.id}" title="Editar">${ico('edit',13)}</button>
+            <button class="btn sm ghost" data-act="del" data-id="${l.id}" title="Excluir">${ico('trash',13)}</button></td>
+        </tr>`).join('')}</tbody></table></div>`
+        : `<div class="cb">${vazio('inbox', d.ls.length ? 'Nada com esse filtro' : 'Nenhum lançamento',
+            d.ls.length ? 'Afrouxe os filtros acima.' : 'Mande o extrato em OFX ou CSV para começar.',
+            d.ls.length ? null : { act:'importar', label:'Mandar extrato' })}</div>`}</div>`;
+  },
+  acoes: {
+    mes(b)    { fin.mes = b.dataset.v; pinta(); },
+    conta(b)  { fin.conta = b.dataset.v; pinta(); },
+    fcat(b)   { fin.categoria = b.dataset.v; pinta(); },
+    fsinal(b) { fin.sinal = b.dataset.v; pinta(); },
+    fbusca(el){ fin.busca = el.value; pinta(); },
+    importar() { vai('finImportar'); },
+    async recat(el) {
+      const id = el.dataset.id, cat = el.value || null;
+      const { data, error } = await sb.from('fin_lancamentos')
+        .update({ categoria_id: cat }).eq('id', id).select().single();
+      if (error) { toast(error.message, { tipo:'bad' }); return pinta(); }
+      if (cat) finOfereceRegra(data, cat); else pinta();
+    },
+    async ignorar(b) {
+      await grava('fin_lancamentos', { ignorado: b.dataset.v === '1' }, b.dataset.id);
+      pinta();
+    },
+    async editar(b) {
+      const [l] = await q('fin_lancamentos', x => x.eq('id', b.dataset.id));
+      if (l) formFinLancamento(l);
+    },
+    novo() { formFinLancamento(); },
+    del(b) { confirma('Excluir lançamento',
+      'Some do histórico. Se o extrato for importado de novo, ele volta.',
+      () => apaga('fin_lancamentos', b.dataset.id)); },
+    async csv() {
+      const ls = fin.mes === 'tudo'
+        ? await q('fin_lancamentos', x => x.order('data', { ascending:false }).limit(5000))
+        : await finLancsDoMes(fin.mes);
+      csv(`meus-lancamentos-${fin.mes}`, ls.map(l => ({
+        data: l.data, descricao: l.descricao, conta: l.conta_id ? finNomeConta(l.conta_id) : '',
+        categoria: finNomeCat(l.categoria_id), grupo: finGrupo(l.categoria_id),
+        valor: Number(l.valor).toFixed(2), ignorado: l.ignorado ? 'sim' : 'não'
+      })));
+    }
+  }
+};
+
+/* Depois de corrigir uma categoria, oferece transformar a correção
+   em regra. É o que faz o sistema parar de errar no mesmo lugar —
+   e o que dispensa qualquer IA para categorizar extrato. */
+function finOfereceRegra(lanc, categoriaId) {
+  const palavras = finNorm(lanc.descricao).split(' ')
+    .filter(p => p.length > 3 && !/^\d+$/.test(p));
+  const sugestao = palavras.slice(0, 2).join(' ') || finNorm(lanc.descricao).slice(0, 20);
+  const ja = fin.regras.find(r => finNorm(r.padrao) === sugestao);
+
+  modal({
+    titulo: 'Guardar essa correção?', ok: 'Criar regra', largura: 480,
+    corpo: `<div style="color:var(--txt2);font-size:13.5px;line-height:1.6;margin-bottom:16px">
+        Todo lançamento cuja descrição contenha o trecho abaixo passa a cair em
+        <b>${esc(finNomeCat(categoriaId))}</b> sozinho.</div>
+      <div><label>Trecho procurado</label>
+        <input data-p value="${esc(sugestao)}">
+        <div class="hint">Comparado sem acento e sem maiúscula. Original: "${esc(lanc.descricao)}"</div></div>
+      <div class="chk" style="margin-top:14px"><input type="checkbox" data-retro checked>
+        <label>Aplicar também nos lançamentos que já estão aqui</label></div>
+      ${ja ? `<div class="hint" style="margin-top:10px;color:var(--warn)">
+        Já existe uma regra com esse trecho — ela será atualizada.</div>` : ''}`,
+    onOk: async mask => {
+      const padrao = mask.querySelector('[data-p]').value.trim();
+      const retro = mask.querySelector('[data-retro]').checked;
+      if (!padrao) { const e = mask.querySelector('.err');
+        e.textContent = 'Escreva o trecho.'; e.hidden = false; return false; }
+
+      const { error } = await sb.from('fin_regras')
+        .upsert({ padrao, categoria_id: categoriaId, prioridade: 10, origem: 'aprendida' },
+                { onConflict: 'dono,padrao' });
+      if (error) { toast(error.message, { tipo:'bad' }); return false; }
+
+      let tocados = 0;
+      if (retro) {
+        /* Filtro em JS, não `.neq` no banco: em SQL, `categoria_id <>
+           x` é nulo quando a coluna é nula, então os lançamentos sem
+           categoria — justamente os que mais precisam da regra —
+           ficariam de fora. */
+        const todos = await q('fin_lancamentos', x => x.limit(5000));
+        const alvo = todos.filter(l => l.categoria_id !== categoriaId
+          && finNorm(l.descricao).includes(finNorm(padrao)));
+        if (alvo.length) {
+          const { error: e2 } = await sb.from('fin_lancamentos')
+            .update({ categoria_id: categoriaId }).in('id', alvo.map(l => l.id));
+          if (e2) toast(e2.message, { tipo:'bad' }); else tocados = alvo.length;
+        }
+      }
+      await finBase();
+      toast(tocados ? `Regra criada e aplicada em ${tocados} lançamento(s).` : 'Regra criada.');
+      await pinta();
+      return true;
+    }
+  });
+  /* Fechar sem criar a regra não desfaz nada: a categoria daquele
+     lançamento já foi trocada. */
+  setTimeout(() => {
+    const b = $('.mask .btn.ghost');
+    if (b) { b.textContent = 'Só neste'; b.onclick = () => { $('.mask')?.remove(); pinta(); }; }
+  }, 10);
+}
+
+function formFinLancamento(row) {
+  form(row ? 'Editar lançamento' : 'Novo lançamento', [
+    { k:'data', label:'Data', type:'date', req:true, value:row?.data || hoje() },
+    { k:'descricao', label:'Descrição', req:true, value:row?.descricao, ph:'Ex.: Almoço com o time' },
+    { k:'valor', label:'Valor (R$)', type:'number', step:'0.01', req:true, value:row?.valor,
+      hint:'Negativo é saída, positivo é entrada. Um gasto de 80 reais é -80.' },
+    { k:'categoria_id', label:'Categoria', type:'select', value:row?.categoria_id, opts:optFinCats() },
+    { k:'conta_id', label:'Conta', type:'select', value:row?.conta_id,
+      opts:[{ v:'', t:'— sem conta —' }, ...fin.contas.map(c => ({ v:c.id, t:c.nome }))] },
+    { k:'observacao', label:'Observação', type:'textarea', value:row?.observacao },
+    { k:'ignorado', type:'checkbox', label:'Ignorado', cap:'Não contar nas somas', value:row?.ignorado || false }
+  ], async d => {
+    if (!d.valor) { toast('O valor não pode ser zero.', { tipo:'bad' }); return false; }
+    if (row) return grava('fin_lancamentos', d, row.id);
+    d.origem = 'manual';
+    d.impressao = `manual|${d.data}|${Number(d.valor).toFixed(2)}|${finNorm(d.descricao).slice(0, 60)}|${Date.now()}`;
+    return grava('fin_lancamentos', d);
+  });
+}
+
+/* ───────────────────────── IMPORTAR EXTRATO ───────────────────────── */
+R.finImportar = {
+  label:'Mandar extrato', curto:'Importar', icone:'down', titulo:'Mandar o extrato',
+  async dados() {
+    await finBase();
+    if (!fin.temBanco) return { sem:true };
+    if (!fin.cats.length) await finSemeiaCategorias(true);
+    return {};
+  },
+  render(d) {
+    if (d.sem) return finSemBanco();
+    const imp = fin.imp;
+
+    const cabeca = `<div class="head">
+      <div><h2>Mandar o extrato</h2>
+        <div class="sub">OFX ou CSV, do banco ou do cartão. Nada sai do seu login: o arquivo é lido aqui no navegador
+          e as linhas gravadas só você enxerga.</div></div>
+      ${imp ? `<div class="push"><button class="btn ghost" data-act="cancelar">${ico('x',15)}Começar de novo</button></div>` : ''}
+      </div>`;
+
+    if (!imp) return `${cabeca}
+      <div class="fz" id="fz">
+        <div class="ic">${ico('down',22)}</div>
+        <h4>Arraste o arquivo aqui ou clique para escolher</h4>
+        <p>.ofx · .csv · .txt — no seu banco, procure por "exportar extrato" ou "OFX / Money".<br>
+          O OFX é o mais confiável: já vem com data, valor e descrição separados.</p>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <div class="ch"><h3>Como funciona</h3></div>
+        <div class="cb" style="color:var(--txt2);font-size:13.5px;line-height:1.75">
+          1. O arquivo é lido no navegador — ele não é enviado para lugar nenhum além da sua própria linha no banco.<br>
+          2. Cada lançamento cai numa categoria por palavra-chave (iFood, posto, farmácia, mercado…).<br>
+          3. Você confere na prévia e corrige o que estiver errado.<br>
+          4. Correção vira regra: da próxima vez aquele estabelecimento já vem certo.<br>
+          5. Reimportar o mesmo mês não duplica nada — cada lançamento tem uma digital.
+        </div></div>`;
+
+    if (imp.erro) return `${cabeca}
+      <div class="card"><div class="cb"><div class="err" style="display:block">${esc(imp.erro)}</div></div></div>`;
+
+    /* CSV precisa saber quais colunas são o quê antes da prévia. */
+    const mapaCSV = imp.tipo === 'csv' ? `<div class="card" style="margin-bottom:18px">
+      <div class="ch"><h3>${ico('filter',15)} Colunas do arquivo</h3>
+        <div class="push"><span class="sm2">${imp.linhas.length} linha(s) lida(s)</span></div></div>
+      <div class="cb">
+        <div class="fmap">
+          ${['data','desc','valor','saida','entrada'].map(k => {
+            const rot = { data:'Data', desc:'Descrição', valor:'Valor (único)',
+                          saida:'Saída (se separada)', entrada:'Entrada (se separada)' }[k];
+            return `<div><label>${rot}</label>
+              <select data-act="map" data-k="${k}">
+                <option value="-1">— não usar —</option>
+                ${(imp.linhas[0] || []).map((c, i) => `<option value="${i}"${imp.mapa[k] === i ? ' selected' : ''}>
+                  ${esc(imp.mapa.cabecalho ? (c || `Coluna ${i + 1}`) : `Coluna ${i + 1}: ${String(c).slice(0, 22)}`)}
+                </option>`).join('')}</select></div>`;
+          }).join('')}
+        </div>
+        <div class="chk" style="margin-top:14px"><input type="checkbox" data-act="cab" ${imp.mapa.cabecalho ? 'checked' : ''}>
+          <label>A primeira linha é o cabeçalho</label></div>
+        <div class="chk"><input type="checkbox" data-act="inverter" ${imp.inverter ? 'checked' : ''}>
+          <label>Inverter o sinal — marque se as compras vieram como valor positivo (comum em fatura de cartão)</label></div>
+      </div></div>` : '';
+
+    const itens = imp.itens || [];
+    const novos = itens.filter(i => i.usar);
+    const dups  = itens.filter(i => i.duplicado);
+    const entra = novos.filter(i => i.valor > 0).reduce((a, i) => a + i.valor, 0);
+    const sai   = -novos.filter(i => i.valor < 0).reduce((a, i) => a + i.valor, 0);
+
+    return `${cabeca}
+      <div class="filtros">
+        ${dd('Conta', 'imp-conta', [{ v:'', t:'— sem conta —' },
+          ...fin.contas.map(c => ({ v:c.id, t:c.nome, i:'db' }))], imp.conta_id, { icone:'db' })}
+        <button class="btn sm ghost" data-act="nova-conta">${ico('plus',13)}Nova conta</button>
+        <span class="sm2">${esc(imp.nome)}${imp.contaOFX ? ` · conta ${esc(imp.contaOFX)}` : ''}</span></div>
+
+      ${mapaCSV}
+
+      ${itens.length ? `<div class="tiles stg">
+          <div class="tile"><div class="ic">${ico('inbox',18)}</div><div class="n">${num(novos.length)}</div>
+            <div class="l">A importar</div>${dups.length ? `<div class="h">${dups.length} já estavam aqui</div>` : ''}</div>
+          <div class="tile ok"><div class="ic">${ico('down',18)}</div><div class="n">${brl(entra)}</div><div class="l">Entradas</div></div>
+          <div class="tile bad"><div class="ic">${ico('out',18)}</div><div class="n">${brl(sai)}</div><div class="l">Saídas</div></div>
+          <div class="tile"><div class="ic">${ico('cal',18)}</div>
+            <div class="n" style="font-size:20px">${dtl(itens[itens.length - 1].data)} → ${dtl(itens[0].data)}</div>
+            <div class="l">Período</div></div>
+        </div>
+
+        <div class="card">
+          <div class="ch"><h3>Confira antes de gravar</h3>
+            <div class="push">
+              <button class="btn sm ghost" data-act="marcar-todos">Marcar todos</button>
+              <button class="btn sm ghost" data-act="desmarcar-dups">Desmarcar repetidos</button>
+              <button class="btn" data-act="gravar">${ico('check',15)}Importar ${novos.length}</button></div></div>
+          <div class="t-scroll fprev"><table><thead><tr>
+            <th style="width:34px"></th><th>Data</th><th>Descrição</th>
+            <th style="min-width:170px">Categoria</th><th class="num">Valor</th></tr></thead><tbody>
+            ${itens.map((i, n) => `<tr class="${i.usar ? '' : 'fora'}">
+              <td><input type="checkbox" data-act="p-usar" data-i="${n}"${i.usar ? ' checked' : ''}></td>
+              <td class="mut">${dtl(i.data)}</td>
+              <td>${esc(i.descricao)}${i.duplicado ? ' <span class="pill dim">já importado</span>' : ''}</td>
+              <td><select data-act="p-cat" data-i="${n}">
+                ${optFinCats().map(o => `<option value="${esc(o.v)}"${o.v === (i.categoria_id || '') ? ' selected' : ''}>
+                  ${esc(o.t)}</option>`).join('')}</select></td>
+              <td class="num" style="color:${i.valor < 0 ? 'var(--bad)' : 'var(--ok)'};font-weight:600">${brl(i.valor)}</td>
+            </tr>`).join('')}</tbody></table></div></div>`
+        : `<div class="card"><div class="cb">${vazio('alert', 'Não achei lançamentos',
+            imp.tipo === 'csv'
+              ? 'Confira o mapeamento das colunas acima — provavelmente a data ou o valor está apontando para a coluna errada.'
+              : 'O arquivo foi lido mas não tinha nenhum bloco de lançamento. Confirme que é o extrato, e não o comprovante.')}</div></div>`}`;
+  },
+  pos() {
+    const zona = $('#fz');
+    if (zona) {
+      zona.onclick = () => finEscolheArquivo();
+      zona.ondragover = e => { e.preventDefault(); zona.classList.add('sobre'); };
+      zona.ondragleave = () => zona.classList.remove('sobre');
+      zona.ondrop = e => {
+        e.preventDefault(); zona.classList.remove('sobre');
+        const f = e.dataTransfer.files[0]; if (f) finLeArquivo(f);
+      };
+    }
+  },
+  acoes: {
+    cancelar() { fin.imp = null; pinta(); },
+    'imp-conta'(b) { fin.imp.conta_id = b.dataset.v; finRecalcula(); },
+    'nova-conta'() { formFinConta(); },
+    map(el) { fin.imp.mapa[el.dataset.k] = Number(el.value); finRemontaCSV(); },
+    cab(el)      { fin.imp.mapa.cabecalho = el.checked; finRemontaCSV(); },
+    inverter(el) { fin.imp.inverter = el.checked; finRemontaCSV(); },
+    'p-usar'(el) { fin.imp.itens[+el.dataset.i].usar = el.checked;
+      el.closest('tr').classList.toggle('fora', !el.checked); },
+    'p-cat'(el)  { fin.imp.itens[+el.dataset.i].categoria_id = el.value || null; },
+    'marcar-todos'() { fin.imp.itens.forEach(i => i.usar = true); pinta(); },
+    'desmarcar-dups'() { fin.imp.itens.forEach(i => { if (i.duplicado) i.usar = false; }); pinta(); },
+    async gravar(b) {
+      const imp = fin.imp;
+      const linhas = imp.itens.filter(i => i.usar).map(i => ({
+        conta_id: imp.conta_id || null, data: i.data, descricao: i.descricao,
+        descricao_original: i.descricao, valor: i.valor,
+        categoria_id: i.categoria_id || null, origem: imp.tipo,
+        id_externo: i.fitid || null, impressao: i.impressao
+      }));
+      if (!linhas.length) return toast('Nenhuma linha marcada.', { tipo:'info' });
+
+      b.disabled = true; b.textContent = 'Importando…';
+      let gravadas = 0;
+      for (let i = 0; i < linhas.length; i += 200) {
+        const { error } = await sb.from('fin_lancamentos').insert(linhas.slice(i, i + 200));
+        if (error) { toast(error.message, { tipo:'bad' }); b.disabled = false; return; }
+        gravadas += Math.min(200, linhas.length - i);
+      }
+      fin.imp = null;
+      fin.mes = linhas[0].data.slice(0, 7);
+      toast(`${gravadas} lançamento(s) importado(s).`);
+      vai('finPainel');
+    }
+  }
+};
+
+function finEscolheArquivo() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.ofx,.csv,.txt,text/csv,application/x-ofx';
+  inp.onchange = () => { if (inp.files[0]) finLeArquivo(inp.files[0]); };
+  inp.click();
+}
+
+async function finLeArquivo(file) {
+  const texto = finDecodifica(await file.arrayBuffer());
+  const ehOFX = /\.ofx$/i.test(file.name) || /<STMTTRN>/i.test(texto);
+  fin.imp = { nome: file.name, conta_id: fin.contas[0]?.id || '', inverter: false };
+
+  if (ehOFX) {
+    const { itens, conta } = finLeOFX(texto);
+    fin.imp.tipo = 'ofx'; fin.imp.contaOFX = conta; fin.imp.brutos = itens;
+  } else {
+    const linhas = finLeCSV(texto);
+    if (!linhas.length) { fin.imp.erro = 'O arquivo está vazio ou não é um CSV.'; return pinta(); }
+    fin.imp.tipo = 'csv'; fin.imp.linhas = linhas;
+    fin.imp.mapa = finAdivinhaColunas(linhas);
+    fin.imp.brutos = finMontaCSV(linhas, fin.imp.mapa, false);
+  }
+  await finRecalcula();
+}
+
+/* Ordenado do mais recente para o mais antigo, como o extrato. */
+async function finRecalcula() {
+  const brutos = [...(fin.imp.brutos || [])].sort((a, b) => b.data.localeCompare(a.data));
+  fin.imp.itens = await finPreparaItens(brutos, fin.imp.conta_id);
+  await pinta();
+}
+async function finRemontaCSV() {
+  fin.imp.brutos = finMontaCSV(fin.imp.linhas, fin.imp.mapa, fin.imp.inverter);
+  await finRecalcula();
+}
+
+function formFinConta(row) {
+  form(row ? 'Editar conta' : 'Nova conta', [
+    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Nubank pessoal' },
+    { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'corrente', opts:[
+      { v:'corrente', t:'Conta corrente' }, { v:'poupanca', t:'Poupança' },
+      { v:'cartao', t:'Cartão de crédito' }, { v:'dinheiro', t:'Dinheiro' },
+      { v:'investimento', t:'Investimento' }] },
+    { k:'instituicao', label:'Banco', value:row?.instituicao, ph:'Ex.: Nubank' },
+    { k:'ativa', type:'checkbox', label:'Ativa', cap:'Ativa', value: row ? row.ativa : true }
+  ], async d => {
+    const ok = await grava('fin_contas', d, row?.id);
+    if (ok) { await finBase(); if (fin.imp && !fin.imp.conta_id) {
+      fin.imp.conta_id = fin.contas.find(c => c.nome === d.nome)?.id || ''; await finRecalcula(); } }
+    return ok;
+  });
+}
+
+/* ───────────────────────── CATEGORIAS E REGRAS ───────────────────────── */
+R.finCategorias = {
+  label:'Categorias', curto:'Categorias', icone:'filter', titulo:'Categorias e regras',
+  async dados() {
+    await finBase();
+    if (!fin.temBanco) return { sem:true };
+    const ls = await q('fin_lancamentos', x => x.limit(5000));
+    const usoCat = new Map(), usoReg = new Map();
+    ls.forEach(l => usoCat.set(l.categoria_id, (usoCat.get(l.categoria_id) || 0) + 1));
+    fin.regras.forEach(r => usoReg.set(r.id,
+      ls.filter(l => finNorm(l.descricao).includes(finNorm(r.padrao))).length));
+    return { usoCat, usoReg, semCat: ls.filter(l => !l.categoria_id).length };
+  },
+  render(d) {
+    if (d.sem) return finSemBanco();
+    const GRUPOS = { receita:'Receita', fixo:'Gasto fixo', variavel:'Gasto variável',
+                     divida:'Dívida', investimento:'Investimento', transferencia:'Transferência' };
+
+    const abaCategorias = `<div class="card">
+      <div class="ch"><h3>Categorias</h3>
+        <div class="push">
+          <button class="btn sm ghost" data-act="semear">${ico('refresh',13)}Criar as padrão</button>
+          <button class="btn sm" data-act="nova-cat">${ico('plus',13)}Nova categoria</button></div></div>
+      ${fin.cats.length ? `<div class="t-scroll"><table><thead><tr>
+        <th>Categoria</th><th>Grupo</th><th>Essencial</th><th class="num">Teto mensal</th>
+        <th class="num">Lançamentos</th><th></th></tr></thead><tbody>
+        ${fin.cats.map(c => `<tr>
+          <td><b style="display:flex;align-items:center;gap:8px">
+            <span class="fdot" style="background:${esc(c.cor || 'var(--dim)')}"></span>${esc(c.nome)}</b></td>
+          <td><span class="pill ${c.grupo === 'receita' ? 'ok' : c.grupo === 'transferencia' ? 'dim'
+            : c.grupo === 'divida' ? 'bad' : c.grupo === 'investimento' ? 'info' : 'warn'}">
+            ${GRUPOS[c.grupo] || c.grupo}</span></td>
+          <td>${c.essencial ? `<span class="pill dim">${ico('check',11)} sim</span>` : '<span class="mut">não</span>'}</td>
+          <td class="num">${c.orcamento ? brl(c.orcamento) : '—'}</td>
+          <td class="num mut">${num(d.usoCat.get(c.id) || 0)}</td>
+          <td class="act">
+            <button class="btn sm ghost" data-act="edit-cat" data-id="${c.id}">${ico('edit',13)}</button>
+            <button class="btn sm ghost" data-act="del-cat" data-id="${c.id}">${ico('trash',13)}</button></td>
+        </tr>`).join('')}</tbody></table></div>`
+      : `<div class="cb">${vazio('filter', 'Nenhuma categoria',
+          'Comece pelas padrão — 23 categorias que cobrem quase tudo de conta pessoal no Brasil.',
+          { act:'semear', label:'Criar as padrão' })}</div>`}</div>`;
+
+    const abaRegras = `<div class="card">
+      <div class="ch"><h3>Regras</h3>
+        <div class="push">
+          <button class="btn sm ghost" data-act="reaplicar">${ico('refresh',13)}Reaplicar em tudo</button>
+          <button class="btn sm" data-act="nova-regra">${ico('plus',13)}Nova regra</button></div></div>
+      <div class="cb" style="border-bottom:1px solid var(--line);color:var(--txt2);font-size:13px;line-height:1.65">
+        Regra é o trecho que o sistema procura na descrição do lançamento. Elas vencem as palavras-chave
+        que já vêm embutidas no app — então quando você corrige uma categoria e manda guardar, é aqui que a
+        correção fica.${d.semCat ? ` Hoje há <b>${d.semCat}</b> lançamento(s) sem categoria nenhuma.` : ''}
+      </div>
+      ${fin.regras.length ? `<div class="t-scroll"><table><thead><tr>
+        <th>Se a descrição contiver</th><th>Vira</th><th class="num">Prioridade</th>
+        <th class="num">Bate hoje em</th><th>Origem</th><th></th></tr></thead><tbody>
+        ${fin.regras.map(r => `<tr>
+          <td><b>${esc(r.padrao)}</b></td>
+          <td><span style="display:inline-flex;align-items:center;gap:7px">
+            <span class="fdot" style="background:${esc(finCor(r.categoria_id))}"></span>
+            ${esc(finNomeCat(r.categoria_id))}</span></td>
+          <td class="num mut">${r.prioridade}</td>
+          <td class="num mut">${num(d.usoReg.get(r.id) || 0)}</td>
+          <td><span class="pill dim">${r.origem === 'aprendida' ? 'aprendida' : 'manual'}</span></td>
+          <td class="act">
+            <button class="btn sm ghost" data-act="edit-regra" data-id="${r.id}">${ico('edit',13)}</button>
+            <button class="btn sm ghost" data-act="del-regra" data-id="${r.id}">${ico('trash',13)}</button></td>
+        </tr>`).join('')}</tbody></table></div>`
+      : `<div class="cb">${vazio('filter', 'Nenhuma regra sua ainda',
+          'O app já categoriza sozinho por palavras-chave conhecidas (iFood, posto, farmácia…). Regra aqui é para o que ele erra — e o jeito mais fácil de criar uma é corrigir a categoria em Lançamentos.')}</div>`}</div>`;
+
+    const abaContas = `<div class="card" style="margin-top:18px">
+      <div class="ch"><h3>Contas</h3>
+        <div class="push"><button class="btn sm" data-act="nova-conta">${ico('plus',13)}Nova conta</button></div></div>
+      ${fin.contas.length ? fin.contas.map(c => `<div class="row">
+        <div class="g"><div class="t">${esc(c.nome)}</div>
+          <div class="m">${esc(c.instituicao || '—')} · ${esc(c.tipo)}${c.ativa ? '' : ' · inativa'}</div></div>
+        <button class="ib" data-act="edit-conta" data-id="${c.id}">${ico('edit',15)}</button>
+        <button class="ib" data-act="del-conta" data-id="${c.id}">${ico('trash',15)}</button></div>`).join('')
+      : `<div class="cb">${vazio('db', 'Nenhuma conta',
+          'Opcional. Serve para separar o que é do banco e o que é do cartão quando você importa os dois.')}</div>`}</div>`;
+
+    return `<div class="head"><div><h2>Categorias e regras</h2>
+        <div class="sub">Onde o sistema aprende. Quanto melhor daqui, menos você mexe na mão depois.</div></div></div>
+      <div class="tabs">
+        <button data-act="aba" data-v="categorias" class="${fin.abaCat === 'categorias' ? 'on' : ''}">Categorias</button>
+        <button data-act="aba" data-v="regras" class="${fin.abaCat === 'regras' ? 'on' : ''}">Regras</button>
+      </div>
+      ${fin.abaCat === 'categorias' ? abaCategorias + abaContas : abaRegras}`;
+  },
+  acoes: {
+    aba(b) { fin.abaCat = b.dataset.v; pinta(); },
+    async semear() { await finSemeiaCategorias(); pinta(); },
+    'nova-cat'() { formFinCategoria(); },
+    'edit-cat'(b) { formFinCategoria(finCat(b.dataset.id)); },
+    'del-cat'(b) {
+      const c = finCat(b.dataset.id);
+      confirma('Excluir categoria',
+        `Os lançamentos de <b>${esc(c.nome)}</b> continuam, mas ficam sem categoria. As regras que apontam para ela somem junto.`,
+        async () => { const ok = await apaga('fin_categorias', c.id); if (ok) await finBase(); return ok; });
+    },
+    'nova-regra'() { formFinRegra(); },
+    'edit-regra'(b) { formFinRegra(fin.regras.find(r => r.id === b.dataset.id)); },
+    'del-regra'(b) { confirma('Excluir regra',
+      'Os lançamentos já categorizados continuam como estão.',
+      async () => { const ok = await apaga('fin_regras', b.dataset.id); if (ok) await finBase(); return ok; }); },
+    'nova-conta'() { formFinConta(); },
+    'edit-conta'(b) { formFinConta(fin.contas.find(c => c.id === b.dataset.id)); },
+    'del-conta'(b) { confirma('Excluir conta',
+      'Os lançamentos continuam, só ficam sem conta.',
+      async () => { const ok = await apaga('fin_contas', b.dataset.id); if (ok) await finBase(); return ok; }); },
+    /* Reaplicar não mexe no que você categorizou à mão sem regra:
+       só recalcula o que hoje está sem categoria ou em "Sem categoria". */
+    reaplicar() {
+      confirma('Reaplicar as regras', `Vale para os lançamentos sem categoria e os que estão em
+        "Sem categoria". O que você categorizou à mão fica como está.`, async () => {
+        const semId = finCatId('Sem categoria');
+        const todos = await q('fin_lancamentos', x => x.limit(5000));
+        const alvo = todos.filter(l => !l.categoria_id || l.categoria_id === semId);
+        let n = 0;
+        for (const l of alvo) {
+          const novo = finCategoriza(l.descricao, Number(l.valor));
+          if (novo && novo !== l.categoria_id) {
+            await sb.from('fin_lancamentos').update({ categoria_id: novo }).eq('id', l.id);
+            n++;
+          }
+        }
+        toast(n ? `${n} lançamento(s) recategorizado(s).` : 'Nada mudou — as regras já estavam aplicadas.');
+        return true;
+      }, { perigo:false });
+    }
+  }
+};
+
+function formFinCategoria(row) {
+  form(row ? 'Editar categoria' : 'Nova categoria', [
+    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Mercado' },
+    { k:'grupo', label:'Grupo', type:'select', value:row?.grupo || 'variavel', opts:[
+      { v:'receita', t:'Receita — dinheiro entrando' },
+      { v:'fixo', t:'Gasto fixo — repete todo mês' },
+      { v:'variavel', t:'Gasto variável — muda de mês para mês' },
+      { v:'divida', t:'Dívida — juros, tarifas, empréstimo' },
+      { v:'investimento', t:'Investimento — sai da conta mas continua seu' },
+      { v:'transferencia', t:'Transferência — só muda o dinheiro de lugar' }],
+      hint:'Transferência fica fora de toda soma: é o que impede PIX entre contas suas de virar "gasto".' },
+    { k:'essencial', type:'checkbox', label:'Essencial', cap:'Essencial — eu teria de pagar de qualquer jeito',
+      value:row?.essencial || false,
+      hint:'É esse corte que responde "dá para cortar quanto?" no painel.' },
+    { k:'orcamento', label:'Teto mensal (R$)', type:'number', step:'0.01', value:row?.orcamento,
+      hint:'Opcional. Passou do teto, o painel avisa.' },
+    { k:'cor', label:'Cor', value:row?.cor || '#94a3b8', ph:'#ff6b00' },
+    { k:'ordem', label:'Ordem na lista', type:'number', value:row?.ordem ?? 100 }
+  ], async d => {
+    if (d.cor && !/^#[0-9a-f]{6}$/i.test(d.cor)) { toast('Cor no formato #rrggbb.', { tipo:'bad' }); return false; }
+    const ok = await grava('fin_categorias', d, row?.id);
+    if (ok) await finBase();
+    return ok;
+  });
+}
+
+function formFinRegra(row) {
+  if (!fin.cats.length) return toast('Crie as categorias antes.', { tipo:'info' });
+  form(row ? 'Editar regra' : 'Nova regra', [
+    { k:'padrao', label:'Se a descrição contiver', req:true, value:row?.padrao, ph:'Ex.: posto shell',
+      hint:'Comparado sem acento e sem maiúscula, por "contém". Trecho curto pega mais; trecho longo erra menos.' },
+    { k:'categoria_id', label:'Cair em', type:'select', req:true, value:row?.categoria_id,
+      opts:fin.cats.map(c => ({ v:c.id, t:c.nome })) },
+    { k:'prioridade', label:'Prioridade', type:'number', value:row?.prioridade ?? 50,
+      hint:'Menor é testado antes. Use número baixo para a regra mais específica.' }
+  ], async d => {
+    d.origem = row?.origem || 'manual';
+    const ok = await grava('fin_regras', d, row?.id);
+    if (ok) await finBase();
+    return ok;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    COMMAND PALETTE
    ═══════════════════════════════════════════════════════════════════ */
 let cmdAberto = false;
@@ -4218,7 +5381,11 @@ async function palette() {
   document.body.appendChild(el);
 
   const acoesRapidas = [
-    ...Object.entries(R).map(([k, r]) => ({ g:'Navegar', t:r.label, ic:r.icone, run:() => vai(k) })),
+    /* Separado por modo porque "Financeiro" existe dos dois lados —
+       o do marketing e o seu. Sem o grupo, viram dois itens iguais. */
+    ...Object.entries(R).map(([k, r]) => ({
+      g: modoDaRota(k) === 'pessoal' ? 'Gestão Pessoal' : 'Navegar',
+      t: r.label, ic: r.icone, run: () => vai(k) })),
     { g:'Ações', t:'Nova ação', ic:'plus', sc:'N', run:() => formAcao() },
     { g:'Ações', t:'Nova rotina recorrente', ic:'refresh', run:() => R.acoes.acoes.modelo() },
     { g:'Ações', t:'Gerar rotinas de hoje', ic:'zap', run:() => R.inicio.acoes.gerar() },
@@ -4388,6 +5555,13 @@ function vai(r, a = null) {
   montaShell();
 }
 
+/* Troca o menu inteiro. Cai na tela inicial do modo, e não na
+   última visitada: entrar no Pessoal é para ver o dinheiro, não
+   para reencontrar onde você parou. */
+function trocaModo(m) {
+  if (MODOS[m] && pref.modo !== m) vai(MODOS[m].inicio);
+}
+
 function elo(k, a) {
   const ativo = rota === k && area === a;
   const rotulo = a ? (R[k].curto || R[k].label) : R[k].label;
@@ -4397,7 +5571,7 @@ function elo(k, a) {
 }
 
 function navHTML() {
-  return NAV.map(sec => {
+  return (MODOS[pref.modo] || MODOS.empresa).nav.map(sec => {
     if (sec.tipo === 'item')  return elo(sec.r, null);
     if (sec.tipo === 'secao') return `<div class="grp">${sec.label}</div>` + sec.itens.map(k => elo(k, null)).join('');
     // Grupos com `semArea` são só organização visual: não filtram nada.
@@ -4411,7 +5585,25 @@ function navHTML() {
   }).join('');
 }
 
+/* Um botão só, que mostra para onde vai — e não onde você está.
+   Dois botões lado a lado caberiam, mas na barra estreita viram
+   duas palavras cortadas; e em modo mini sobra só o ícone. */
+function trocaModoHTML() {
+  const outro = pref.modo === 'empresa' ? 'pessoal' : 'empresa';
+  const m = MODOS[outro];
+  return `<button class="modo" id="modo" title="Ir para Gestão ${esc(m.nome)}">
+    <span class="ic">${ico(m.icone, 16)}</span>
+    <span class="tx"><b>Gestão ${esc(m.nome)}</b><i>${esc(m.desc)}</i></span>
+    ${ico('arrowR', 14)}</button>`;
+}
+
 function montaShell() {
+  /* O modo é derivado da rota, sempre, e num lugar só. Assim não
+     existe caminho — Ctrl+K, atalho de teclado, botão voltar do
+     navegador, link colado — que deixe o menu de um lado com a tela
+     do outro aberta. */
+  const m = modoDaRota(rota);
+  if (pref.modo !== m) { pref.modo = m; savePref(); }
   const nav = navHTML();
 
   $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}" id="app">
@@ -4419,6 +5611,7 @@ function montaShell() {
       <div class="brand"><img class="lg" src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
         <div class="mk">${esc(iniciais(visual.nome_sistema))}</div></div>
       <nav>${nav}</nav>
+      ${trocaModoHTML()}
       <div class="who" id="av" title="Minha conta">${avatar(eu, 32, sessao?.user?.email)}
         <div class="tx"><div class="n">${esc(eu?.nome || 'Sem perfil')}</div>
           <div class="s">${esc(eu?.cargo || sessao?.user?.email || '')}</div></div></div>
@@ -4449,6 +5642,7 @@ function montaShell() {
     if (innerWidth <= 900) $('#app').classList.toggle('open');
     else { pref.mini = !pref.mini; savePref(); $('#app').classList.toggle('mini'); }
   };
+  $('#modo').onclick = () => trocaModo(pref.modo === 'empresa' ? 'pessoal' : 'empresa');
   $('#busca').onclick = palette;
   $('#sino').onclick = e => notificacoes(e.currentTarget);
   $('#av').onclick = e => menuConta(e.currentTarget);
@@ -4528,7 +5722,8 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (gPend) {
     gPend = false;
-    const mapa = { i:'inicio', a:'acoes', g:'agenda', c:'config', p:'producao', m:'metas', f:'financeiro', t:'time' };
+    const mapa = { i:'inicio', a:'acoes', g:'agenda', c:'config', p:'producao', m:'metas',
+                   f:'financeiro', t:'time', d:'finPainel' };
     if (mapa[k]) { e.preventDefault(); vai(mapa[k]); }
     return;
   }
