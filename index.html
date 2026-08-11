@@ -528,6 +528,36 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 @media(max-width:720px){.progresso{grid-template-columns:1fr;justify-items:center;text-align:center}
   .lado{width:100%}}
 
+/* ── anotações ───────────────────────────────────────────────── */
+.captura{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:16px;margin-bottom:22px;transition:border-color .18s,box-shadow .18s}
+.captura:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
+.captura textarea{border:0;background:none;padding:0;min-height:52px;font-size:14.5px;resize:none}
+.captura textarea:focus{box-shadow:none}
+.captura .pe{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;
+  padding-top:12px;border-top:1px solid var(--line)}
+.captura .dica{font-size:11.5px;color:var(--dim);margin-left:auto}
+
+.notas{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;align-items:start}
+.nota{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:16px;transition:transform .16s var(--ease),border-color .16s,box-shadow .16s;
+  animation:fadeUp .3s var(--ease) both;display:flex;flex-direction:column;gap:9px}
+.nota:hover{transform:translateY(-2px);border-color:var(--line2);box-shadow:var(--shadow)}
+.nota.fixa{border-color:var(--ac);background:linear-gradient(160deg,var(--ac-bg),transparent 55%)}
+.nota .topo{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.nota h4{font-size:14.5px;line-height:1.3}
+.nota .corpo{font-size:13.5px;line-height:1.6;color:var(--txt2);white-space:pre-wrap;
+  word-break:break-word;max-height:210px;overflow:hidden;position:relative}
+.nota .corpo.cheio{max-height:none}
+.nota .corpo:not(.cheio).longo::after{content:"";position:absolute;left:0;right:0;bottom:0;height:46px;
+  background:linear-gradient(transparent,var(--surface))}
+.nota .mais{font-size:12px;color:var(--ac);font-weight:600;align-self:flex-start}
+.nota .rodape{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--dim);
+  margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
+.nota .rodape .fer{margin-left:auto;display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.nota:hover .rodape .fer{opacity:1}
+.nota .rodape .fer .ib{width:26px;height:26px}
+
 /* ── linha do tempo do dia ───────────────────────────────────── */
 .tl-item{display:grid;grid-template-columns:56px 20px 1fr;align-items:stretch;padding:0 18px}
 .tl-item:hover .tl-corpo{background:var(--surface2)}
@@ -1060,7 +1090,7 @@ const NAV = [
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
-    itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks'] },
+    itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 const AREAS = { comercial:'Comercial', marketing:'Marketing' };
@@ -2836,6 +2866,167 @@ function fechaCiclo(id, nome, status) {
       return true;
     }, { perigo: !aprovado });
 }
+
+/* ── Anotações ────────────────────────────────────────────────────
+   Bloco de notas do gestor. A caixa de escrita fica sempre aberta no
+   topo: nota que exige abrir um formulário não é escrita. */
+const CATEG_NOTA = {
+  geral:    { t:'Geral',     i:'inbox', c:'dim'  },
+  time:     { t:'Time',      i:'users', c:'info' },
+  feedback: { t:'Feedback',  i:'star',  c:'ac'   },
+  ideia:    { t:'Ideia',     i:'zap',   c:'ok'   },
+  reuniao:  { t:'Reunião',   i:'cal',   c:'info' },
+  decisao:  { t:'Decisão',   i:'check', c:'ok'   },
+  alerta:   { t:'Atenção',   i:'alert', c:'bad'  }
+};
+
+R.anotacoes = {
+  label: 'Anotações', curto: 'Anotações', icone: 'edit', titulo: 'Anotações',
+  filtro: { categoria: '', pessoa: '', busca: '' },
+  rascunho: { categoria: 'geral', pessoa: '' },
+  async dados() {
+    const notas = await qOpcional('anotacoes', x => x.order('created_at', { ascending: false }).limit(300));
+    return { notas };
+  },
+  render({ notas }) {
+    if (notas === null) return `<div class="head"><div><h2>Anotações</h2></div></div>
+      <div class="card"><div class="cb"><div class="err" style="display:block">
+        A tabela de anotações ainda não existe neste banco.</div></div></div>`;
+
+    const f = R.anotacoes.filtro, r = R.anotacoes.rascunho;
+    const termo = f.busca.trim().toLowerCase();
+    const lista = notas.filter(n =>
+      (!f.categoria || n.categoria === f.categoria) &&
+      (!f.pessoa || n.usuario_id === f.pessoa) &&
+      (!termo || (n.titulo || '').toLowerCase().includes(termo)
+              || (n.conteudo || '').toLowerCase().includes(termo)));
+
+    const fixas = lista.filter(n => n.fixada);
+    const soltas = lista.filter(n => !n.fixada);
+
+    const cartao = n => {
+      const cat = CATEG_NOTA[n.categoria] || CATEG_NOTA.geral;
+      const sobre = n.usuario_id ? cache.usuarios.find(u => u.id === n.usuario_id) : null;
+      const longo = (n.conteudo || '').length > 420;
+      return `<div class="nota ${n.fixada ? 'fixa' : ''}">
+        <div class="topo">
+          <span class="pill ${cat.c}">${ico(cat.i, 11)} ${cat.t}</span>
+          ${sobre ? `<span class="pill dim">${esc(sobre.nome.split(' ')[0])}</span>` : ''}
+          ${n.fixada ? `<span style="margin-left:auto;color:var(--ac)">${ico('star',14)}</span>` : ''}
+        </div>
+        ${n.titulo ? `<h4>${esc(n.titulo)}</h4>` : ''}
+        <div class="corpo ${longo ? 'longo' : ''}" data-corpo>${esc(n.conteudo)}</div>
+        ${longo ? '<button class="mais" data-act="expandir">Ver tudo</button>' : ''}
+        <div class="rodape">
+          ${n.autor_id ? esc(nomeUser(n.autor_id).split(' ')[0]) + ' · ' : ''}${dtl(n.created_at.slice(0,10))}
+          <span class="fer">
+            <button class="ib" data-act="fixar" data-id="${n.id}" data-v="${n.fixada ? '0' : '1'}"
+              title="${n.fixada ? 'Desafixar' : 'Fixar no topo'}">${ico('star',14)}</button>
+            <button class="ib" data-act="editar" data-id="${n.id}" title="Editar">${ico('edit',14)}</button>
+            <button class="ib" data-act="excluir" data-id="${n.id}" title="Excluir">${ico('trash',14)}</button>
+          </span></div></div>`;
+    };
+
+    return `<div class="head"><div><h2>Anotações</h2>
+        <div class="sub">O que você observa e esquece: sobre o time, ideias, decisões de reunião.</div></div>
+        <div class="push"><button class="btn ghost" data-act="csv">${ico('down',15)}Exportar</button></div></div>
+
+      <div class="captura">
+        <textarea id="nova-nota" placeholder="Escreva aqui. Ex.: Erika travou na objeção de preço — retomar no 1 a 1 de sexta."></textarea>
+        <div class="pe">
+          ${dd('Tipo', 'rasc-cat', Object.entries(CATEG_NOTA).map(([v, o]) => ({ v, t:o.t, i:o.i })), r.categoria)}
+          ${dd('Sobre', 'rasc-pessoa', [{ v:'', t:'Ninguém específico' },
+            ...cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome, i:'user' }))], r.pessoa)}
+          <button class="btn" data-act="salvar">${ico('check',15)}Salvar</button>
+          <span class="dica">Ctrl + Enter salva</span>
+        </div></div>
+
+      <div class="filtros">
+        ${dd('Tipo', 'fcat', [{ v:'', t:'Todos os tipos' },
+          ...Object.entries(CATEG_NOTA).map(([v, o]) => ({ v, t:o.t, i:o.i }))], f.categoria)}
+        ${dd('Sobre', 'fpessoa', [{ v:'', t:'Todo mundo' },
+          ...cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome, i:'user' }))], f.pessoa)}
+        <input data-act="fbusca" value="${esc(f.busca)}" placeholder="Buscar no texto…"
+          style="width:auto;min-width:200px">
+        <span class="sm2">${lista.length} de ${notas.length}</span>
+      </div>
+
+      ${fixas.length ? `<div class="grupo" style="border-radius:var(--r);margin-bottom:12px">
+          ${ico('star',12)} Fixadas<span>${fixas.length}</span></div>
+        <div class="notas" style="margin-bottom:24px">${fixas.map(cartao).join('')}</div>` : ''}
+
+      ${soltas.length ? `<div class="notas">${soltas.map(cartao).join('')}</div>`
+        : (!fixas.length ? `<div class="card">${vazio('edit',
+            notas.length ? 'Nada com esse filtro' : 'Nenhuma anotação ainda',
+            'Use a caixa acima. Anotação sobre alguém aparece junto na hora do feedback — é ali que ela vale ouro.')}</div>` : '')}`;
+  },
+  acoes: {
+    'rasc-cat'(b)    { R.anotacoes.rascunho.categoria = b.dataset.v; pinta(); },
+    'rasc-pessoa'(b) { R.anotacoes.rascunho.pessoa = b.dataset.v; pinta(); },
+    fcat(b)    { R.anotacoes.filtro.categoria = b.dataset.v; pinta(); },
+    fpessoa(b) { R.anotacoes.filtro.pessoa = b.dataset.v; pinta(); },
+    fbusca(el) { R.anotacoes.filtro.busca = el.value; pinta(); },
+    expandir(b) {
+      const c = b.previousElementSibling;
+      c.classList.toggle('cheio');
+      b.textContent = c.classList.contains('cheio') ? 'Ver menos' : 'Ver tudo';
+    },
+    async salvar() {
+      const el = $('#nova-nota');
+      const texto = (el?.value || '').trim();
+      if (!texto) return toast('Escreva algo antes de salvar.', { tipo:'info' });
+      const r = R.anotacoes.rascunho;
+      const ok = await grava('anotacoes', {
+        conteudo: texto, categoria: r.categoria,
+        usuario_id: r.pessoa || null, autor_id: eu?.id || null
+      });
+      if (!ok) return;
+      el.value = '';
+      toast('Anotação salva.');
+      pinta();
+    },
+    async fixar(b) {
+      if (await grava('anotacoes', { fixada: b.dataset.v === '1' }, b.dataset.id)) pinta();
+    },
+    async editar(b) {
+      const [n] = await q('anotacoes', x => x.eq('id', b.dataset.id));
+      if (!n) return;
+      form('Editar anotação', [
+        { k:'titulo', label:'Título', value:n.titulo, ph:'Opcional' },
+        { k:'conteudo', label:'Anotação', type:'textarea', req:true, value:n.conteudo },
+        { k:'categoria', label:'Tipo', type:'select', value:n.categoria,
+          opts:Object.entries(CATEG_NOTA).map(([v, o]) => ({ v, t:o.t })) },
+        { k:'usuario_id', label:'Sobre quem', type:'select', value:n.usuario_id,
+          opts:[{ v:'', t:'Ninguém específico' },
+            ...cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome }))] }
+      ], d => grava('anotacoes', d, n.id));
+    },
+    excluir(b) {
+      confirma('Excluir anotação', '<p>A anotação some. Não dá para desfazer.</p>',
+        () => apaga('anotacoes', b.dataset.id));
+    },
+    async csv() {
+      const ns = await q('anotacoes', x => x.order('created_at', { ascending: false }));
+      csv('anotacoes', ns.map(n => ({
+        data: n.created_at.slice(0, 10),
+        tipo: CATEG_NOTA[n.categoria]?.t || n.categoria,
+        sobre: n.usuario_id ? nomeUser(n.usuario_id) : '',
+        autor: n.autor_id ? nomeUser(n.autor_id) : '',
+        titulo: n.titulo || '',
+        anotacao: (n.conteudo || '').replace(/\n/g, ' ')
+      })));
+    }
+  },
+  pos() {
+    const el = $('#nova-nota');
+    if (!el) return;
+    el.onkeydown = e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); R.anotacoes.acoes.salvar(); }
+    };
+    // Cresce conforme escreve, em vez de virar caixinha com rolagem
+    el.oninput = () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+  }
+};
 
 /* ── Feedback ─────────────────────────────────────────────────────
    Histórico completo. A tela de PDI mostra o último; aqui está tudo,
