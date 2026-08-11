@@ -1232,16 +1232,46 @@ function formPontual() {
     { k:'descricao', label:'Detalhes', type:'textarea' },
     { k:'prazo', label:'Para quando', type:'date', value:hoje() },
     ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
-      hint:'Opcional. Coloca a tarefa na ordem certa do dia.' }] : []),
+      hint:'Opcional para a tarefa. Obrigatório se for para a agenda.' }] : []),
     { k:'responsavel_id', label:'Responsável', type:'select', value:eu?.id, opts:optUsuarios() },
     ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', opts:optSetores() }] : []),
     { k:'canal_id', label:'Canal', type:'select', opts:optCanais() },
     ...(cache.temTags ? [{ k:'_tags', label:'Tags', ph:'comercial, urgente' }] : []),
-    { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila' }
-  ], d => {
+    { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila' },
+    { k:'_agendar', type:'checkbox', label:'Agenda', cap:'Também marcar na agenda',
+      hint:'Cria o compromisso com hora e duração, além da tarefa no checklist.' },
+    { k:'_area', label:'Em qual agenda', type:'select', value: area || 'comercial', opts:[
+      { v:'comercial', t:'Comercial' }, { v:'marketing', t:'Marketing' },
+      { v:'ambos', t:'As duas' }] },
+    { k:'_duracao', label:'Duração (minutos)', type:'number', value:30 }
+  ], async d => {
+    const agendar = d._agendar, agArea = d._area, agDur = d._duracao;
+    delete d._agendar; delete d._area; delete d._duracao;
+
+    if (agendar && !d.hora) {
+      toast('Para entrar na agenda a tarefa precisa de horário.', { tipo:'bad' });
+      return false;
+    }
     if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
     d.tipo = 'rotina'; d.origem = 'manual';   // avulsa: sem modelo por trás
-    return grava('acoes', d);
+
+    if (!agendar) return grava('acoes', d);
+
+    // Precisa do id da ação para amarrar o compromisso a ela
+    const { data: criada, error } = await sb.from('acoes').insert(d).select().single();
+    if (error) { toast(error.message, { tipo:'bad' }); return false; }
+
+    const quando = new Date(`${d.prazo}T${hm(d.hora)}:00`).toISOString();
+    const r = await sb.from('agendamentos').insert({
+      acao_id: criada.id, canal_id: d.canal_id || null, area: agArea,
+      data_hora: quando, duracao_min: agDur || 30
+    });
+    if (r.error) {
+      toast('Tarefa criada, mas a agenda falhou: ' + r.error.message, { tipo:'bad' });
+      return true;
+    }
+    toast(`Tarefa criada e marcada na agenda ${agArea === 'ambos' ? 'das duas áreas' : 'do ' + agArea}.`);
+    return true;
   }, 'Criar tarefa');
 }
 
@@ -1411,7 +1441,11 @@ R.acoes = {
 /* ───────────────────────── AGENDA ───────────────────────── */
 R.agenda = {
   label: 'Agenda', curto: 'Agenda', icone: 'cal', titulo: 'Agenda da semana',
-  async dados() { return { ag: porCanalNome(await q('v_agenda_semana')) }; },
+  async dados() {
+    const ag = await q('v_agenda_semana');
+    // A área do compromisso manda; sem ela, cai na do canal
+    return { ag: area ? ag.filter(x => !x.area || x.area === area || x.area === 'ambos') : ag };
+  },
   render({ ag }) {
     const dias = {};
     ag.forEach(a => { (dias[a.data_hora.slice(0, 10)] ||= []).push(a); });
@@ -1427,7 +1461,10 @@ R.agenda = {
           ${dias[d].map(a => `<div class="row">
             <div style="width:56px;flex:none"><b>${hora(a.data_hora)}</b>
               <div class="m">${a.duracao_min}min</div></div>
-            <div class="g"><div class="t">${esc(a.titulo)}</div>
+            <div class="g"><div class="t">${esc(a.titulo)}
+                ${a.area && a.area !== 'ambos'
+                  ? `<span class="pill ${a.area === 'comercial' ? 'info' : 'ac'}">${esc(a.area)}</span>` : ''}
+                ${a.origem === 'manual' ? '<span class="pill pt">pontual</span>' : ''}</div>
               <div class="m">${esc(a.canal || 'Sem canal')}${a.responsavel ? ' · ' + esc(a.responsavel) : ''}${
                 a.observacao ? ' · ' + esc(a.observacao) : ''}</div></div>
             <button class="ib" data-act="del" data-id="${a.id}">${ico('trash',15)}</button></div>`).join('')}
@@ -1444,6 +1481,9 @@ R.agenda = {
         { k:'acao_id', label:'Ação', type:'select', req:true, opts:abertas.map(a => ({ v:a.id, t:a.titulo })) },
         { k:'data_hora', label:'Data e hora', type:'datetime-local', req:true },
         { k:'duracao_min', label:'Duração (minutos)', type:'number', value:30 },
+        { k:'area', label:'Em qual agenda', type:'select', value: area || 'comercial', opts:[
+          { v:'comercial', t:'Comercial' }, { v:'marketing', t:'Marketing' },
+          { v:'ambos', t:'As duas' }] },
         { k:'canal_id', label:'Canal', type:'select', opts:optCanais() },
         { k:'observacao', label:'Observação', type:'textarea' }
       ], d => { d.data_hora = new Date(d.data_hora).toISOString(); return grava('agendamentos', d); });
