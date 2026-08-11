@@ -1867,10 +1867,14 @@ R.checkDiario = {
         return h < 12 ? '1. Manhã' : h < 18 ? '2. Tarde' : '3. Noite';
       };
       lista.forEach(a => { (grupos[turno(a)] ||= []).push(a); });
-      Object.values(grupos).forEach(g => g.sort((a, b) => (a.hora || '99') > (b.hora || '99') ? 1 : -1));
     } else {
       lista.forEach(a => { (grupos[a.prazo] ||= []).push(a); });
     }
+    /* Cronológico dentro de qualquer agrupamento. Sem hora vai para o
+       fim — e o desempate é pelo título, para a ordem não dançar a
+       cada recarga quando duas tarefas marcam a mesma hora. */
+    Object.values(grupos).forEach(g => g.sort((a, b) =>
+      emMinuto(a.hora) - emMinuto(b.hora) || (a.titulo > b.titulo ? 1 : -1)));
     const chaves = Object.keys(grupos).sort();
     if (!porDia) chaves.reverse();
     const rotuloGrupo = k => porDia ? k.slice(3)
@@ -2555,6 +2559,13 @@ R.rotinasTime = {
    Escala semanal. Dia sem linha no banco = folga. */
 const SEMANA = [[1,'Segunda'],[2,'Terça'],[3,'Quarta'],[4,'Quinta'],[5,'Sexta'],[6,'Sábado'],[0,'Domingo']];
 const hm = t => (t || '').slice(0, 5);
+/* Minutos desde a meia-noite. Sem hora devolve um valor alto de
+   propósito: a tarefa cai no fim do dia em vez de fingir madrugada. */
+const emMinuto = t => {
+  if (!t) return 99999;
+  const [h, m] = hm(t).split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
 const minutosDia = h => {
   const [a, b] = [hm(h.entrada), hm(h.saida)].map(x => {
     const [H, M] = x.split(':').map(Number); return H * 60 + M;
