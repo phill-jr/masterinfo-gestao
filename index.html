@@ -1155,7 +1155,7 @@ const NAV_EMPRESA = [
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
     itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
-  { tipo:'secao', label:'Vendedores', itens:['onboarding', 'dicionario'] },
+  { tipo:'secao', label:'Vendedores', itens:['onboarding', 'dicionario', 'avaliacoes'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 
@@ -3873,6 +3873,347 @@ function formFluxo(row) {
       return { nome, detalhe: det.join(' — ') || null };
     });
     return grava('vd_fluxos', resto, row?.id);
+  });
+}
+
+/* ── Avaliações ───────────────────────────────────────────────────
+   Nota geral não serve para nada: "tirou 6" não diz o que fazer. A
+   prova sai dividida em três eixos, e passa quem atinge a nota geral
+   E não fica abaixo do piso em nenhum deles — é o que impede o caso
+   clássico de acertar tudo de produto, zerar cultura, passar na
+   média e virar problema três meses depois.
+
+   O gabarito não passa por aqui. A tela chama funções no banco
+   (vd_iniciar_tentativa, vd_prova, vd_responder, vd_enviar_tentativa,
+   vd_revisao) e a correção acontece lá dentro; o navegador só recebe
+   enunciado e alternativas, e a explicação só depois do envio.
+
+   Tabelas e funções: sql/vendedores-03-avaliacoes.sql */
+let abaAv = 'provas';
+let prova = null;   // { tentativa, itens, resultado, revisao } enquanto alguém está fazendo
+
+const EIXOS = {
+  tecnico: { t:'Técnico', c:'info', d:'Entende o produto e a rede' },
+  vendas:  { t:'Vendas',  c:'ac',   d:'Sabe conduzir o cliente' },
+  cultura: { t:'Cultura', c:'ok',   d:'Sabe como a empresa trabalha e o que ela não faz' }
+};
+
+const barraEixo = (nome, nota, piso) => {
+  const v = nota == null ? null : Number(nota);
+  const cor = v == null ? 'var(--bd)' : v >= (piso ?? 60) ? 'var(--ok, #10b981)' : 'var(--bad, #f43f5e)';
+  return `<div style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+      <b>${esc(nome)}</b><span>${v == null ? 'não caiu na prova' : pc(v)}</span></div>
+    <div style="height:8px;border-radius:99px;background:var(--bd);overflow:hidden">
+      <div style="height:100%;width:${v ?? 0}%;background:${cor}"></div></div></div>`;
+};
+
+R.avaliacoes = {
+  label: 'Avaliações', curto: 'Avaliações', icone: 'chart', titulo: 'Avaliações',
+  filtro: { setor: '' },
+  async dados() {
+    const [avs, questoes, tentativas] = await Promise.all([
+      qOpcional('vd_avaliacoes', x => x.order('nivel').order('nome')),
+      qOpcional('vd_questoes',   x => x.order('eixo').order('created_at')),
+      qOpcional('vd_tentativas', x => x.order('iniciada_em', { ascending: false }).limit(50))
+    ]);
+    return { avs, questoes: questoes || [], tentativas: tentativas || [] };
+  },
+  render({ avs, questoes, tentativas }) {
+    if (avs === null) return `<div class="head"><div><h2>Avaliações</h2>
+        <div class="sub">Prova com nota por eixo.</div></div></div>
+      ${avisoSql('As tabelas das avaliações ainda não existem neste banco.')}`;
+
+    if (prova) return provaHTML();
+
+    const f = R.avaliacoes.filtro;
+    const doSetor = l => !f.setor || l.setor_id === f.setor || !l.setor_id;
+
+    const cabeca = `<div class="head"><div><h2>Avaliações</h2>
+      <div class="sub">A nota sai separada em técnico, vendas e cultura — porque "tirou 6" não diz o que corrigir.</div></div>
+      <div class="push">${abaAv === 'provas'
+        ? `<button class="btn" data-act="nova-av">${ico('plus',15)}Nova avaliação</button>`
+        : `<button class="btn" data-act="nova-questao">${ico('plus',15)}Nova questão</button>`}</div></div>
+      <div class="filtros">
+        ${dd('Setor', 'fsetor', [{ v:'', t:'Todos os setores' },
+          ...cache.setores.map(s => ({ v:s.id, t:s.nome, i:'users' }))], f.setor)}
+        ${dd('Seção', 'aba', [
+          { v:'provas',   t:'Provas',   i:'check', d:'Aplicar e ver resultados' },
+          { v:'questoes', t:'Questões', i:'edit',  d:'O banco de perguntas' }], abaAv)}
+      </div>`;
+
+    /* ── Provas ───────────────────────────────────────────────── */
+    if (abaAv === 'provas') {
+      const lista = avs.filter(doSetor);
+      const cartao = a => {
+        const minhas = tentativas.filter(t => t.avaliacao_id === a.id && t.enviada_em)
+          .sort((x, y) => y.enviada_em.localeCompare(x.enviada_em));
+        const aberta = tentativas.find(t => t.avaliacao_id === a.id && !t.enviada_em);
+        const ultima = minhas[0];
+        const pool = questoes.filter(q => q.status === 'publicada' && q.nivel === a.nivel).length;
+        return `<div class="card" style="margin-bottom:14px"><div class="cb">
+          <div class="head" style="margin-bottom:8px"><div>
+            <h3 style="margin:0">${esc(a.nome)}</h3>
+            <div class="sub">${esc(a.descricao || '')}</div></div>
+            <div class="push">
+              <span class="pill ${a.nivel === 'avancado' ? 'warn' : 'info'}">${a.nivel === 'avancado' ? 'Avançado' : 'Básico'}</span>
+              ${a.status !== 'publicada' ? `<span class="pill warn">${esc(a.status)}</span>` : ''}
+              <button class="btn sm ghost" data-act="editar-av" data-id="${a.id}">${ico('edit',13)}</button>
+              <button class="btn sm ghost" data-act="excluir-av" data-id="${a.id}" data-t="${esc(a.nome)}">${ico('trash',13)}</button>
+            </div></div>
+          <div class="sm2" style="margin-bottom:12px">
+            ${a.qtd_questoes} questões · ${a.minutos} min · passa com ${pc(a.nota_minima)} no geral
+            e nada abaixo de ${pc(a.minimo_por_eixo)} em nenhum eixo · ${pool} questões publicadas no banco deste nível
+          </div>
+          ${ultima ? `<div style="max-width:520px;margin-bottom:12px">
+            ${barraEixo('Técnico', ultima.nota_tecnico, a.minimo_por_eixo)}
+            ${barraEixo('Vendas',  ultima.nota_vendas,  a.minimo_por_eixo)}
+            ${barraEixo('Cultura', ultima.nota_cultura, a.minimo_por_eixo)}
+            <div class="sm2">Sua última: ${pc(ultima.nota_geral)} no geral ·
+              <b style="color:${ultima.aprovado ? 'var(--ok,#10b981)' : 'var(--bad,#f43f5e)'}">${ultima.aprovado ? 'aprovado' : 'não aprovado'}</b>
+              · ${dtl(ultima.enviada_em.slice(0,10))}</div></div>` : ''}
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" data-act="fazer" data-id="${a.id}">${ico('check',15)}${aberta ? 'Continuar a prova' : ultima ? 'Refazer' : 'Fazer a prova'}</button>
+            ${ultima ? `<button class="btn ghost" data-act="revisar" data-id="${ultima.id}">${ico('search',15)}Revisão comentada</button>` : ''}
+          </div>
+        </div></div>`;
+      };
+      return cabeca + (lista.length ? lista.map(cartao).join('')
+        : `<div class="card">${vazio('chart', 'Nenhuma avaliação neste setor',
+            'A básica é aplicada no fim da primeira semana. Vale aplicar no time atual também, uma vez, como diagnóstico do treinamento.',
+            { act:'nova-av', label:'Nova avaliação' })}</div>`);
+    }
+
+    /* ── Questões ─────────────────────────────────────────────── */
+    const lista = questoes.filter(doSetor);
+    const porEixo = e => lista.filter(q => q.eixo === e && q.status === 'publicada').length;
+    return cabeca + `<div class="card">
+      <div class="cb"><div class="sm2">Publicadas: ${porEixo('tecnico')} técnico · ${porEixo('vendas')} vendas · ${porEixo('cultura')} cultura.
+        A meta é 20 por eixo no básico — prova desequilibrada não mede o eixo que falta.</div></div>
+      ${lista.length ? `<div class="t-scroll"><table><thead><tr>
+        <th style="width:90px">Eixo</th><th>Questão</th><th>Nível</th><th>Status</th><th></th>
+      </tr></thead><tbody>${lista.map(q => {
+        const e = EIXOS[q.eixo] || EIXOS.tecnico;
+        return `<tr>
+          <td><span class="pill ${e.c}">${e.t}</span></td>
+          <td><div style="max-width:520px">${esc(q.enunciado)}</div></td>
+          <td class="mut">${q.nivel === 'avancado' ? 'Avançado' : 'Básico'}</td>
+          <td><span class="pill ${q.status === 'publicada' ? 'ok' : 'warn'}">${esc(q.status)}</span></td>
+          <td class="act">
+            <button class="btn sm ghost" data-act="editar-questao" data-id="${q.id}">${ico('edit',13)}</button>
+            <button class="btn sm ghost" data-act="excluir-questao" data-id="${q.id}" data-t="${esc(q.enunciado.slice(0,40))}…">${ico('trash',13)}</button>
+          </td></tr>`;
+      }).join('')}</tbody></table></div>`
+      : vazio('edit', 'Nenhuma questão ainda',
+          'Escreva como situação real: "o cliente liga dizendo que…" mede melhor que "assinale a alternativa correta sobre…".',
+          { act:'nova-questao', label:'Nova questão' })}</div>`;
+  },
+  acoes: {
+    fsetor(b) { R.avaliacoes.filtro.setor = b.dataset.v; pinta(); },
+    aba(b)    { abaAv = b.dataset.v; pinta(); },
+
+    'nova-av': () => formAvaliacao(),
+    async 'editar-av'(b) { const [r] = await q('vd_avaliacoes', x => x.eq('id', b.dataset.id)); if (r) formAvaliacao(r); },
+    'excluir-av'(b) {
+      confirma('Excluir avaliação', `"${esc(b.dataset.t)}" e as tentativas dela serão removidas.`,
+        () => apaga('vd_avaliacoes', b.dataset.id));
+    },
+
+    'nova-questao': () => formQuestao(),
+    async 'editar-questao'(b) {
+      const [r] = await q('vd_questoes', x => x.eq('id', b.dataset.id));
+      if (!r) return;
+      const { data } = await sb.rpc('vd_gabarito_ver', { p_questao: r.id });
+      formQuestao({ ...r, ...(data?.[0] || {}) });
+    },
+    'excluir-questao'(b) {
+      confirma('Excluir questão', `"${esc(b.dataset.t)}" será removida do banco.`,
+        () => apaga('vd_questoes', b.dataset.id));
+    },
+
+    async fazer(b) {
+      const { data: tentativa, error } = await sb.rpc('vd_iniciar_tentativa', { p_avaliacao: b.dataset.id });
+      if (error) return toast(error.message, { tipo:'bad' });
+      const { data: itens, error: e2 } = await sb.rpc('vd_prova', { p_tentativa: tentativa });
+      if (e2) return toast(e2.message, { tipo:'bad' });
+      prova = { tentativa, itens: itens || [], resultado: null, revisao: null };
+      await pinta();
+    },
+    /* Cada resposta vai para o banco na hora: se o navegador fechar
+       no meio, a prova continua de onde parou. */
+    async resp(el) {
+      const { error } = await sb.rpc('vd_responder', {
+        p_tentativa: prova.tentativa, p_questao: el.dataset.q, p_resposta: el.value });
+      if (error) return toast(error.message, { tipo:'bad' });
+      const item = prova.itens.find(i => i.questao_id === el.dataset.q);
+      if (item) item.resposta = el.value;
+      const faltam = prova.itens.filter(i => !i.resposta).length;
+      $('#prova-faltam').textContent = faltam ? `${faltam} sem resposta` : 'todas respondidas';
+    },
+    enviar() {
+      const faltam = prova.itens.filter(i => !i.resposta).length;
+      const manda = async () => {
+        const { data, error } = await sb.rpc('vd_enviar_tentativa', { p_tentativa: prova.tentativa });
+        if (error) return toast(error.message, { tipo:'bad' });
+        prova.resultado = data?.[0] || null;
+        await pinta();
+      };
+      if (faltam) confirma('Enviar assim?', `${faltam} questão(ões) sem resposta contam como erro.`,
+        manda, { perigo:false });
+      else manda();
+    },
+    async 'ver-revisao'() {
+      const { data, error } = await sb.rpc('vd_revisao', { p_tentativa: prova.tentativa });
+      if (error) return toast(error.message, { tipo:'bad' });
+      prova.revisao = data || [];
+      await pinta();
+    },
+    async revisar(b) {
+      const { data, error } = await sb.rpc('vd_revisao', { p_tentativa: b.dataset.id });
+      if (error) return toast(error.message, { tipo:'bad' });
+      prova = { tentativa: b.dataset.id, itens: [], resultado: null, revisao: data || [] };
+      await pinta();
+    },
+    sair() { prova = null; pinta(); }
+  }
+};
+
+/* Três telas no mesmo lugar: fazendo a prova, o resultado logo depois
+   do envio, e a revisão comentada. O gabarito só aparece na terceira. */
+function provaHTML() {
+  if (prova.revisao) {
+    const acertos = prova.revisao.filter(r => r.acertou).length;
+    return `<div class="head"><div><h2>Revisão comentada</h2>
+        <div class="sub">${acertos} de ${prova.revisao.length} certas. Errar aqui é barato — errar na frente do cliente não.</div></div>
+        <div class="push"><button class="btn ghost" data-act="sair">${ico('arrowL',15)}Voltar</button></div></div>
+      ${prova.revisao.map(r => {
+        const e = EIXOS[r.eixo] || EIXOS.tecnico;
+        const alts = Array.isArray(r.alternativas) ? r.alternativas : [];
+        return `<div class="card" style="margin-bottom:12px"><div class="cb">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <span class="pill ${e.c}">${e.t}</span>
+            <span class="pill ${r.acertou ? 'ok' : 'warn'}">${r.acertou ? 'acertou' : 'errou'}</span>
+            <span class="sm2">questão ${r.ordem}</span></div>
+          <b>${esc(r.enunciado)}</b>
+          <div style="margin:10px 0">${alts.map(a => {
+            const certa = a.id === r.correta, marcou = a.id === r.resposta;
+            return `<div style="padding:6px 10px;border-radius:8px;margin-bottom:4px;font-size:13.5px;
+              ${certa ? 'background:rgba(16,185,129,.12)' : marcou ? 'background:rgba(244,63,94,.10)' : ''}">
+              ${certa ? '✓ ' : marcou ? '✗ ' : ''}${esc(a.texto)}${marcou && !certa ? ' <span class="sm2">(sua resposta)</span>' : ''}</div>`;
+          }).join('')}</div>
+          <div class="mut" style="line-height:1.6"><b>Por quê:</b> ${esc(r.explicacao)}</div>
+        </div></div>`;
+      }).join('')}`;
+  }
+
+  if (prova.resultado) {
+    const r = prova.resultado;
+    return `<div class="head"><div><h2>Resultado</h2>
+      <div class="sub">A nota por eixo é o que diz onde reforçar.</div></div></div>
+      <div class="card"><div class="cb">
+        <div style="font-size:26px;font-weight:600;margin-bottom:4px">${pc(r.nota_geral)}</div>
+        <div class="pill ${r.aprovado ? 'ok' : 'warn'}" style="margin-bottom:18px">${r.aprovado ? 'Aprovado' : 'Não aprovado'}</div>
+        <div style="max-width:520px">
+          ${barraEixo('Técnico', r.nota_tecnico)}
+          ${barraEixo('Vendas',  r.nota_vendas)}
+          ${barraEixo('Cultura', r.nota_cultura)}
+        </div>
+        <div class="sm2" style="margin:14px 0">${r.aprovado
+          ? 'Reprovar não era o objetivo — o objetivo é saber onde reforçar. Vale olhar a revisão mesmo tendo passado.'
+          : 'Não é desligamento: é rota de reforço. Veja a revisão, volte na trilha e no dicionário, e refaça em até 7 dias.'}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" data-act="ver-revisao">${ico('search',15)}Ver revisão comentada</button>
+          <button class="btn ghost" data-act="sair">Voltar</button>
+        </div>
+      </div></div>`;
+  }
+
+  const faltam = prova.itens.filter(i => !i.resposta).length;
+  return `<div class="head"><div><h2>Prova</h2>
+      <div class="sub">Cada resposta é salva na hora. Se fechar sem querer, dá para continuar de onde parou.</div></div>
+      <div class="push"><span class="pill warn" id="prova-faltam">${faltam ? `${faltam} sem resposta` : 'todas respondidas'}</span>
+        <button class="btn ghost" data-act="sair">Sair sem enviar</button>
+        <button class="btn" data-act="enviar">${ico('check',15)}Enviar prova</button></div></div>
+    ${prova.itens.map(i => {
+      const alts = Array.isArray(i.alternativas) ? i.alternativas : [];
+      return `<div class="card" style="margin-bottom:12px"><div class="cb">
+        <div class="sm2" style="margin-bottom:6px">Questão ${i.ordem}</div>
+        <b>${esc(i.enunciado)}</b>
+        <div style="margin-top:10px">${alts.map(a => `
+          <label style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--bd);
+            border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13.5px">
+            <input type="radio" name="q_${i.questao_id}" value="${esc(a.id)}"
+              data-act="resp" data-q="${i.questao_id}"${i.resposta === a.id ? ' checked' : ''}>
+            <span>${esc(a.texto)}</span></label>`).join('')}</div>
+      </div></div>`;
+    }).join('')}
+    <div style="margin-bottom:40px"><button class="btn" data-act="enviar">${ico('check',15)}Enviar prova</button></div>`;
+}
+
+function formAvaliacao(row) {
+  form(row ? 'Editar avaliação' : 'Nova avaliação', [
+    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Avaliação básica — 7 dias' },
+    { k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores('— vale para a empresa inteira —') },
+    { k:'nivel', label:'Nível', type:'select', value:row?.nivel || 'basico',
+      opts:[{ v:'basico', t:'Básica — 7 dias de casa' }, { v:'avancado', t:'Avançada — 60 a 90 dias' }] },
+    { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao },
+    { k:'qtd_questoes', label:'Nº de questões', type:'number', value:row?.qtd_questoes ?? 20,
+      hint:'Sorteadas de forma equilibrada entre os três eixos.' },
+    { k:'minutos', label:'Duração (min)', type:'number', value:row?.minutos ?? 20 },
+    { k:'nota_minima', label:'Nota mínima geral (%)', type:'number', value:row?.nota_minima ?? 70 },
+    { k:'minimo_por_eixo', label:'Piso por eixo (%)', type:'number', value:row?.minimo_por_eixo ?? 60,
+      hint:'É o que impede alguém de zerar cultura e passar na média.' },
+    { k:'status', label:'Status', type:'select', value:row?.status || 'rascunho',
+      opts:[{ v:'rascunho', t:'Rascunho' }, { v:'publicada', t:'Publicada' }, { v:'arquivada', t:'Arquivada' }] }
+  ], d => grava('vd_avaliacoes', d, row?.id));
+}
+
+/* As alternativas são digitadas uma por linha e viram a, b, c, d. A
+   resposta certa é a letra — e ela nunca fica na mesma tabela da
+   questão, então salvar passa por vd_gabarito_salvar. */
+function formQuestao(row) {
+  const alts = Array.isArray(row?.alternativas) ? row.alternativas : [];
+  form(row?.id ? 'Editar questão' : 'Nova questão', [
+    { k:'eixo', label:'Eixo', type:'select', value:row?.eixo || 'tecnico',
+      opts:Object.entries(EIXOS).map(([v, o]) => ({ v, t:`${o.t} — ${o.d}` })) },
+    { k:'nivel', label:'Nível', type:'select', value:row?.nivel || 'basico',
+      opts:[{ v:'basico', t:'Básico' }, { v:'avancado', t:'Avançado' }] },
+    { k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores('— vale para a empresa inteira —') },
+    { k:'enunciado', label:'Enunciado', req:true, type:'textarea', value:row?.enunciado,
+      ph:'O cliente liga dizendo que…' },
+    { k:'alts', label:'Alternativas', req:true, type:'textarea',
+      value:alts.map(a => a.texto).join('\n'),
+      ph:'Uma por linha — viram a, b, c, d',
+      hint:'As erradas precisam ser plausíveis: alternativa absurda entrega a resposta.' },
+    { k:'correta', label:'Resposta certa', req:true, value:row?.correta, ph:'a',
+      hint:'A letra da alternativa certa. Nunca vai para o navegador durante a prova.' },
+    { k:'explicacao', label:'Por que essa é a certa', req:true, type:'textarea', value:row?.explicacao,
+      ph:'Aparece na revisão, depois do envio. É aqui que a questão ensina.' },
+    { k:'status', label:'Status', type:'select', value:row?.status || 'rascunho',
+      opts:[{ v:'rascunho', t:'Rascunho' }, { v:'publicada', t:'Publicada' }, { v:'aposentada', t:'Aposentada' }] }
+  ], async d => {
+    const letras = 'abcdefgh';
+    const linhas = String(d.alts || '').split('\n').map(l => l.trim()).filter(Boolean);
+    if (linhas.length < 2) { toast('Escreva pelo menos duas alternativas.', { tipo:'bad' }); return false; }
+    const correta = String(d.correta || '').trim().toLowerCase();
+    if (!letras.slice(0, linhas.length).includes(correta)) {
+      toast(`A resposta certa precisa ser uma letra entre "a" e "${letras[linhas.length - 1]}".`, { tipo:'bad' });
+      return false;
+    }
+    const { alts, correta: _c, explicacao, ...resto } = d;
+    resto.alternativas = linhas.map((texto, i) => ({ id: letras[i], texto }));
+
+    let id = row?.id;
+    if (id) { if (!await grava('vd_questoes', resto, id)) return false; }
+    else {
+      const { data, error } = await sb.from('vd_questoes').insert(resto).select('id').single();
+      if (error) { toast(error.message, { tipo:'bad' }); return false; }
+      id = data.id;
+    }
+    const { error } = await sb.rpc('vd_gabarito_salvar',
+      { p_questao: id, p_correta: correta, p_explicacao: explicacao });
+    if (error) { toast(error.message, { tipo:'bad' }); return false; }
+    return true;
   });
 }
 
