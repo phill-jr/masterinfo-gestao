@@ -1411,7 +1411,7 @@ const NAV_EMPRESA = [
     itens:['onbTrilhas', 'onbMinha', 'onbAcompanhar', 'treinamentos'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
     itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
-  { tipo:'secao', label:'Vendedores', itens:['onboarding', 'dicionario'] },
+  { tipo:'secao', label:'Vendedores', itens:['dicionario'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 
@@ -1469,9 +1469,13 @@ const vazio = (icone, titulo, texto, botao) => `<div class="empty">
    isto — com os dois links que economizam a procura: o SQL Editor
    já apontado para o projeto certo (o ref sai do próprio config.js,
    então isto funciona em qualquer projeto) e o arquivo para copiar. */
-const REPO_SQL = 'https://raw.githubusercontent.com/phill-jr/masterinfo-gestao/main/sql/vendedores-tudo.sql';
+const REPO_SQL_ARQ = 'sql/vendedores-01-dicionario.sql';
+const REPO_RAW = 'https://raw.githubusercontent.com/phill-jr/masterinfo-gestao/main/';
 
-function avisoSql(oQueFalta) {   // frase completa, para concordar em número
+/* `oQueFalta` é frase completa, para concordar em número. `arquivo` é o
+   .sql que resolve — cada tela nova aponta para o seu, senão o link
+   manda a pessoa rodar o script de outro módulo. */
+function avisoSql(oQueFalta, arquivo = REPO_SQL_ARQ) {
   let editor = 'https://supabase.com/dashboard/projects';
   try {
     const ref = new URL(window.MI_CONFIG.url).hostname.split('.')[0];
@@ -1480,13 +1484,13 @@ function avisoSql(oQueFalta) {   // frase completa, para concordar em número
   return `<div class="card"><div class="cb">
     <div class="err" style="display:block">${oQueFalta}</div>
     <p style="color:var(--txt2);font-size:13.5px;line-height:1.6;margin:12px 0">
-      Falta rodar o SQL do módulo — uma vez só, e vale para as duas telas.
+      Falta rodar o SQL desta tela — uma vez só.
       Abra o SQL Editor, cole o arquivo inteiro, clique em <b>Run</b> e recarregue aqui.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" href="${editor}" target="_blank" rel="noopener">${ico('db',15)}Abrir o SQL Editor</a>
-      <a class="btn ghost" href="${REPO_SQL}" target="_blank" rel="noopener">${ico('copy',15)}Abrir o SQL para copiar</a>
+      <a class="btn ghost" href="${REPO_RAW + arquivo}" target="_blank" rel="noopener">${ico('copy',15)}Abrir o SQL para copiar</a>
     </div>
-    <div class="sm2" style="margin-top:10px">Arquivo: <b>sql/vendedores-tudo.sql</b> — pode ser rodado de novo sem duplicar nada.</div>
+    <div class="sm2" style="margin-top:10px">Arquivo: <b>${esc(arquivo)}</b> — pode ser rodado de novo sem duplicar nada.</div>
   </div></div>`;
 }
 
@@ -3480,16 +3484,22 @@ R.onbTrilhas = {
         : { modo: 'trilha', ...d };
     }
     const [trilhas, minhas, painel] = await Promise.all([
-      q('v_onb_trilhas', x => x.eq('ativo', true)),
-      eu ? q('v_onb_matriculas', x => x.eq('usuario_id', eu.id)) : Promise.resolve([]),
-      q('v_onb_painel')
+      qOpcional('v_onb_trilhas', x => x.eq('ativo', true)),
+      eu ? qOpcional('v_onb_matriculas', x => x.eq('usuario_id', eu.id)) : Promise.resolve([]),
+      qOpcional('v_onb_painel')
     ]);
+    /* Sem as tabelas, a tela explica como criá-las em vez de despejar
+       o erro do PostgREST em cima de quem só queria ver a trilha. */
+    if (trilhas === null) return { modo: 'semSql' };
     trilhas.sort((a, b) => (a.setor_ordem ?? -1) - (b.setor_ordem ?? -1) || a.ordem - b.ordem
                         || a.nome.localeCompare(b.nome));
-    return { modo: 'hub', trilhas, minhas, k: painel[0] || {} };
+    return { modo: 'hub', trilhas, minhas: minhas || [], k: (painel || [])[0] || {} };
   },
 
   render(d) {
+    if (d.modo === 'semSql') return `<div class="head"><div><h2>Onboarding</h2>
+        <div class="sub">Trilhas por setor, com aulas e provas.</div></div></div>
+      ${avisoSql('As tabelas do onboarding ainda não existem neste banco.', 'sql/CORRECAO-13.sql')}`;
     if (d.modo === 'prova')  return onbTelaProva(d);
     if (d.modo === 'aula')   return onbTelaAula(d);
     if (d.modo === 'trilha') return onbTelaTrilha(d);
@@ -4807,323 +4817,6 @@ function formTermo(row, lacunaId) {
     const ok = await grava('vd_termos', d, row?.id);
     if (ok && lacunaId) await sb.from('vd_buscas_sem_resultado').update({ resolvido: true }).eq('id', lacunaId);
     return ok;
-  });
-}
-
-/* ── Onboarding ───────────────────────────────────────────────────
-   Três coisas que hoje moram em pastas, arquivo .html solto e na
-   cabeça de quem já está aqui há tempo: a trilha (o que a pessoa faz
-   do dia 1 ao dia 15), os POPs (como se faz cada coisa) e os fluxos
-   (por onde o trabalho passa).
-
-   Tudo tem setor_id. A empresa tem 14 setores e o comercial é só um
-   deles — se a tela nascesse presa ao comercial, cada setor novo
-   viraria uma cópia do código. Aqui é a mesma estrutura para todos, e
-   o seletor de setor no topo troca o conteúdo. Registro sem setor
-   vale para a empresa inteira e aparece em qualquer filtro, que é o
-   caso de POP de cultura e de fluxo que cruza áreas.
-
-   Tabelas: sql/vendedores-02-onboarding.sql */
-let abaOnb = 'trilha';
-
-const STATUS_POP = {
-  a_receber: { t:'A receber', c:'dim'  },
-  rascunho:  { t:'Rascunho',  c:'warn' },
-  publicado: { t:'Publicado', c:'ok'   },
-  arquivado: { t:'Arquivado', c:'dim'  }
-};
-const TIPO_FLUXO = {
-  processo:    { t:'Processo',    c:'info' },
-  cadencia:    { t:'Cadência',    c:'warn' },
-  handoff:     { t:'Handoff',     c:'ac'   },
-  atendimento: { t:'Atendimento', c:'ok'   }
-};
-
-R.onboarding = {
-  label: 'Onboarding', curto: 'Onboarding', icone: 'check', titulo: 'Onboarding',
-  filtro: { setor: '' },
-  async dados() {
-    const [trilhas, etapas, progresso, pops, fluxos] = await Promise.all([
-      qOpcional('vd_trilhas',          x => x.order('nome')),
-      qOpcional('vd_trilha_etapas',    x => x.order('dia').order('ordem')),
-      qOpcional('vd_trilha_progresso', x => x.eq('usuario_id', eu?.id || '00000000-0000-0000-0000-000000000000')),
-      qOpcional('vd_pops',             x => x.order('codigo')),
-      qOpcional('vd_fluxos',           x => x.order('nome'))
-    ]);
-    return { trilhas, etapas: etapas || [], progresso: progresso || [],
-             pops: pops || [], fluxos: fluxos || [] };
-  },
-  render({ trilhas, etapas, progresso, pops, fluxos }) {
-    if (trilhas === null) return `<div class="head"><div><h2>Onboarding</h2>
-        <div class="sub">Trilha, POPs e fluxos — por setor.</div></div></div>
-      ${avisoSql('As tabelas do onboarding ainda não existem neste banco.')}`;
-
-    const f = R.onboarding.filtro;
-    /* Registro sem setor vale para a empresa inteira — por isso ele
-       nunca é filtrado fora. */
-    const doSetor = l => !f.setor || l.setor_id === f.setor || !l.setor_id;
-    const feito = new Set(progresso.map(p => p.etapa_id));
-
-    const seletores = `<div class="filtros">
-      ${dd('Setor', 'fsetor', [{ v:'', t:'Todos os setores' },
-        ...cache.setores.map(s => ({ v:s.id, t:s.nome, i:'users' }))], f.setor)}
-      ${dd('Seção', 'aba', [
-        { v:'trilha', t:'Trilha',  i:'check', d:'O dia a dia de quem está entrando' },
-        { v:'pops',   t:'POPs',    i:'edit',  d:'Como se faz cada coisa' },
-        { v:'fluxos', t:'Fluxos',  i:'refresh', d:'Por onde o trabalho passa' }], abaOnb)}
-    </div>`;
-
-    const cabeca = `<div class="head"><div><h2>Onboarding</h2>
-      <div class="sub">Trilha, POPs e fluxos de cada setor — no lugar de pasta compartilhada e arquivo solto.</div></div>
-      <div class="push">${
-        abaOnb === 'trilha' ? `<button class="btn" data-act="nova-trilha">${ico('plus',15)}Nova trilha</button>`
-      : abaOnb === 'pops'   ? `<button class="btn ghost" data-act="csv-pops">${ico('down',15)}Exportar</button>
-                              <button class="btn" data-act="novo-pop">${ico('plus',15)}Novo POP</button>`
-      :                       `<button class="btn" data-act="novo-fluxo">${ico('plus',15)}Novo fluxo</button>`
-      }</div></div>`;
-
-    /* ── Trilha ───────────────────────────────────────────────── */
-    if (abaOnb === 'trilha') {
-      const lista = trilhas.filter(doSetor);
-      const bloco = t => {
-        const es = etapas.filter(e => e.trilha_id === t.id);
-        const ok = es.filter(e => feito.has(e.id)).length;
-        const pct = es.length ? Math.round(ok / es.length * 100) : 0;
-        return `<div class="card" style="margin-bottom:18px"><div class="cb">
-          <div class="head" style="margin-bottom:10px"><div>
-            <h3 style="margin:0">${esc(t.nome)}</h3>
-            <div class="sub">${esc(t.descricao || '')}</div></div>
-            <div class="push">
-              <span class="pill ${t.setor_id ? '' : 'dim'}">${esc(t.setor_id ? nomeSetor(t.setor_id) : 'empresa inteira')}</span>
-              ${t.status !== 'publicada' ? `<span class="pill warn">${esc(t.status)}</span>` : ''}
-              <button class="btn sm ghost" data-act="editar-trilha" data-id="${t.id}">${ico('edit',13)}</button>
-              <button class="btn sm ghost" data-act="excluir-trilha" data-id="${t.id}" data-t="${esc(t.nome)}">${ico('trash',13)}</button>
-            </div></div>
-
-          <div class="sm2" style="margin-bottom:10px">${ok} de ${es.length} etapas concluídas por você · ${pct}%</div>
-          <div style="height:6px;border-radius:99px;background:var(--bd);overflow:hidden;margin-bottom:14px">
-            <div style="height:100%;width:${pct}%;background:var(--ac)"></div></div>
-
-          ${es.length ? `<div class="t-scroll"><table><thead><tr>
-            <th style="width:52px">Dia</th><th>Etapa</th><th>Tarefa</th><th>Comprovação</th><th>Conduz</th><th></th>
-          </tr></thead><tbody>${es.map(e => {
-            const pendente = !e.foco && !e.tarefa;
-            const c = feito.has(e.id);
-            return `<tr${c ? ' style="opacity:.62"' : ''}>
-              <td><b>${e.dia}</b></td>
-              <td><b>${esc(e.titulo)}</b>
-                ${pendente ? '<span class="pill warn" style="margin-left:6px">a definir</span>' : ''}
-                ${e.foco ? `<div class="mut" style="max-width:340px">${esc(e.foco)}</div>` : ''}
-                ${e.pops ? `<div class="sm2" style="margin-top:4px">${esc(e.pops)}</div>` : ''}</td>
-              <td class="mut" style="max-width:240px">${esc(e.tarefa || '—')}</td>
-              <td class="mut" style="max-width:200px">${esc(e.comprovacao || '—')}</td>
-              <td class="mut">${esc(e.conduz || '—')}</td>
-              <td class="act">
-                <button class="btn sm ${c ? '' : 'ghost'}" data-act="marcar" data-id="${e.id}" data-v="${c ? '0' : '1'}"
-                  title="${c ? 'Desmarcar' : 'Marcar como concluída'}">${ico('check',13)}</button>
-                <button class="btn sm ghost" data-act="editar-etapa" data-id="${e.id}">${ico('edit',13)}</button>
-                <button class="btn sm ghost" data-act="excluir-etapa" data-id="${e.id}" data-t="Dia ${e.dia} — ${esc(e.titulo)}">${ico('trash',13)}</button>
-              </td></tr>`;
-          }).join('')}</tbody></table></div>`
-          : `<div class="sm2">Nenhuma etapa ainda.</div>`}
-
-          <div style="margin-top:12px"><button class="btn sm ghost" data-act="nova-etapa" data-id="${t.id}"
-            data-dia="${es.length ? Math.max(...es.map(e => e.dia)) + 1 : 1}">${ico('plus',13)}Nova etapa</button></div>
-        </div></div>`;
-      };
-      return cabeca + seletores + (lista.length ? lista.map(bloco).join('')
-        : `<div class="card">${vazio('check', 'Nenhuma trilha neste setor',
-            'A trilha é o que a pessoa faz do primeiro ao último dia: o que estudar, o que fazer e o que comprovar.',
-            { act:'nova-trilha', label:'Nova trilha' })}</div>`);
-    }
-
-    /* ── POPs ─────────────────────────────────────────────────── */
-    if (abaOnb === 'pops') {
-      const lista = pops.filter(doSetor);
-      const faltando = lista.filter(p => p.status === 'a_receber').length;
-      return cabeca + seletores +
-        `<div class="card">${lista.length ? `
-          ${faltando ? `<div class="cb"><div class="sm2">${faltando} de ${lista.length} POPs ainda sem conteúdo — só o tema está definido.</div></div>` : ''}
-          <div class="t-scroll"><table><thead><tr>
-            <th style="width:90px">Código</th><th>POP</th><th>Setor</th><th>Status</th><th>Revisão</th><th></th>
-          </tr></thead><tbody>${lista.map(p => {
-            const st = STATUS_POP[p.status] || STATUS_POP.rascunho;
-            return `<tr>
-              <td><b>${esc(p.codigo)}</b></td>
-              <td><b>${esc(p.titulo)}</b>${p.resumo ? `<div class="mut" style="max-width:420px">${esc(p.resumo)}</div>` : ''}</td>
-              <td class="mut">${esc(p.setor_id ? nomeSetor(p.setor_id) : 'empresa inteira')}</td>
-              <td><span class="pill ${st.c}">${st.t}</span></td>
-              <td class="mut">${p.revisado_em ? dtl(p.revisado_em) : '—'}</td>
-              <td class="act">
-                ${p.conteudo ? `<button class="btn sm ghost" data-act="ver-pop" data-id="${p.id}">${ico('search',13)}</button>` : ''}
-                <button class="btn sm ghost" data-act="editar-pop" data-id="${p.id}">${ico('edit',13)}</button>
-                <button class="btn sm ghost" data-act="excluir-pop" data-id="${p.id}" data-t="${esc(p.codigo)}">${ico('trash',13)}</button>
-              </td></tr>`;
-          }).join('')}</tbody></table></div>`
-        : vazio('edit', 'Nenhum POP neste setor',
-            'POP é o passo a passo de uma coisa só: cadastrar cliente, consultar viabilidade, atender uma objeção.',
-            { act:'novo-pop', label:'Novo POP' })}</div>`;
-    }
-
-    /* ── Fluxos ───────────────────────────────────────────────── */
-    const lista = fluxos.filter(doSetor);
-    const cartao = fl => {
-      const tp = TIPO_FLUXO[fl.tipo] || TIPO_FLUXO.processo;
-      const passos = Array.isArray(fl.etapas) ? fl.etapas : [];
-      return `<div class="card" style="margin-bottom:14px"><div class="cb">
-        <div class="head" style="margin-bottom:8px"><div>
-          <h3 style="margin:0">${esc(fl.nome)}</h3>
-          <div class="sub">${esc(fl.descricao || '')}</div></div>
-          <div class="push">
-            <span class="pill ${tp.c}">${tp.t}</span>
-            <span class="pill dim">${esc(fl.setor_id ? nomeSetor(fl.setor_id) : 'empresa inteira')}</span>
-            <button class="btn sm ghost" data-act="editar-fluxo" data-id="${fl.id}">${ico('edit',13)}</button>
-            <button class="btn sm ghost" data-act="excluir-fluxo" data-id="${fl.id}" data-t="${esc(fl.nome)}">${ico('trash',13)}</button>
-          </div></div>
-        ${passos.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:stretch">
-          ${passos.map((p, i) => `
-            <div style="flex:1 1 160px;min-width:160px;border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px">
-              <div class="sm2">${i + 1}</div>
-              <b>${esc(p.nome || '')}</b>
-              ${p.detalhe ? `<div class="mut" style="margin-top:4px">${esc(p.detalhe)}</div>` : ''}
-            </div>${i < passos.length - 1 ? `<div style="align-self:center;color:var(--txt2)">${ico('arrowR',16)}</div>` : ''}`).join('')}
-        </div>` : '<div class="sm2">Sem etapas cadastradas.</div>'}
-        ${fl.observacao ? `<div class="sm2" style="margin-top:10px">${esc(fl.observacao)}</div>` : ''}
-      </div></div>`;
-    };
-    return cabeca + seletores + (lista.length ? lista.map(cartao).join('')
-      : `<div class="card">${vazio('refresh', 'Nenhum fluxo neste setor',
-          'Fluxo é o caminho que o trabalho percorre — do lead à ativação, ou os três toques do follow-up.',
-          { act:'novo-fluxo', label:'Novo fluxo' })}</div>`);
-  },
-  acoes: {
-    fsetor(b) { R.onboarding.filtro.setor = b.dataset.v; pinta(); },
-    aba(b)    { abaOnb = b.dataset.v; pinta(); },
-
-    'nova-trilha': () => formTrilha(),
-    async 'editar-trilha'(b) { const [r] = await q('vd_trilhas', x => x.eq('id', b.dataset.id)); if (r) formTrilha(r); },
-    'excluir-trilha'(b) {
-      confirma('Excluir trilha', `"${esc(b.dataset.t)}" e todas as etapas dela serão removidas.`,
-        () => apaga('vd_trilhas', b.dataset.id));
-    },
-
-    'nova-etapa'(b) { formEtapa({ trilha_id: b.dataset.id, dia: Number(b.dataset.dia) }); },
-    async 'editar-etapa'(b) { const [r] = await q('vd_trilha_etapas', x => x.eq('id', b.dataset.id)); if (r) formEtapa(r); },
-    'excluir-etapa'(b) {
-      confirma('Excluir etapa', `"${esc(b.dataset.t)}" será removida da trilha.`,
-        () => apaga('vd_trilha_etapas', b.dataset.id));
-    },
-    /* O progresso é por pessoa: marcar é criar a linha, desmarcar é
-       apagá-la. Sem linha = não concluída. */
-    async marcar(b) {
-      if (!eu?.id) return toast('Seu login ainda não está vinculado a um usuário.', { tipo:'bad' });
-      const r = b.dataset.v === '1'
-        ? await sb.from('vd_trilha_progresso').insert({ etapa_id: b.dataset.id, usuario_id: eu.id })
-        : await sb.from('vd_trilha_progresso').delete().eq('etapa_id', b.dataset.id).eq('usuario_id', eu.id);
-      if (r.error) return toast(r.error.message, { tipo:'bad' });
-      await pinta();
-    },
-
-    'novo-pop': () => formPop(),
-    async 'editar-pop'(b) { const [r] = await q('vd_pops', x => x.eq('id', b.dataset.id)); if (r) formPop(r); },
-    async 'ver-pop'(b) {
-      const [r] = await q('vd_pops', x => x.eq('id', b.dataset.id));
-      if (!r) return;
-      modal({ titulo: `${r.codigo} — ${r.titulo}`, ok: 'Fechar', largura: 720,
-        corpo: `<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px">${esc(r.conteudo || '')}</div>`,
-        onOk: () => true });
-    },
-    'excluir-pop'(b) {
-      confirma('Excluir POP', `"${esc(b.dataset.t)}" será removido.`, () => apaga('vd_pops', b.dataset.id));
-    },
-    'csv-pops'() {
-      csv('pops', (R.onboarding._pops || []).map(p => ({
-        codigo: p.codigo, titulo: p.titulo, resumo: p.resumo,
-        setor: p.setor_id ? nomeSetor(p.setor_id) : '', status: p.status, versao: p.versao
-      })));
-    },
-
-    'novo-fluxo': () => formFluxo(),
-    async 'editar-fluxo'(b) { const [r] = await q('vd_fluxos', x => x.eq('id', b.dataset.id)); if (r) formFluxo(r); },
-    'excluir-fluxo'(b) {
-      confirma('Excluir fluxo', `"${esc(b.dataset.t)}" será removido.`, () => apaga('vd_fluxos', b.dataset.id));
-    }
-  },
-  pos({ pops }) { R.onboarding._pops = pops || []; }
-};
-
-function formTrilha(row) {
-  form(row ? 'Editar trilha' : 'Nova trilha', [
-    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Trilha do Calouro' },
-    { k:'setor_id', label:'Setor', type:'select', value:row?.setor_id,
-      opts:optSetores('— vale para a empresa inteira —'),
-      hint:'Sem setor, a trilha aparece em qualquer filtro.' },
-    { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao,
-      ph:'O que essa trilha entrega e em quanto tempo.' },
-    { k:'duracao_dias', label:'Duração (dias)', type:'number', value:row?.duracao_dias },
-    { k:'status', label:'Status', type:'select', value:row?.status || 'rascunho',
-      opts:[{ v:'rascunho', t:'Rascunho' }, { v:'publicada', t:'Publicada' }, { v:'arquivada', t:'Arquivada' }] }
-  ], d => grava('vd_trilhas', d, row?.id));
-}
-
-/* Conteúdo + tarefa + comprovação. Etapa sem comprovação não fecha:
-   é a diferença entre "assisti" e "sei fazer". */
-function formEtapa(row) {
-  form(row?.id ? 'Editar etapa' : 'Nova etapa', [
-    { k:'dia', label:'Dia', type:'number', req:true, value:row?.dia },
-    { k:'titulo', label:'Título', req:true, value:row?.titulo, ph:'O foco do dia em poucas palavras' },
-    { k:'foco', label:'O que estudar', type:'textarea', value:row?.foco },
-    { k:'tarefa', label:'O que fazer', type:'textarea', value:row?.tarefa,
-      ph:'A prática do dia — cadastro, role-play, shadowing.' },
-    { k:'comprovacao', label:'O que comprova', type:'textarea', value:row?.comprovacao,
-      ph:'Sem comprovação a etapa não fecha.' },
-    { k:'conduz', label:'Quem conduz', value:row?.conduz, ph:'Gestor, Líder, Time (buddy)…' },
-    { k:'pops', label:'POPs ligados', value:row?.pops, ph:'POP-01, POP-02' },
-    { k:'ordem', label:'Ordem no dia', type:'number', value:row?.ordem ?? row?.dia ?? 0 }
-  ], d => grava('vd_trilha_etapas', { ...d, trilha_id: row.trilha_id }, row?.id));
-}
-
-function formPop(row) {
-  form(row ? 'Editar POP' : 'Novo POP', [
-    { k:'codigo', label:'Código', req:true, value:row?.codigo, ph:'POP-13' },
-    { k:'titulo', label:'Título', req:true, value:row?.titulo },
-    { k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores('— vale para a empresa inteira —') },
-    { k:'resumo', label:'Resumo', type:'textarea', value:row?.resumo, ph:'Uma linha sobre o que esse POP resolve.' },
-    { k:'conteudo', label:'Procedimento', type:'textarea', value:row?.conteudo,
-      ph:'O passo a passo. Pode colar o conteúdo do documento.' },
-    { k:'versao', label:'Versão', value:row?.versao || '1' },
-    { k:'responsavel_id', label:'Responsável', type:'select', value:row?.responsavel_id, opts:optUsuarios() },
-    { k:'revisado_em', label:'Última revisão', type:'date', value:row?.revisado_em },
-    { k:'status', label:'Status', type:'select', value:row?.status || 'a_receber',
-      opts:Object.entries(STATUS_POP).map(([v, o]) => ({ v, t:o.t })) }
-  ], d => grava('vd_pops', d, row?.id));
-}
-
-/* As etapas do fluxo são digitadas uma por linha, no formato
-   "Nome — detalhe". Um editor de blocos seria mais bonito e mais
-   lento de usar: aqui o fluxo inteiro é colado de uma vez. */
-function formFluxo(row) {
-  const texto = (Array.isArray(row?.etapas) ? row.etapas : [])
-    .map(e => e.detalhe ? `${e.nome} — ${e.detalhe}` : e.nome).join('\n');
-  form(row ? 'Editar fluxo' : 'Novo fluxo', [
-    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Funil de ponta a ponta' },
-    { k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores('— vale para a empresa inteira —') },
-    { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'processo',
-      opts:Object.entries(TIPO_FLUXO).map(([v, o]) => ({ v, t:o.t })) },
-    { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao },
-    { k:'passos', label:'Etapas', type:'textarea', value:texto,
-      ph:'Uma por linha:\nLead — chega pela Erika\nAtendimento — primeiro contato humano',
-      hint:'Uma etapa por linha, no formato "Nome — detalhe". O travessão é opcional.' },
-    { k:'observacao', label:'Observação', type:'textarea', value:row?.observacao },
-    { k:'status', label:'Status', type:'select', value:row?.status || 'rascunho',
-      opts:[{ v:'rascunho', t:'Rascunho' }, { v:'publicado', t:'Publicado' }, { v:'arquivado', t:'Arquivado' }] }
-  ], d => {
-    const { passos, ...resto } = d;
-    resto.etapas = String(passos || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
-      const [nome, ...det] = l.split(/\s+[—–-]\s+/);
-      return { nome, detalhe: det.join(' — ') || null };
-    });
-    return grava('vd_fluxos', resto, row?.id);
   });
 }
 
