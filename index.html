@@ -1155,6 +1155,7 @@ const NAV_EMPRESA = [
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
     itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
+  { tipo:'secao', label:'Vendedores', itens:['dicionario'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
 
@@ -3331,6 +3332,207 @@ async function recebeAnexos(arquivos) {
     }
     pinta();
   }
+}
+
+/* ── Dicionário da Casa ───────────────────────────────────────────
+   Todo lugar tem um dialeto próprio: sigla de processo, apelido de
+   plano, nome de etapa. Quem está há três anos acha óbvio; quem
+   entrou ontem nunca ouviu. Enquanto isso não está escrito, cada
+   dúvida vira interrupção de um veterano — e a resposta muda
+   conforme quem responde.
+
+   Os dois campos que ninguém escreve e todo vendedor precisa são o
+   `cliente_chama` e o `explicar_ao_cliente`: o cliente não usa o
+   termo interno, então o verbete tem que servir dos dois lados.
+
+   A tabela vem de sql/vendedores-01-dicionario.sql. Enquanto ela não
+   existir, a tela avisa em vez de quebrar (qOpcional devolve null). */
+const CATEG_TERMO = {
+  tecnico:   { t:'Técnico / rede', c:'info', i:'zap'    },
+  produto:   { t:'Produto',        c:'ac',   i:'star'   },
+  processo:  { t:'Processo',       c:'warn', i:'refresh'},
+  comercial: { t:'Comercial',      c:'ok',   i:'money'  },
+  cultura:   { t:'Cultura',        c:'dim',  i:'users'  }
+};
+
+R.dicionario = {
+  label: 'Dicionário', curto: 'Dicionário', icone: 'help', titulo: 'Dicionário da Casa',
+  filtro: { categoria: '', nivel: '', status: '', busca: '' },
+  async dados() {
+    const [termos, lacunas] = await Promise.all([
+      qOpcional('vd_termos', x => x.order('termo')),
+      qOpcional('vd_buscas_sem_resultado', x => x.eq('resolvido', false).order('created_at', { ascending: false }).limit(30))
+    ]);
+    return { termos, lacunas: lacunas || [] };
+  },
+  render({ termos, lacunas }) {
+    if (termos === null) return `<div class="head"><div><h2>Dicionário da Casa</h2>
+        <div class="sub">O vocabulário interno da empresa, escrito uma vez.</div></div></div>
+      <div class="card"><div class="cb"><div class="err" style="display:block">
+        A tabela <b>vd_termos</b> ainda não existe neste banco.<br>
+        Rode <b>sql/vendedores-01-dicionario.sql</b> no SQL Editor do Supabase e recarregue esta tela.
+      </div></div></div>`;
+
+    const f = R.dicionario.filtro;
+    const termo = f.busca.trim().toLowerCase();
+    const bate = t => !termo
+      || (t.termo || '').toLowerCase().includes(termo)
+      || (t.sinonimos || '').toLowerCase().includes(termo)
+      || (t.explicacao || '').toLowerCase().includes(termo)
+      || (t.cliente_chama || '').toLowerCase().includes(termo);
+
+    const lista = termos.filter(t =>
+      (!f.categoria || t.categoria === f.categoria) &&
+      (!f.nivel     || t.nivel === f.nivel) &&
+      (!f.status    || t.status === f.status) &&
+      bate(t));
+
+    const publicados = termos.filter(t => t.status === 'publicado').length;
+    const rascunhos  = termos.filter(t => t.status === 'rascunho').length;
+
+    const cartao = t => {
+      const cat = CATEG_TERMO[t.categoria] || CATEG_TERMO.tecnico;
+      const vencido = t.revisado_em && (Date.now() - new Date(t.revisado_em + 'T12:00:00')) > 1000 * 60 * 60 * 24 * 183;
+      return `<div class="nota ${t.status === 'publicado' ? 'fixa' : ''}">
+        <div class="topo">
+          <span class="pill ${cat.c}">${ico(cat.i, 11)} ${cat.t}</span>
+          ${t.nivel === 'avancado' ? '<span class="pill dim">avançado</span>' : ''}
+          ${t.status !== 'publicado' ? `<span class="pill warn">${esc(t.status)}</span>` : ''}
+          ${vencido ? `<span class="pill warn" title="Sem revisão há mais de 6 meses">${ico('clock',11)} revisar</span>` : ''}
+        </div>
+        <h4>${esc(t.termo)}</h4>
+        ${t.sinonimos ? `<div class="sm2" style="margin:-4px 0 8px">também: ${esc(t.sinonimos)}</div>` : ''}
+        <div class="corpo">${esc(t.explicacao)}</div>
+        ${t.cliente_chama ? `<div class="corpo" style="margin-top:8px"><b>O cliente chama de:</b> ${esc(t.cliente_chama)}</div>` : ''}
+        ${t.explicar_ao_cliente ? `<div class="corpo" style="margin-top:8px"><b>Como explicar:</b> "${esc(t.explicar_ao_cliente)}"</div>` : ''}
+        ${t.cuidado ? `<div class="corpo" style="margin-top:8px;color:var(--warn,inherit)"><b>Cuidado:</b> ${esc(t.cuidado)}</div>` : ''}
+        <div class="rodape">
+          ${t.autor_id ? esc(nomeUser(t.autor_id).split(' ')[0]) + ' · ' : ''}${t.revisado_em ? 'revisado ' + dtl(t.revisado_em) : 'sem revisão'}
+          <span class="fer">
+            <button class="ib" data-act="publicar" data-id="${t.id}" data-v="${t.status === 'publicado' ? 'rascunho' : 'publicado'}"
+              title="${t.status === 'publicado' ? 'Voltar para rascunho' : 'Publicar'}">${ico('check',14)}</button>
+            <button class="ib" data-act="editar" data-id="${t.id}" title="Editar">${ico('edit',14)}</button>
+            <button class="ib" data-act="excluir" data-id="${t.id}" data-t="${esc(t.termo)}" title="Excluir">${ico('trash',14)}</button>
+          </span></div></div>`;
+    };
+
+    return `<div class="head"><div><h2>Dicionário da Casa</h2>
+        <div class="sub">O vocabulário interno da empresa, escrito uma vez — para quem entrou ontem não precisar adivinhar.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="csv">${ico('down',15)}Exportar</button>
+          <button class="btn" data-act="novo">${ico('plus',15)}Novo termo</button></div></div>
+
+      <div class="filtros">
+        ${dd('Tipo', 'fcat', [{ v:'', t:'Todos os tipos' },
+          ...Object.entries(CATEG_TERMO).map(([v, o]) => ({ v, t:o.t, i:o.i }))], f.categoria)}
+        ${dd('Nível', 'fnivel', [{ v:'', t:'Todos os níveis' },
+          { v:'basico', t:'Básico' }, { v:'avancado', t:'Avançado' }], f.nivel)}
+        ${dd('Status', 'fstatus', [{ v:'', t:'Todos' },
+          { v:'publicado', t:'Publicados' }, { v:'rascunho', t:'Rascunhos' },
+          { v:'arquivado', t:'Arquivados' }], f.status)}
+        <input data-act="fbusca" value="${esc(f.busca)}" placeholder="Buscar termo, sinônimo ou explicação…"
+          style="width:auto;min-width:240px">
+        <span class="sm2">${lista.length} de ${termos.length} · ${publicados} publicados${rascunhos ? ` · ${rascunhos} em rascunho` : ''}</span>
+      </div>
+
+      ${lista.length ? `<div class="notas">${lista.map(cartao).join('')}</div>`
+        : `<div class="card">${termo
+            ? vazio('search', `Ninguém escreveu "${f.busca.trim()}" ainda`,
+                'Registre a busca: essa lista é o melhor roteiro do que escrever em seguida, porque veio de dúvida real.',
+                { act:'registra-lacuna', label:'Registrar o que faltou' })
+            : vazio('help', 'Nenhum termo cadastrado',
+                'Comece pelos 40 termos que um cliente ou um novato já pediu para explicar. Ordene por frequência de uso, não por importância.',
+                { act:'novo', label:'Novo termo' })}</div>`}
+
+      ${lacunas.length ? `<div class="grupo" style="border-radius:var(--r);margin:24px 0 12px">
+          ${ico('alert',12)} Procuraram e não acharam<span>${lacunas.length}</span></div>
+        <div class="card"><div class="t-scroll"><table><thead><tr>
+          <th>Buscaram por</th><th>Quem</th><th>Quando</th><th></th>
+        </tr></thead><tbody>${lacunas.map(l => `<tr>
+          <td><b>${esc(l.texto)}</b></td>
+          <td class="mut">${l.usuario_id ? esc(nomeUser(l.usuario_id)) : '—'}</td>
+          <td class="mut">${dtl(l.created_at.slice(0,10))}</td>
+          <td class="act">
+            <button class="btn sm ghost" data-act="escrever" data-t="${esc(l.texto)}" data-id="${l.id}">${ico('plus',13)}Escrever</button>
+            <button class="btn sm ghost" data-act="resolver" data-id="${l.id}" title="Marcar como resolvido">${ico('check',13)}</button>
+          </td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
+  },
+  acoes: {
+    fcat(b)    { R.dicionario.filtro.categoria = b.dataset.v; pinta(); },
+    fnivel(b)  { R.dicionario.filtro.nivel = b.dataset.v; pinta(); },
+    fstatus(b) { R.dicionario.filtro.status = b.dataset.v; pinta(); },
+    fbusca(el) { R.dicionario.filtro.busca = el.value; pinta(); },
+    novo: () => formTermo(),
+    async editar(b) { const [r] = await q('vd_termos', x => x.eq('id', b.dataset.id)); if (r) formTermo(r); },
+    async publicar(b) {
+      const virar = b.dataset.v;
+      if (await grava('vd_termos',
+            { status: virar, revisado_em: virar === 'publicado' ? hoje() : null }, b.dataset.id)) {
+        toast(virar === 'publicado' ? 'Termo publicado.' : 'Voltou para rascunho.');
+        await pinta();
+      }
+    },
+    excluir(b) {
+      confirma('Excluir termo', `"${esc(b.dataset.t)}" será removido do dicionário.`,
+        () => apaga('vd_termos', b.dataset.id));
+    },
+    async 'registra-lacuna'() {
+      const texto = R.dicionario.filtro.busca.trim();
+      if (!texto) return;
+      const { error } = await sb.from('vd_buscas_sem_resultado')
+        .insert({ texto, usuario_id: eu?.id || null });
+      if (error) return toast(error.message, { tipo: 'bad' });
+      toast('Registrado. Vai aparecer na lista do que falta escrever.');
+      await pinta();
+    },
+    escrever(b) { formTermo({ termo: b.dataset.t }, b.dataset.id); },
+    async resolver(b) {
+      const { error } = await sb.from('vd_buscas_sem_resultado')
+        .update({ resolvido: true }).eq('id', b.dataset.id);
+      if (error) return toast(error.message, { tipo: 'bad' });
+      await pinta();
+    },
+    csv() {
+      csv('dicionario', (R.dicionario._ultimo || []).map(t => ({
+        termo: t.termo, sinonimos: t.sinonimos, categoria: t.categoria, nivel: t.nivel,
+        explicacao: t.explicacao, cliente_chama: t.cliente_chama,
+        explicar_ao_cliente: t.explicar_ao_cliente, cuidado: t.cuidado, status: t.status
+      })));
+    }
+  },
+  pos({ termos }) { R.dicionario._ultimo = termos || []; }
+};
+
+/* `lacunaId` fecha o ciclo: escreveu o verbete que faltava, a busca
+   que originou ele sai da lista de pendências sozinha. */
+function formTermo(row, lacunaId) {
+  form(row?.id ? 'Editar termo' : 'Novo termo', [
+    { k:'termo', label:'Termo', req:true, value:row?.termo, ph:'Como se fala aqui dentro' },
+    { k:'sinonimos', label:'Também chamado de', value:row?.sinonimos,
+      hint:'Siglas, apelidos e erros comuns de escrita, separados por vírgula. É o que faz achar quando digitam errado.' },
+    { k:'categoria', label:'Tipo', type:'select', value:row?.categoria || 'tecnico',
+      opts:Object.entries(CATEG_TERMO).map(([v, o]) => ({ v, t:o.t })) },
+    { k:'nivel', label:'Nível', type:'select', value:row?.nivel || 'basico',
+      opts:[{ v:'basico', t:'Básico — todo vendedor precisa saber na 1ª semana' },
+            { v:'avancado', t:'Avançado' }] },
+    { k:'explicacao', label:'Explicação curta', req:true, type:'textarea', value:row?.explicacao,
+      ph:'Duas ou três frases, sem usar outro jargão dentro.' },
+    { k:'cliente_chama', label:'Como o cliente chama isso', type:'textarea', value:row?.cliente_chama,
+      ph:'O cliente quase nunca usa o termo interno.' },
+    { k:'explicar_ao_cliente', label:'Como explicar para o cliente', type:'textarea', value:row?.explicar_ao_cliente,
+      ph:'A frase pronta, do jeito que dá para falar numa ligação.' },
+    { k:'cuidado', label:'Cuidado / erro comum', type:'textarea', value:row?.cuidado,
+      ph:'O que o novato erra aqui — e o que acontece quando erra.' },
+    { k:'status', label:'Status', type:'select', value:row?.status || 'rascunho',
+      opts:[{ v:'rascunho', t:'Rascunho' }, { v:'publicado', t:'Publicado' },
+            { v:'arquivado', t:'Arquivado' }] }
+  ], async d => {
+    if (!row?.id) d.autor_id = eu?.id || null;
+    if (d.status === 'publicado') d.revisado_em = hoje();
+    const ok = await grava('vd_termos', d, row?.id);
+    if (ok && lacunaId) await sb.from('vd_buscas_sem_resultado').update({ resolvido: true }).eq('id', lacunaId);
+    return ok;
+  });
 }
 
 /* ── Feedback ─────────────────────────────────────────────────────
