@@ -164,7 +164,14 @@ button{cursor:pointer;border:0;background:none}
 /* ═══════════════════════════════════════════════════════════
    SHELL
    ═══════════════════════════════════════════════════════════ */
-.app{display:grid;grid-template-columns:var(--sb) 1fr;min-height:100vh;transition:grid-template-columns .22s var(--ease)}
+/* 100dvh e não 100vh: no celular a barra do navegador aparece e some,
+   e com vh a tela ficava mais alta que o visível — sobrava um pedaço
+   de rolagem morta no fim de toda página. */
+.app{display:grid;grid-template-columns:var(--sb) 1fr;min-height:100vh;min-height:100dvh;
+  transition:grid-template-columns .22s var(--ease)}
+/* Véu do menu no celular. Existe sempre no HTML e some no desktop —
+   assim o menu fecha tocando fora, que é como todo app se comporta. */
+.scrim{display:none}
 .app.mini{--sb:72px}
 
 aside{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;
@@ -318,7 +325,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 td.act{text-align:right;white-space:nowrap}
 td.act .btn{opacity:.35;transition:opacity .15s}
 tr:hover td.act .btn{opacity:1}
-.t-scroll{overflow-x:auto}
+.t-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 .mut{color:var(--dim)}
 .sm2{font-size:12px;color:var(--dim)}
 
@@ -389,6 +396,112 @@ tr:hover td.act .btn{opacity:1}
 .kb .k .t{font-size:13px;font-weight:600;margin-bottom:5px;line-height:1.35}
 .kb .k .m{font-size:11.5px;color:var(--dim)}
 .kb .k .ks{display:flex;gap:5px;margin-top:9px}
+
+/* ── onboarding: blocos por setor ─────────────────────────────
+   Cada setor é um bloco, e as trilhas dele são as linhas dentro.
+   A alternativa era um cartão por trilha, mas aí o Comercial com
+   duas trilhas e o Financeiro com uma viram a mesma coisa na
+   grade — e o recado da tela é justamente "cada setor tem a sua". */
+.setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+.setb{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  overflow:hidden;display:flex;flex-direction:column;
+  transition:transform .18s var(--ease),border-color .18s,box-shadow .18s}
+.setb:hover{transform:translateY(-2px);border-color:var(--line2);box-shadow:var(--shadow)}
+.setb>.sh{padding:16px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);
+  background:linear-gradient(120deg,var(--tin,var(--ac-bg)),transparent 70%)}
+.setb>.sh .ic{width:38px;height:38px;border-radius:11px;flex:none;display:grid;place-items:center;
+  background:var(--surface);color:var(--tone,var(--ac));border:1px solid var(--line)}
+.setb>.sh h3{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.setb>.sh .s{font-size:11.5px;color:var(--dim);margin-top:2px}
+.setb .tl{display:flex;align-items:center;gap:12px;padding:13px 18px;border-top:1px solid var(--line);
+  cursor:pointer;transition:background .13s;text-align:left;width:100%}
+.setb .tl:first-of-type{border-top:0}
+.setb .tl:hover{background:var(--surface2)}
+.setb .tl .g{flex:1;min-width:0}
+.setb .tl .t{font-size:13.5px;font-weight:600;line-height:1.3}
+/* a linha de meta trunca em vez de quebrar: com a barra de progresso
+   e o percentual do lado, quebrar empurra o bloco para duas alturas
+   diferentes e a grade de setores perde o alinhamento */
+.setb .tl .m{font-size:11.5px;color:var(--dim);margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.setb .tl .cv{flex:none;color:var(--dim);display:flex;align-items:center}
+.setb .vz{padding:20px 18px;font-size:12.5px;color:var(--dim);line-height:1.5}
+
+/* trilha aberta */
+.volta{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim);
+  margin-bottom:14px;cursor:pointer;transition:color .13s}
+.volta:hover{color:var(--ac)}
+.modh{display:flex;align-items:center;gap:11px;padding:13px 18px;background:var(--surface2);
+  border-bottom:1px solid var(--line)}
+.modh .nm{width:25px;height:25px;border-radius:7px;flex:none;display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--line);font-size:11.5px;font-weight:700;color:var(--dim)}
+.modh h4{font-size:13.5px;font-weight:650;flex:1}
+.aulal{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);
+  transition:background .13s}
+.aulal:last-child{border-bottom:0}
+.aulal:hover{background:var(--surface2)}
+.aulal .g{flex:1;min-width:0;cursor:pointer}
+.aulal .t{font-size:13.5px;font-weight:600}
+.aulal .m{font-size:11.5px;color:var(--dim);margin-top:2px}
+.aulal.feita .t{color:var(--dim)}
+.aulal.prova{background:linear-gradient(90deg,var(--ac-bg),transparent 55%)}
+
+/* leitor de aula */
+.doc{max-width:720px;font-size:14.5px;line-height:1.68;color:var(--txt2)}
+.doc h3{font-size:21px;line-height:1.25;margin:30px 0 10px;color:var(--txt);letter-spacing:-.02em}
+.doc h4{font-size:16.5px;margin:28px 0 9px;color:var(--txt);letter-spacing:-.01em}
+.doc h5{font-size:14px;margin:20px 0 7px;color:var(--txt)}
+.doc>:first-child{margin-top:0}
+.doc p{margin:0 0 15px}
+.doc ul,.doc ol{margin:0 0 15px;padding-left:22px;display:grid;gap:6px}
+.doc li{padding-left:2px}
+.doc b{color:var(--txt);font-weight:650}
+.doc code{background:var(--surface3);padding:1.5px 6px;border-radius:5px;font-size:12.5px}
+.doc hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+.doc a{color:var(--ac);text-decoration:underline;text-underline-offset:2px}
+.doc blockquote{margin:0 0 16px;padding:13px 17px;background:var(--surface2);
+  border-left:3px solid var(--ac);border-radius:0 var(--r) var(--r) 0;color:var(--txt);font-size:14px}
+.doc table{margin-bottom:16px;font-size:13px}
+.doc thead th{padding:8px 12px}
+.doc td{padding:9px 12px}
+
+/* treinamento em HTML: sandbox sem allow-same-origin, então o script
+   do documento roda mas não enxerga a sessão do Supabase daqui de fora */
+.quadro{width:100%;height:min(76vh,900px);border:1px solid var(--line);border-radius:var(--r-lg);
+  background:#fff;display:block}
+
+/* prova */
+.qz{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:18px 20px;margin-bottom:14px}
+.qz .qn{font-size:11px;font-weight:700;color:var(--ac);letter-spacing:.06em;text-transform:uppercase}
+.qz .qe{font-size:14.5px;font-weight:600;line-height:1.45;margin:6px 0 14px}
+.alt{display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border:1px solid var(--line);
+  border-radius:var(--r);margin-bottom:8px;cursor:pointer;font-size:13.5px;line-height:1.45;
+  transition:border-color .14s,background .14s}
+.alt:last-child{margin-bottom:0}
+.alt:hover{border-color:var(--line2);background:var(--surface2)}
+.alt .rd{width:17px;height:17px;border-radius:50%;border:1.8px solid var(--line2);flex:none;margin-top:1px;
+  display:grid;place-items:center;transition:all .14s var(--ease)}
+.alt.on{border-color:var(--ac);background:var(--ac-bg)}
+.alt.on .rd{border-color:var(--ac)}
+.alt.on .rd::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--ac)}
+.alt.certa{border-color:var(--ok);background:var(--ok-bg)}
+.alt.errada{border-color:var(--bad);background:var(--bad-bg)}
+.qz .expl{margin-top:12px;padding:11px 13px;background:var(--surface2);border-radius:var(--r);
+  font-size:12.5px;color:var(--txt2);line-height:1.55;border-left:3px solid var(--info)}
+.nota{display:flex;align-items:center;gap:18px;padding:22px;border-radius:var(--r-lg);margin-bottom:20px;
+  border:1px solid var(--line);background:var(--surface)}
+.nota .big{font-family:"Inter Tight";font-size:46px;font-weight:700;letter-spacing:-.04em;line-height:1}
+.nota.ok{background:linear-gradient(120deg,var(--ok-bg),transparent 60%);border-color:var(--ok)}
+.nota.ok .big{color:var(--ok)}
+.nota.nao{background:linear-gradient(120deg,var(--bad-bg),transparent 60%);border-color:var(--bad)}
+.nota.nao .big{color:var(--bad)}
+
+@media(max-width:640px){
+  .setores{grid-template-columns:1fr}
+  .quadro{height:70vh}
+  .nota{flex-direction:column;text-align:center;gap:10px}
+}
 
 /* formulários */
 label{display:block;font-size:12px;color:var(--txt2);margin-bottom:6px;font-weight:600}
@@ -726,6 +839,20 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .fgasto .v div{font-size:11.5px;color:var(--dim);margin-top:2px}
 .fsaldo{font-family:"Inter Tight";font-size:33px;font-weight:700;letter-spacing:-.035em}
 
+/* ── dashboard do extrato ──────────────────────────────────────
+   A barra empilhada mostra o extrato inteiro numa linha: dá para
+   ver de relance se uma categoria comeu metade do mês, coisa que
+   a lista ordenada só entrega depois de somar de cabeça. */
+.fstack{display:flex;height:11px;border-radius:6px;overflow:hidden;background:var(--surface3);gap:1.5px}
+.fstack i{display:block;height:100%;min-width:3px;animation:grow .6s var(--ease) both}
+.fleg{display:flex;flex-wrap:wrap;gap:7px 15px;margin-top:13px}
+.fleg span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--txt2);white-space:nowrap}
+.fleg b{font-variant-numeric:tabular-nums}
+.fnums{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:15px;
+  padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.fnums .n{font-family:"Inter Tight";font-size:21px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.fnums .l{font-size:11.5px;color:var(--dim);margin-top:3px}
+
 /* miniaturas dos grafismos */
 .gprev{height:74px;position:relative;overflow:hidden;background:var(--bg)}
 .gp-aurora::before,.gp-aurora::after{content:"";position:absolute;border-radius:50%;filter:blur(16px)}
@@ -739,17 +866,138 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
   linear-gradient(90deg,var(--line2) 1px,transparent 1px);background-size:15px 15px}
 .gp-limpo{background:var(--bg)}
 
+/* ═══════════════════════════════════════════════════════════
+   TELA PEQUENA
+
+   Dois cortes, e não um: 900px é onde o menu deixa de caber ao
+   lado do conteúdo (tablet deitado); 600px é o celular de pé,
+   onde muda o comportamento e não só a largura — formulário,
+   modal, filtro e tabela passam a se comportar de outro jeito.
+   ═══════════════════════════════════════════════════════════ */
 @media(max-width:900px){
   .app{grid-template-columns:1fr}
-  aside{position:fixed;left:0;top:0;z-index:60;width:var(--sb);transform:translateX(-100%);
-    transition:transform .24s var(--ease);box-shadow:var(--shadow-lg)}
+  aside,.app.mini aside{position:fixed;left:0;top:0;bottom:0;height:auto;z-index:60;
+    width:min(86vw,300px);transform:translateX(-100%);transition:transform .24s var(--ease);
+    box-shadow:var(--shadow-lg);padding-top:calc(14px + env(safe-area-inset-top));
+    padding-bottom:calc(14px + env(safe-area-inset-bottom))}
   .app.open aside{transform:none}
+  /* A gaveta abre por cima da tela inteira, então cabe tudo: o modo
+     "só ícones" que o usuário deixou ligado no desktop é desfeito
+     aqui — senão ele abre a gaveta larga e vê ícones soltos. */
+  .app.mini .brand .lg{display:block}
+  .app.mini .brand .mk{display:none}
+  .app.mini .grp,.app.mini nav b,.app.mini .who .tx,
+  .app.mini nav .gt .chev,.app.mini nav .gt b,
+  .app.mini .modo .tx,.app.mini .modo>svg:last-child{display:revert}
+  .app.mini nav .sub{display:grid}
+  .app.mini .brand,.app.mini nav a,.app.mini nav .gt,
+  .app.mini .who,.app.mini .modo{justify-content:flex-start;padding-left:10px;padding-right:10px}
+  .scrim{display:block;position:fixed;inset:0;z-index:55;background:rgba(3,5,9,.5);
+    backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .22s var(--ease)}
+  .app.open .scrim{opacity:1;pointer-events:auto}
   .wrap{padding:18px}
   .top{padding:11px 16px}
   .search{width:auto;flex:1}.search span{display:none}
   .head h2{font-size:21px}
   .kb{grid-template-columns:repeat(5,minmax(170px,1fr))}
+  .g2{grid-template-columns:1fr}
 }
+
+@media(max-width:600px){
+  html{-webkit-text-size-adjust:100%}
+  body{-webkit-tap-highlight-color:transparent}
+
+  /* Barra de cima: título, busca e ações precisam caber em 375px.
+     A busca vira só o ícone — o texto era o que estourava a linha. */
+  .top{gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top))}
+  .top .ttl{font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .search{flex:none;width:38px;height:38px;padding:0;justify-content:center;margin-left:auto}
+  .search kbd{display:none}
+  .ib{width:38px;height:38px}
+
+  .wrap{padding:14px 14px calc(24px + env(safe-area-inset-bottom))}
+
+  /* Os botões do cabeçalho desciam para uma segunda linha meio
+     torta. Melhor assumir: linha própria, dividindo a largura. */
+  .head{gap:12px;margin-bottom:18px}
+  .head h2{font-size:19px}
+  .head .sub{font-size:12.5px}
+  .head .push{width:100%;margin-left:0;gap:7px}
+  .head .push .btn{flex:1 1 auto;justify-content:center}
+  .card>.ch .push{width:100%;margin-left:0}
+
+  /* Filtro empilhado ocupava meia tela antes do conteúdo começar.
+     Vira fita que desliza de lado, sangrando até a borda para o
+     dedo entender que continua. */
+  .filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    margin:0 -14px 16px;padding:0 14px 2px}
+  .filtros::-webkit-scrollbar{display:none}
+  .filtros>*{flex:none}
+  .filtros input{min-width:170px!important}
+
+  .tiles{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+  .tile{padding:14px}
+  .tile:hover{transform:none}
+  .tile .ic{width:32px;height:32px;border-radius:9px;margin-bottom:10px}
+  .tile .n{font-size:23px}
+  .tile .l{font-size:12px;margin-top:5px}
+  .tile .h{font-size:11px}
+
+  .card{border-radius:14px;margin-bottom:14px}
+  .card>.ch{padding:12px 14px}
+  .card .cb{padding:14px}
+
+  /* Tabela continua tabela e rola de lado: virar cartão empilhado
+     perderia a comparação entre linhas, que é o motivo de existir. */
+  table{font-size:13px}
+  th{font-size:10px}
+  th,td{padding-left:12px;padding-right:12px}
+  td.act .btn{opacity:1}   /* sem hover no celular, ícone sempre visível */
+
+  .row{padding:11px 14px;gap:10px}
+  .fgasto{padding:11px 14px;gap:10px;flex-wrap:wrap}
+  .fgasto .g{flex:1 1 100%;order:1}
+  .fgasto .v{order:2;margin-left:auto;display:flex;align-items:baseline;gap:8px}
+  .fgasto .v div{margin-top:0}
+  .fgasto .ib{order:3}
+  .fsaldo{font-size:27px}
+
+  /* Alvo de toque: nada de área clicável com menos de ~38px. */
+  .btn{padding:10px 15px}
+  .btn.sm{padding:7px 11px}
+  .dd{padding:9px 12px}
+  .tick{width:22px;height:22px}
+  .swatch button{width:34px;height:34px}
+  /* 16px no campo é o que impede o iOS de dar zoom sozinho ao focar
+     — e depois deixar a página torta, com o usuário sem entender. */
+  input,select,textarea{font-size:16px;padding:11px 12px}
+  .fprev select{font-size:13px;padding:7px 9px}
+  .cmdk .ci input{font-size:16px}
+
+  /* Modal centralizado no celular fica longe do polegar e some sob
+     o teclado. Vira folha que sobe de baixo, com os botões largos. */
+  .mask{place-items:end center;padding:0}
+  .modal{max-width:none;max-height:92dvh;border-radius:18px 18px 0 0;animation:sobe .26s var(--ease)}
+  .modal .mh{padding:15px 16px}
+  .modal .mb{padding:16px}
+  .modal .mf{padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    flex-direction:column-reverse;gap:7px}
+  .modal .mf .btn{width:100%;justify-content:center}
+
+  .pop{width:min(340px,calc(100vw - 16px))}
+  .cmdk{padding-top:6vh}
+  .cmdk .box{width:calc(100vw - 16px);max-height:76vh}
+  .toasts{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));align-items:stretch}
+  .toast{max-width:none}
+
+  .fmap{grid-template-columns:1fr}
+  .fprev{max-height:58vh}
+  .fprev td{padding:7px 10px}
+  .tabs{width:100%}
+  .empty{padding:38px 16px}
+}
+
+@keyframes sobe{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
 </style>
 </head>
 <body>
@@ -797,7 +1045,13 @@ const P = {
   refresh:'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15',
   help:'M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01',
   chevron:'M9 18l6-6-6-6',
-  logo:'M12 2l9 5v10l-9 5-9-5V7z'
+  logo:'M12 2l9 5v10l-9 5-9-5V7z',
+  book:'M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z',
+  play:'M12 22a10 10 0 100-20 10 10 0 000 20zM10 8l6 4-6 4V8z',
+  medal:'M12 15a7 7 0 100-14 7 7 0 000 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12',
+  up:'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12',
+  link:'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71',
+  lock:'M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2zM7 11V7a5 5 0 0110 0v4'
 };
 const ico = (n, s = 17) =>
   `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1153,6 +1407,8 @@ const NAV_EMPRESA = [
     itens:['acoes', 'agenda', 'metas', 'campanhas'] },
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
     itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
+  { tipo:'grupo', id:'onboarding', label:'Onboarding', icone:'book', semArea:true,
+    itens:['onbTrilhas', 'onbMinha', 'onbAcompanhar', 'treinamentos'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
     itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
   { tipo:'secao', label:'Vendedores', itens:['onboarding', 'dicionario'] },
@@ -3059,6 +3315,1001 @@ function fechaCiclo(id, nome, status) {
     }, { perigo: !aprovado });
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   ONBOARDING E TREINAMENTOS
+   ═══════════════════════════════════════════════════════════════════
+   Quatro telas em cima das tabelas de CORRECAO-13.sql:
+
+     onbTrilhas     os blocos por setor, e dentro deles a trilha
+                    aberta, o leitor de aula e a prova
+     onbMinha       só o que é meu, para não precisar caçar
+     onbAcompanhar  o painel de quem conduz
+     treinamentos   a biblioteca de HTML
+
+   A navegação dentro de onbTrilhas é estado de módulo, não rota: a
+   trilha aberta, a aula aberta e a prova aberta são três variáveis
+   aqui embaixo. Virou assim porque o menu lateral tem um item só
+   ("Trilhas") e três níveis de profundidade — colocar cada nível na
+   URL encheria o histórico do navegador de passos intermediários que
+   ninguém quer revisitar com o botão voltar. */
+
+/* Markdown suficiente para uma aula: títulos, listas, tabela, citação,
+   negrito e link. Não é um parser completo e nem tenta ser — o dia que
+   uma aula precisar de mais que isso, ela é um treinamento em HTML. */
+function md(txt) {
+  if (!txt) return '';
+  const linha = s => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<i>$2</i>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+             '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  const ls = String(txt).replace(/\r/g, '').split('\n');
+  const out = [];
+  const eTab  = l => /^\s*\|.*\|\s*$/.test(l);
+  const eBlo  = l => /^(#{1,3}\s|>\s?|\s*[-*]\s|\s*\d+\.\s|---+\s*$)/.test(l) || eTab(l);
+  let i = 0;
+
+  while (i < ls.length) {
+    const l = ls[i];
+    if (!l.trim()) { i++; continue; }
+
+    let m;
+    if ((m = l.match(/^(#{1,3})\s+(.*)$/))) {
+      out.push(`<h${m[1].length + 2}>${linha(m[2])}</h${m[1].length + 2}>`); i++; continue;
+    }
+    if (/^---+\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+
+    if (/^>\s?/.test(l)) {
+      const b = [];
+      while (i < ls.length && /^>\s?/.test(ls[i])) b.push(ls[i++].replace(/^>\s?/, ''));
+      out.push(`<blockquote>${linha(b.join(' '))}</blockquote>`); continue;
+    }
+
+    if (eTab(l)) {
+      const b = [];
+      while (i < ls.length && eTab(ls[i])) b.push(ls[i++]);
+      const cels = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const corpo = b.slice(b[1] && /^[\s|:-]+$/.test(b[1]) ? 2 : 1);
+      out.push(`<div class="t-scroll"><table><thead><tr>${
+        cels(b[0]).map(c => `<th>${linha(c)}</th>`).join('')}</tr></thead><tbody>${
+        corpo.map(r => `<tr>${cels(r).map(c => `<td>${linha(c)}</td>`).join('')}</tr>`).join('')
+        }</tbody></table></div>`);
+      continue;
+    }
+
+    if (/^\s*[-*]\s+/.test(l)) {
+      const b = [];
+      while (i < ls.length && /^\s*[-*]\s+/.test(ls[i])) b.push(ls[i++].replace(/^\s*[-*]\s+/, ''));
+      out.push(`<ul>${b.map(x => `<li>${linha(x)}</li>`).join('')}</ul>`); continue;
+    }
+    if (/^\s*\d+\.\s+/.test(l)) {
+      const b = [];
+      while (i < ls.length && /^\s*\d+\.\s+/.test(ls[i])) b.push(ls[i++].replace(/^\s*\d+\.\s+/, ''));
+      out.push(`<ol>${b.map(x => `<li>${linha(x)}</li>`).join('')}</ol>`); continue;
+    }
+
+    const b = [];
+    while (i < ls.length && ls[i].trim() && !eBlo(ls[i])) b.push(ls[i++]);
+    out.push(`<p>${linha(b.join(' '))}</p>`);
+  }
+  return out.join('');
+}
+
+/* ── estado da navegação interna ─────────────────────────────────── */
+let onbSel = null, onbAula = null, onbProva = null;
+let onbResp = {}, onbResultado = null, onbOrdem = null;
+let treinSel = null, treinSetor = '';
+
+const onbDur = m => !m ? '' : m >= 60
+  ? (m % 60 ? `${Math.floor(m/60)}h${m%60}` : `${m/60}h`) : `${m} min`;
+
+/* Zera tudo que é de dentro. Sem isto, sair da prova e entrar em outra
+   trilha mostra a prova antiga por um frame. */
+function onbVolta(nivel) {
+  if (nivel === 'hub')    { onbSel = null; }
+  if (nivel !== 'prova')  { onbProva = null; onbResp = {}; onbResultado = null; onbOrdem = null; }
+  if (nivel === 'hub' || nivel === 'trilha') onbAula = null;
+  pinta();
+}
+
+async function onbCarregaTrilha(id) {
+  const [[t], modulos, provas] = await Promise.all([
+    q('v_onb_trilhas', x => x.eq('id', id)),
+    q('onb_modulos',   x => x.eq('trilha_id', id).eq('ativo', true).order('ordem')),
+    q('onb_provas',    x => x.eq('trilha_id', id).eq('ativo', true).order('ordem'))
+  ]);
+  const ids   = modulos.map(m => m.id);
+  const aulas = ids.length
+    ? await q('onb_aulas', x => x.in('modulo_id', ids).eq('ativo', true).order('ordem')) : [];
+
+  let mat = null, feitas = new Set(), tents = [];
+  if (eu) {
+    [mat] = await q('v_onb_matriculas', x => x.eq('trilha_id', id).eq('usuario_id', eu.id));
+    if (mat) {
+      feitas = new Set((await q('onb_progresso', x => x.eq('matricula_id', mat.id))).map(p => p.aula_id));
+    }
+    if (provas.length) {
+      tents = await q('onb_tentativas', x => x.eq('usuario_id', eu.id)
+        .in('prova_id', provas.map(p => p.id)).order('feita_em', { ascending: false }));
+    }
+  }
+  return { t, modulos, aulas, provas, mat, feitas, tents };
+}
+
+/* A prova vem SEM o gabarito: o select nomeia as colunas em vez de
+   pedir `*`. Quem corrige é o banco (função onb_corrigir), então a
+   resposta certa não precisa passar por aqui — e não passa. */
+async function onbCarregaProva(id) {
+  const [[p], questoes] = await Promise.all([
+    q('onb_provas',   x => x.eq('id', id)),
+    q('onb_questoes', x => x.eq('prova_id', id).order('ordem'))
+  ]);
+  const qids = questoes.map(x => x.id);
+  let alts = [];
+  if (qids.length) {
+    const r = await sb.from('onb_alternativas')
+      .select('id,questao_id,texto,ordem').in('questao_id', qids).order('ordem');
+    alts = r.data || [];
+  }
+  const tents = eu
+    ? await q('onb_tentativas', x => x.eq('usuario_id', eu.id).eq('prova_id', id)
+        .order('feita_em', { ascending: false })) : [];
+
+  /* Embaralha uma vez só, na carga. Embaralhar a cada render faria as
+     alternativas dançarem embaixo do dedo a cada clique. */
+  if (!onbOrdem) {
+    const mistura = a => p?.embaralhar ? a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]) : a;
+    onbOrdem = { q: mistura(qids), a: {} };
+    qids.forEach(qid => onbOrdem.a[qid] = mistura(alts.filter(x => x.questao_id === qid).map(x => x.id)));
+  }
+  return { p, questoes, alts, tents };
+}
+
+R.onbTrilhas = {
+  label: 'Trilhas', curto: 'Trilhas', icone: 'book', titulo: 'Onboarding',
+
+  async dados() {
+    if (onbProva) return { modo: 'prova',  ...(await onbCarregaProva(onbProva)) };
+    if (onbSel) {
+      const d = await onbCarregaTrilha(onbSel);
+      return onbAula
+        ? { modo: 'aula', ...d, aula: d.aulas.find(a => a.id === onbAula),
+            trein: await onbAbreTreino(d.aulas.find(a => a.id === onbAula)) }
+        : { modo: 'trilha', ...d };
+    }
+    const [trilhas, minhas, painel] = await Promise.all([
+      q('v_onb_trilhas', x => x.eq('ativo', true)),
+      eu ? q('v_onb_matriculas', x => x.eq('usuario_id', eu.id)) : Promise.resolve([]),
+      q('v_onb_painel')
+    ]);
+    trilhas.sort((a, b) => (a.setor_ordem ?? -1) - (b.setor_ordem ?? -1) || a.ordem - b.ordem
+                        || a.nome.localeCompare(b.nome));
+    return { modo: 'hub', trilhas, minhas, k: painel[0] || {} };
+  },
+
+  render(d) {
+    if (d.modo === 'prova')  return onbTelaProva(d);
+    if (d.modo === 'aula')   return onbTelaAula(d);
+    if (d.modo === 'trilha') return onbTelaTrilha(d);
+    return onbTelaHub(d);
+  },
+
+  acoes: {
+    /* navegação */
+    abrir(b)   { onbSel = b.dataset.id; onbAula = null; onbProva = null; pinta(); },
+    aula(b)    { onbAula = b.dataset.id; onbProva = null; pinta(); },
+    prova(b)   { onbProva = b.dataset.id; onbAula = null; onbResp = {}; onbResultado = null; onbOrdem = null; pinta(); },
+    'volta-hub'()    { onbVolta('hub'); },
+    'volta-trilha'() { onbVolta('trilha'); },
+
+    /* aluno */
+    async comecar(b) {
+      const id = await onbMatricular(b.dataset.id);
+      if (id) { toast('Trilha iniciada. Bom começo.'); pinta(); }
+    },
+    async concluir(b) {
+      const { mat, aula } = b.dataset;
+      if (!mat) return toast('Você precisa começar a trilha antes de marcar aula.', { tipo: 'info' });
+      const { error } = await sb.from('onb_progresso').insert({ matricula_id: mat, aula_id: aula });
+      if (error && !/duplicate|unique/i.test(error.message)) return toast(error.message, { tipo: 'bad' });
+      toast('Aula concluída.');
+      if (b.dataset.prox) onbAula = b.dataset.prox; else onbAula = null;
+      pinta();
+    },
+    async desfazer(b) {
+      await sb.from('onb_progresso').delete()
+        .eq('matricula_id', b.dataset.mat).eq('aula_id', b.dataset.aula);
+      pinta();
+    },
+
+    /* prova */
+    alt(b) {
+      onbResp[b.dataset.q] = b.dataset.a;
+      b.parentElement.querySelectorAll('.alt').forEach(x => x.classList.toggle('on', x === b));
+      const n = $('#qzn'); if (n) n.textContent = Object.keys(onbResp).length;
+    },
+    enviar(b) {
+      const faltam = Number(b.dataset.total) - Object.keys(onbResp).length;
+      if (faltam > 0) {
+        return confirma('Entregar assim mesmo?',
+          `<p>Faltam <b>${faltam}</b> questão(ões) sem resposta. Questão em branco conta como errada.</p>`,
+          onbEnviaProva, { perigo: false });
+      }
+      onbEnviaProva();
+    },
+    refazer() { onbResp = {}; onbResultado = null; onbOrdem = null; pinta(); },
+
+    /* edição */
+    'nova-trilha'()  { formTrilha(); },
+    'edit-trilha'(b) { q('onb_trilhas', x => x.eq('id', b.dataset.id)).then(([r]) => r && formTrilha(r)); },
+    'novo-modulo'(b) { formModulo(null, b.dataset.trilha); },
+    'edit-modulo'(b) { q('onb_modulos', x => x.eq('id', b.dataset.id)).then(([r]) => r && formModulo(r)); },
+    'nova-aula'(b)   { formAula(null, b.dataset.modulo); },
+    'edit-aula'(b)   { q('onb_aulas', x => x.eq('id', b.dataset.id)).then(([r]) => r && formAula(r)); },
+    'nova-prova'(b)  { formProva(null, b.dataset.trilha, b.dataset.modulo || null); },
+    'edit-prova'(b)  { q('onb_provas', x => x.eq('id', b.dataset.id)).then(([r]) => r && formProva(r)); },
+    'questoes'(b)    { onbEditorQuestoes(b.dataset.id); },
+    'del-aula'(b) {
+      confirma('Excluir aula', '<p>A aula sai da trilha e o registro de quem já a concluiu vai junto.</p>',
+        () => apaga('onb_aulas', b.dataset.id));
+    },
+    'del-modulo'(b) {
+      confirma('Excluir módulo', '<p>As aulas e a prova deste módulo vão junto.</p>',
+        () => apaga('onb_modulos', b.dataset.id));
+    },
+    'del-trilha'(b) {
+      confirma('Excluir trilha',
+        '<p>Módulos, aulas, provas e o progresso de todo mundo nesta trilha vão junto.</p>',
+        async () => { const ok = await apaga('onb_trilhas', b.dataset.id); if (ok) onbSel = null; return ok; },
+        { palavra: 'excluir' });
+    },
+    matricular(b) { onbFormMatricula(b.dataset.trilha); }
+  }
+};
+
+async function onbMatricular(trilhaId, usuarioId) {
+  const { data, error } = await sb.rpc('onb_matricular',
+    { p_trilha_id: trilhaId, p_usuario_id: usuarioId || null });
+  if (error) { toast(error.message, { tipo: 'bad' }); return null; }
+  return data;
+}
+
+async function onbEnviaProva() {
+  const { data, error } = await sb.rpc('onb_corrigir',
+    { p_prova_id: onbProva, p_respostas: onbResp });
+  if (error) { toast(error.message, { tipo: 'bad' }); return false; }
+  onbResultado = data;
+  toast(data.aprovado ? `Aprovado com ${data.nota}%.` : `Nota ${data.nota}%. Não passou desta vez.`,
+    { tipo: data.aprovado ? 'ok' : 'warn' });
+  pinta();
+  return true;
+}
+
+/* O HTML do treinamento só é buscado quando a aula que aponta para ele
+   é aberta. A listagem usa a view v_onb_treinamentos, que não traz a
+   coluna — trinta cartões não podem arrastar um megabyte de markup. */
+async function onbAbreTreino(aula) {
+  if (!aula?.treinamento_id) return null;
+  const [t] = await q('onb_treinamentos', x => x.eq('id', aula.treinamento_id));
+  return t || null;
+}
+
+/* ── tela: blocos por setor ──────────────────────────────────────── */
+function onbTelaHub({ trilhas, minhas, k }) {
+  const meu = {}; minhas.forEach(m => meu[m.trilha_id] = m);
+
+  const grupos = [];
+  const pega = (id, nome, ordem) => {
+    let g = grupos.find(x => x.k === id);
+    if (!g) grupos.push(g = { k: id, nome, ordem, itens: [] });
+    return g;
+  };
+  trilhas.forEach(t => pega(t.setor_id || '', t.setor || 'Toda a empresa', t.setor_ordem ?? -1).itens.push(t));
+  cache.setores.filter(s => s.ativo).forEach(s => pega(s.id, s.nome, s.ordem ?? 99));
+  grupos.sort((a, b) => a.ordem - b.ordem);
+
+  const linha = t => {
+    const m = meu[t.id];
+    const pct = m ? m.pct : null;
+    return `<button class="tl" data-act="abrir" data-id="${t.id}">
+      <div class="g"><div class="t">${esc(t.nome)}</div>
+        <div class="m">${t.aulas} aula${t.aulas === 1 ? '' : 's'}${
+          t.provas ? ` · ${t.provas} prova${t.provas === 1 ? '' : 's'}` : ''}${
+          t.duracao_dias ? ` · ${t.duracao_dias} dias` : t.minutos ? ` · ${onbDur(t.minutos)}` : ''}${
+          t.matriculados ? ` · ${t.matriculados} matriculado${t.matriculados === 1 ? '' : 's'}` : ''}</div></div>
+      ${m ? (m.status === 'concluida'
+              ? `<span class="pill ok">${ico('check',11)} concluída</span>`
+              : `<div class="bar" style="width:64px"><i style="width:${pct}%"></i></div>
+                 <span class="sm2" style="min-width:32px;text-align:right">${pct}%</span>`)
+          : ''}
+      <span class="cv">${ico('chevron', 16)}</span></button>`;
+  };
+
+  const bloco = g => {
+    const cor = g.k ? corSetor(g.k) : null;
+    const icone = g.itens[0]?.icone || (g.k ? 'users' : 'star');
+    return `<div class="setb"${cor ? ` style="--tone:${cor};--tin:${cor}1e"` : ''}>
+      <div class="sh"><div class="ic">${ico(icone, 19)}</div>
+        <div style="flex:1;min-width:0"><h3>${esc(g.nome)}</h3>
+          <div class="s">${g.itens.length
+            ? `${g.itens.length} trilha${g.itens.length === 1 ? '' : 's'}`
+            : 'sem trilha ainda'}</div></div></div>
+      ${g.itens.length ? g.itens.map(linha).join('')
+        : `<div class="vz">Este setor ainda não tem trilha. Crie uma e ela aparece aqui para todo mundo do setor.</div>`}
+    </div>`;
+  };
+
+  const emAndamento = minhas.filter(m => m.status === 'em_andamento');
+
+  return `<div class="head"><div><h2>Onboarding</h2>
+      <div class="sub">Cada setor tem a sua trilha. Clique no bloco para entrar.</div></div>
+      <div class="push">
+        <button class="btn ghost" data-act="matricular">${ico('users',15)}Matricular alguém</button>
+        <button class="btn" data-act="nova-trilha">${ico('plus',15)}Nova trilha</button></div></div>
+
+    <div class="tiles stg">
+      <div class="tile"><div class="ic">${ico('book',18)}</div><div class="n">${k.trilhas ?? 0}</div>
+        <div class="l">Trilhas ativas</div></div>
+      <div class="tile"><div class="ic">${ico('users',18)}</div><div class="n">${k.em_andamento ?? 0}</div>
+        <div class="l">Em andamento</div></div>
+      <div class="tile ok"><div class="ic">${ico('medal',18)}</div><div class="n">${k.concluidas ?? 0}</div>
+        <div class="l">Concluídas</div></div>
+      <div class="tile ${k.parados ? 'warn' : ''}"><div class="ic">${ico('clock',18)}</div>
+        <div class="n">${k.parados ?? 0}</div><div class="l">Parados há 7 dias ou mais</div></div>
+    </div>
+
+    ${emAndamento.length ? `<div class="card"><div class="ch">
+        <h3>Onde você parou</h3><div class="push"><span class="sm2">${emAndamento.length} em andamento</span></div></div>
+      ${emAndamento.map(m => `<div class="row">
+        <div class="g"><div class="t">${esc(m.trilha)}</div>
+          <div class="m">${esc(m.setor || 'Toda a empresa')} · ${m.aulas_feitas} de ${m.aulas_total} aulas${
+            m.provas_total ? ` · ${m.provas_ok} de ${m.provas_total} provas` : ''}</div></div>
+        <div class="bar" style="width:96px"><i style="width:${m.pct}%"></i></div>
+        <span class="sm2" style="min-width:34px;text-align:right">${m.pct}%</span>
+        <button class="btn sm" data-act="abrir" data-id="${m.trilha_id}">Continuar</button></div>`).join('')}</div>` : ''}
+
+    <div class="setores stg">${grupos.map(bloco).join('')}</div>`;
+}
+
+/* ── tela: uma trilha ────────────────────────────────────────────── */
+function onbTelaTrilha({ t, modulos, aulas, provas, mat, feitas, tents }) {
+  if (!t) return `<div class="card">${vazio('alert', 'Trilha não encontrada',
+    'Ela pode ter sido excluída enquanto esta tela estava aberta.')}</div>`;
+
+  const melhor = {};
+  tents.forEach(x => { const m = melhor[x.prova_id]; if (!m || x.nota > m.nota) melhor[x.prova_id] = x; });
+  const feitasPorProva = {};
+  tents.forEach(x => feitasPorProva[x.prova_id] = (feitasPorProva[x.prova_id] || 0) + 1);
+
+  const linhaProva = p => {
+    const b = melhor[p.id], n = feitasPorProva[p.id] || 0;
+    const esgotou = p.tentativas_max > 0 && n >= p.tentativas_max && !b?.aprovado;
+    return `<div class="aulal prova">
+      <span class="tick ${b?.aprovado ? 'done' : ''}" style="cursor:default">${ico('check',12)}</span>
+      <div class="g" data-act="prova" data-id="${p.id}">
+        <div class="t">${ico('medal',13)} ${esc(p.titulo)}</div>
+        <div class="m">Nota de corte ${p.nota_corte}%${
+          p.tentativas_max ? ` · ${n} de ${p.tentativas_max} tentativa(s)` : ' · tentativas ilimitadas'}</div></div>
+      ${b ? `<span class="pill ${b.aprovado ? 'ok' : 'bad'}">${b.nota}%</span>` : ''}
+      ${esgotou ? `<span class="pill warn">${ico('lock',11)} sem tentativa</span>` : ''}
+      <button class="ib" data-act="edit-prova" data-id="${p.id}" title="Editar prova">${ico('edit',14)}</button>
+      <button class="ib" data-act="questoes" data-id="${p.id}" title="Questões">${ico('grid',14)}</button></div>`;
+  };
+
+  const linhaAula = a => {
+    const ok = feitas.has(a.id);
+    return `<div class="aulal ${ok ? 'feita' : ''}">
+      <button class="tick ${ok ? 'done' : ''}" title="${ok ? 'Desmarcar' : 'Marcar como concluída'}"
+        data-act="${ok ? 'desfazer' : 'concluir'}" data-mat="${mat?.id || ''}" data-aula="${a.id}">${ico('check',12)}</button>
+      <div class="g" data-act="aula" data-id="${a.id}">
+        <div class="t">${esc(a.titulo)}</div>
+        <div class="m">${a.treinamento_id ? ico('book',11) + ' treinamento · ' : a.url ? ico('link',11) + ' link · ' : ''}${
+          esc(a.resumo || '')}${a.duracao_min ? `${a.resumo ? ' · ' : ''}${onbDur(a.duracao_min)}` : ''}</div></div>
+      ${a.obrigatoria === false ? '<span class="pill dim">opcional</span>' : ''}
+      <button class="ib" data-act="edit-aula" data-id="${a.id}" title="Editar">${ico('edit',14)}</button>
+      <button class="ib" data-act="del-aula" data-id="${a.id}" title="Excluir">${ico('trash',14)}</button></div>`;
+  };
+
+  const bloco = (m, i) => {
+    const dele = aulas.filter(a => a.modulo_id === m.id);
+    const pr   = provas.filter(p => p.modulo_id === m.id);
+    return `<div class="card">
+      <div class="modh"><div class="nm">${i + 1}</div>
+        <div style="flex:1;min-width:0"><h4>${esc(m.titulo)}</h4>
+          ${m.resumo ? `<div class="sm2" style="margin-top:2px">${esc(m.resumo)}</div>` : ''}</div>
+        <span class="sm2">${dele.filter(a => feitas.has(a.id)).length}/${dele.length}</span>
+        <button class="ib" data-act="edit-modulo" data-id="${m.id}" title="Editar">${ico('edit',14)}</button>
+        <button class="ib" data-act="del-modulo" data-id="${m.id}" title="Excluir">${ico('trash',14)}</button></div>
+      ${dele.length ? dele.map(linhaAula).join('')
+        : `<div style="padding:18px" class="sm2">Nenhuma aula ainda neste módulo.</div>`}
+      ${pr.map(linhaProva).join('')}
+      <div style="padding:11px 18px;border-top:1px solid var(--line);display:flex;gap:7px;flex-wrap:wrap">
+        <button class="btn sm ghost" data-act="nova-aula" data-modulo="${m.id}">${ico('plus',13)}Aula</button>
+        ${pr.length ? '' : `<button class="btn sm ghost" data-act="nova-prova"
+          data-trilha="${t.id}" data-modulo="${m.id}">${ico('medal',13)}Prova do módulo</button>`}</div></div>`;
+  };
+
+  const finais = provas.filter(p => !p.modulo_id);
+  const pct = mat ? mat.pct : 0;
+
+  return `<div class="volta" data-act="volta-hub">${ico('arrowL',14)}Todas as trilhas</div>
+    <div class="head">
+      <div><h2>${esc(t.nome)}</h2>
+        <div class="sub">${esc(t.descricao || '')}</div></div>
+      <div class="push">
+        <button class="btn ghost" data-act="matricular" data-trilha="${t.id}">${ico('users',15)}Matricular</button>
+        <button class="btn ghost" data-act="edit-trilha" data-id="${t.id}">${ico('edit',15)}Editar</button>
+        <button class="btn ghost" data-act="novo-modulo" data-trilha="${t.id}">${ico('plus',15)}Módulo</button>
+        ${mat ? '' : `<button class="btn" data-act="comecar" data-id="${t.id}">${ico('play',15)}Começar</button>`}
+      </div></div>
+
+    <div class="card"><div class="cb" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+      <div style="display:flex;gap:22px;flex-wrap:wrap;flex:1">
+        <div><div class="sm2">Setor</div><div style="font-weight:600;margin-top:2px">${esc(t.setor || 'Toda a empresa')}</div></div>
+        <div><div class="sm2">Tamanho</div><div style="font-weight:600;margin-top:2px">${t.modulos} módulos · ${t.aulas} aulas${
+          t.aulas_req < t.aulas ? ` (${t.aulas_req} obrigatórias)` : ''}${
+          t.minutos ? ` · ${onbDur(t.minutos)}` : ''}</div></div>
+        <div><div class="sm2">Provas</div><div style="font-weight:600;margin-top:2px">${t.provas || 'nenhuma'}</div></div>
+        ${t.duracao_dias ? `<div><div class="sm2">Duração prevista</div>
+          <div style="font-weight:600;margin-top:2px">${t.duracao_dias} dias</div></div>` : ''}
+        <div><div class="sm2">Matriculados</div><div style="font-weight:600;margin-top:2px">${t.matriculados}</div></div>
+      </div>
+      ${mat ? `<div style="min-width:190px">
+        <div class="sm2" style="margin-bottom:6px">Seu progresso — ${mat.aulas_feitas}/${mat.aulas_total} aulas${
+          mat.provas_total ? `, ${mat.provas_ok}/${mat.provas_total} provas` : ''}</div>
+        <div class="bar"><i class="${pct === 100 ? 'ok' : ''}" style="width:${pct}%"></i></div>
+        <div class="sm2" style="margin-top:5px">${pct}%${
+          mat.status === 'concluida' ? ' · concluída' : ''}</div></div>`
+      : `<div class="sm2" style="max-width:230px">Você ainda não começou esta trilha.
+          Clicar em <b>Começar</b> abre sua matrícula e passa a registrar o progresso.</div>`}
+    </div></div>
+
+    ${modulos.length ? modulos.map(bloco).join('')
+      : `<div class="card">${vazio('book', 'Trilha vazia',
+          'Crie o primeiro módulo. Módulo agrupa aulas — normalmente uma semana, uma fase ou um tema.',
+          { act: 'novo-modulo', label: 'Novo módulo' })}</div>`}
+
+    ${finais.length ? `<div class="card"><div class="modh">
+        <div class="nm">${ico('medal',13)}</div><h4>Prova final da trilha</h4></div>
+      ${finais.map(linhaProva).join('')}</div>`
+      : modulos.length ? `<div style="margin-bottom:20px">
+        <button class="btn ghost" data-act="nova-prova" data-trilha="${t.id}">${ico('medal',15)}Criar prova final</button></div>` : ''}
+
+    <button class="btn ghost danger" data-act="del-trilha" data-id="${t.id}"
+      style="background:var(--bad-bg);color:var(--bad);border-color:transparent">${ico('trash',14)}Excluir trilha</button>`;
+}
+
+/* ── tela: uma aula ──────────────────────────────────────────────── */
+function onbTelaAula({ t, aula, aulas, mat, feitas, trein }) {
+  if (!aula) return `<div class="card">${vazio('alert', 'Aula não encontrada', 'Volte e escolha de novo.')}</div>`;
+  const ok   = feitas.has(aula.id);
+  const idx  = aulas.findIndex(a => a.id === aula.id);
+  const prox = aulas[idx + 1];
+
+  const corpo = trein
+    ? (trein.tipo === 'html' && trein.conteudo_html
+        ? `<iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+             srcdoc="${esc(trein.conteudo_html)}"></iframe>
+           <div class="sm2" style="margin-top:9px">${esc(trein.titulo)} — documento da biblioteca de treinamentos.</div>`
+        : `<div class="card"><div class="cb">
+             <p class="sm2" style="margin-bottom:12px">Este treinamento é um link externo.</p>
+             <a class="btn" href="${esc(trein.url || '#')}" target="_blank" rel="noopener">
+               ${ico('link',15)}Abrir ${esc(trein.titulo)}</a></div></div>`)
+    : aula.url
+      ? `<div class="card"><div class="cb">
+           <a class="btn" href="${esc(aula.url)}" target="_blank" rel="noopener">${ico('link',15)}Abrir o material</a>
+           </div></div>${aula.conteudo ? `<div class="doc">${md(aula.conteudo)}</div>` : ''}`
+      : `<div class="doc">${md(aula.conteudo) || '<p class="mut">Esta aula ainda não tem conteúdo.</p>'}</div>`;
+
+  return `<div class="volta" data-act="volta-trilha">${ico('arrowL',14)}${esc(t?.nome || 'Voltar')}</div>
+    <div class="head"><div>
+        <h2>${esc(aula.titulo)}</h2>
+        <div class="sub">${esc(aula.resumo || '')}${
+          aula.duracao_min ? `${aula.resumo ? ' · ' : ''}${onbDur(aula.duracao_min)}` : ''}</div></div>
+      <div class="push">
+        <button class="btn ghost" data-act="edit-aula" data-id="${aula.id}">${ico('edit',15)}Editar</button>
+        ${mat
+          ? (ok ? `<button class="btn ghost" data-act="desfazer" data-mat="${mat.id}" data-aula="${aula.id}">
+                     ${ico('check',15)}Concluída — desmarcar</button>`
+                : `<button class="btn" data-act="concluir" data-mat="${mat.id}" data-aula="${aula.id}"
+                     ${prox ? `data-prox="${prox.id}"` : ''}>${ico('check',15)}Concluir${prox ? ' e seguir' : ''}</button>`)
+          : `<button class="btn" data-act="comecar" data-id="${t.id}">${ico('play',15)}Começar a trilha</button>`}
+      </div></div>
+    ${corpo}
+    <div style="display:flex;gap:9px;margin-top:26px;flex-wrap:wrap">
+      ${idx > 0 ? `<button class="btn ghost" data-act="aula" data-id="${aulas[idx-1].id}">
+        ${ico('arrowL',14)}${esc(aulas[idx-1].titulo)}</button>` : ''}
+      ${prox ? `<button class="btn ghost" data-act="aula" data-id="${prox.id}">
+        ${esc(prox.titulo)}${ico('arrowR',14)}</button>` : ''}</div>`;
+}
+
+/* ── tela: prova ─────────────────────────────────────────────────── */
+function onbTelaProva({ p, questoes, alts, tents }) {
+  if (!p) return `<div class="card">${vazio('alert', 'Prova não encontrada', 'Volte e escolha de novo.')}</div>`;
+
+  const volta = `<div class="volta" data-act="volta-trilha">${ico('arrowL',14)}Voltar para a trilha</div>`;
+
+  if (onbResultado) {
+    const r = onbResultado;
+    const podeRefazer = p.tentativas_max === 0 || tents.length + 1 < p.tentativas_max;
+    return `${volta}
+      <div class="nota ${r.aprovado ? 'ok' : 'nao'}">
+        <div class="big">${r.nota}%</div>
+        <div style="flex:1">
+          <h3 style="font-size:17px;margin-bottom:4px">${r.aprovado ? 'Aprovado' : 'Não passou desta vez'}</h3>
+          <div class="sm2">${r.acertos} de ${r.total} questões · nota de corte ${r.nota_corte}%</div></div>
+        ${!r.aprovado && podeRefazer
+          ? `<button class="btn" data-act="refazer">${ico('refresh',15)}Refazer</button>`
+          : !r.aprovado ? `<span class="pill warn">${ico('lock',11)} sem tentativa</span>` : ''}</div>
+      ${r.gabarito.map((g, i) => `<div class="qz">
+        <div class="qn">Questão ${i + 1} · ${g.acertou ? 'certa' : 'errada'}</div>
+        <div class="qe">${esc(g.enunciado)}</div>
+        <div class="alt ${g.acertou ? 'certa' : 'errada'}" style="cursor:default">
+          <span class="rd" style="border-color:currentColor"></span>
+          <div>${g.acertou ? 'Você acertou' : `Resposta certa: <b>${esc(g.correta_txt || '—')}</b>`}</div></div>
+        ${g.explicacao ? `<div class="expl">${esc(g.explicacao)}</div>` : ''}</div>`).join('')}`;
+  }
+
+  const usadas  = tents.length;
+  const esgotou = p.tentativas_max > 0 && usadas >= p.tentativas_max;
+  const melhor  = tents.reduce((a, x) => !a || x.nota > a.nota ? x : a, null);
+
+  if (esgotou && !melhor?.aprovado) {
+    return `${volta}<div class="card">${vazio('lock', 'Tentativas esgotadas',
+      `Você usou as ${p.tentativas_max} tentativas desta prova e a melhor nota foi ${melhor?.nota ?? 0}%. Fale com quem conduz seu onboarding para liberar outra.`)}</div>`;
+  }
+
+  const porQ = {}; alts.forEach(a => (porQ[a.questao_id] ||= []).push(a));
+  const ordemQ = onbOrdem?.q || questoes.map(x => x.id);
+  const lista  = ordemQ.map(id => questoes.find(x => x.id === id)).filter(Boolean);
+
+  return `${volta}
+    <div class="head"><div><h2>${esc(p.titulo)}</h2>
+        <div class="sub">${esc(p.descricao || '')}</div></div></div>
+    <div class="card"><div class="cb" style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">
+      <div><div class="sm2">Questões</div><div style="font-weight:600">${lista.length}</div></div>
+      <div><div class="sm2">Nota de corte</div><div style="font-weight:600">${p.nota_corte}%</div></div>
+      <div><div class="sm2">Tentativas</div><div style="font-weight:600">${
+        p.tentativas_max ? `${usadas} de ${p.tentativas_max}` : `${usadas} · ilimitadas`}</div></div>
+      ${melhor ? `<div><div class="sm2">Melhor nota</div>
+        <div style="font-weight:600;color:var(--${melhor.aprovado ? 'ok' : 'bad'})">${melhor.nota}%</div></div>` : ''}
+      <div style="flex:1"></div>
+      <div class="sm2">Respondidas: <b id="qzn">0</b> de ${lista.length}</div>
+    </div></div>
+
+    ${lista.map((qq, i) => {
+      const ord = onbOrdem?.a[qq.id] || (porQ[qq.id] || []).map(a => a.id);
+      return `<div class="qz">
+        <div class="qn">Questão ${i + 1}${qq.tipo === 'vf' ? ' · verdadeiro ou falso' : ''}</div>
+        <div class="qe">${esc(qq.enunciado)}</div>
+        <div>${ord.map(aid => {
+          const a = (porQ[qq.id] || []).find(x => x.id === aid); if (!a) return '';
+          return `<div class="alt" data-act="alt" data-q="${qq.id}" data-a="${a.id}">
+            <span class="rd"></span><div>${esc(a.texto)}</div></div>`;
+        }).join('')}</div></div>`;
+    }).join('')}
+
+    ${lista.length
+      ? `<button class="btn" data-act="enviar" data-total="${lista.length}">${ico('check',15)}Entregar a prova</button>`
+      : `<div class="card">${vazio('grid', 'Prova sem questões',
+          'Cadastre as questões antes de aplicar esta prova.')}</div>`}`;
+}
+
+/* ── formulários de edição ───────────────────────────────────────── */
+function formTrilha(row) {
+  form(row ? 'Editar trilha' : 'Nova trilha', [
+    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Trilha do Calouro' },
+    { k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores('— toda a empresa —'),
+      hint:'Sem setor, a trilha aparece no bloco "Toda a empresa" e vale para todo mundo.' },
+    { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao,
+      ph:'Uma frase que diga para quem é e o que a pessoa sai sabendo.' },
+    { k:'icone', label:'Ícone', type:'select', value:row?.icone || 'book', opts:
+      ['book','star','money','target','film','users','cog','chart','zap','medal']
+        .map(v => ({ v, t:v })) },
+    { k:'duracao_dias', label:'Duração prevista (dias)', type:'number', value:row?.duracao_dias },
+    { k:'ordem', label:'Ordem no bloco', type:'number', value:row?.ordem ?? 0 }
+  ], d => grava('onb_trilhas', d, row?.id));
+}
+
+function formModulo(row, trilhaId) {
+  form(row ? 'Editar módulo' : 'Novo módulo', [
+    { k:'titulo', label:'Título', req:true, value:row?.titulo, ph:'Ex.: Dias 1 a 4 — Fundamentos' },
+    { k:'resumo', label:'Resumo', type:'textarea', value:row?.resumo },
+    { k:'ordem', label:'Ordem', type:'number', value:row?.ordem ?? 0 }
+  ], d => grava('onb_modulos', { ...d, trilha_id: row?.trilha_id || trilhaId }, row?.id));
+}
+
+async function formAula(row, moduloId) {
+  const treinos = await q('v_onb_treinamentos', x => x.eq('ativo', true).order('titulo'));
+  form(row ? 'Editar aula' : 'Nova aula', [
+    { k:'titulo', label:'Título', req:true, value:row?.titulo },
+    { k:'resumo', label:'Resumo', value:row?.resumo, ph:'Uma linha, aparece na lista da trilha.' },
+    { k:'treinamento_id', label:'Treinamento da biblioteca', type:'select', value:row?.treinamento_id,
+      opts:[{ v:'', t:'— nenhum, escrever aqui embaixo —' },
+            ...treinos.map(t => ({ v:t.id, t:`${t.titulo}${t.setor ? ` (${t.setor})` : ''}` }))],
+      hint:'Escolhendo um treinamento, ele é exibido no lugar do texto.' },
+    { k:'conteudo', label:'Conteúdo da aula', type:'textarea', value:row?.conteudo,
+      hint:'Aceita ## título, - lista, 1. numerada, **negrito**, > citação, tabela com | e [link](url).' },
+    { k:'url', label:'Link externo', value:row?.url, ph:'https://…' },
+    { k:'duracao_min', label:'Duração (minutos)', type:'number', value:row?.duracao_min },
+    { k:'obrigatoria', label:'', type:'checkbox', value:row ? row.obrigatoria : true, cap:'Aula obrigatória' },
+    { k:'ordem', label:'Ordem', type:'number', value:row?.ordem ?? 0 }
+  ], d => grava('onb_aulas', { ...d, modulo_id: row?.modulo_id || moduloId }, row?.id));
+}
+
+function formProva(row, trilhaId, moduloId) {
+  form(row ? 'Editar prova' : 'Nova prova', [
+    { k:'titulo', label:'Título', req:true, value:row?.titulo },
+    { k:'descricao', label:'Descrição', value:row?.descricao },
+    { k:'nota_corte', label:'Nota de corte (%)', type:'number', value:row?.nota_corte ?? 70 },
+    { k:'tentativas_max', label:'Tentativas', type:'number', value:row?.tentativas_max ?? 3,
+      hint:'0 = ilimitadas. O limite é conferido no banco, não no botão desta tela.' },
+    { k:'embaralhar', label:'', type:'checkbox', value:row ? row.embaralhar : true,
+      cap:'Embaralhar questões e alternativas' },
+    { k:'ordem', label:'Ordem', type:'number', value:row?.ordem ?? 0 }
+  ], d => grava('onb_provas', {
+    ...d,
+    trilha_id: row?.trilha_id || trilhaId,
+    modulo_id: row ? row.modulo_id : (moduloId || null)
+  }, row?.id));
+}
+
+/* Editor de questões: lista dentro de um modal, porque questão é coisa
+   que se cadastra em rajada. Sair para uma tela e voltar a cada questão
+   faria ninguém cadastrar dez. */
+async function onbEditorQuestoes(provaId) {
+  const [p] = await q('onb_provas', x => x.eq('id', provaId));
+  const qs  = await q('onb_questoes', x => x.eq('prova_id', provaId).order('ordem'));
+  const as  = qs.length
+    ? await q('onb_alternativas', x => x.in('questao_id', qs.map(x2 => x2.id)).order('ordem')) : [];
+
+  const corpo = `<div style="display:grid;gap:10px">
+    ${qs.length ? qs.map((qq, i) => {
+      const alt = as.filter(a => a.questao_id === qq.id);
+      const certa = alt.find(a => a.correta);
+      return `<div style="border:1px solid var(--line);border-radius:var(--r);padding:12px 14px">
+        <div style="display:flex;gap:9px;align-items:flex-start">
+          <div style="flex:1"><div class="sm2">Questão ${i + 1}${qq.tipo === 'vf' ? ' · V/F' : ''}</div>
+            <div style="font-size:13.5px;font-weight:600;margin:3px 0 5px;line-height:1.4">${esc(qq.enunciado)}</div>
+            <div class="sm2">Certa: ${esc(certa?.texto || '⚠ nenhuma marcada')} · ${alt.length} alternativa(s)</div></div>
+          <button class="ib" data-q="${qq.id}" data-e title="Editar">${ico('edit',14)}</button>
+          <button class="ib" data-q="${qq.id}" data-d title="Excluir">${ico('trash',14)}</button></div></div>`;
+    }).join('')
+    : '<div class="sm2">Nenhuma questão ainda.</div>'}</div>`;
+
+  const { mask, fecha } = modal({
+    titulo: `Questões — ${p?.titulo || ''}`, largura: 620, ok: 'Nova questão',
+    corpo, onOk: () => { fecha(); formQuestao(null, provaId, qs.length + 1); return false; }
+  });
+  $$('[data-e]', mask).forEach(b => b.onclick = () => {
+    fecha(); formQuestao(qs.find(x => x.id === b.dataset.q), provaId);
+  });
+  $$('[data-d]', mask).forEach(b => b.onclick = () => {
+    fecha();
+    confirma('Excluir questão', '<p>A questão e suas alternativas saem da prova.</p>',
+      async () => { const ok = await apaga('onb_questoes', b.dataset.q); if (ok) onbEditorQuestoes(provaId); return ok; });
+  });
+}
+
+async function formQuestao(row, provaId, ordem) {
+  const alt = row ? await q('onb_alternativas', x => x.eq('questao_id', row.id).order('ordem')) : [];
+  const vf  = row?.tipo === 'vf';
+  const cert = alt.findIndex(a => a.correta);
+
+  form(row ? 'Editar questão' : 'Nova questão', [
+    { k:'enunciado', label:'Enunciado', type:'textarea', req:true, value:row?.enunciado },
+    { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'multipla', opts:[
+      { v:'multipla', t:'Múltipla escolha' }, { v:'vf', t:'Verdadeiro ou falso' }] },
+    { k:'a1', label:'Alternativa 1', value:vf ? 'Verdadeiro' : alt[0]?.texto, req:true },
+    { k:'a2', label:'Alternativa 2', value:vf ? 'Falso' : alt[1]?.texto, req:true },
+    { k:'a3', label:'Alternativa 3', value:vf ? '' : alt[2]?.texto },
+    { k:'a4', label:'Alternativa 4', value:vf ? '' : alt[3]?.texto },
+    { k:'certa', label:'Qual é a correta', type:'select', value:String(cert >= 0 ? cert + 1 : 1),
+      opts:[1,2,3,4].map(n => ({ v:String(n), t:`Alternativa ${n}` })) },
+    { k:'explicacao', label:'Explicação', type:'textarea', value:row?.explicacao,
+      hint:'Aparece na correção, certo ou errado. É a parte que ensina — não deixe em branco.' },
+    { k:'peso', label:'Peso', type:'number', value:row?.peso ?? 1 },
+    { k:'ordem', label:'Ordem', type:'number', value:row?.ordem ?? ordem ?? 0 }
+  ], async d => {
+    const textos = [d.a1, d.a2, d.a3, d.a4].filter(x => x && String(x).trim());
+    const certa  = Number(d.certa);
+    if (certa > textos.length) { toast(`A alternativa ${certa} está vazia.`, { tipo: 'bad' }); return false; }
+
+    const campos = { prova_id: provaId || row.prova_id, enunciado: d.enunciado, tipo: d.tipo,
+                     explicacao: d.explicacao, peso: d.peso, ordem: d.ordem };
+    let qid = row?.id;
+    if (qid) {
+      if (!await grava('onb_questoes', campos, qid)) return false;
+      await sb.from('onb_alternativas').delete().eq('questao_id', qid);
+    } else {
+      const r = await sb.from('onb_questoes').insert(campos).select('id').single();
+      if (r.error) { toast(r.error.message, { tipo: 'bad' }); return false; }
+      qid = r.data.id;
+    }
+    const linhas = textos.map((t, i) => ({ questao_id: qid, texto: t, correta: i + 1 === certa, ordem: i + 1 }));
+    const r2 = await sb.from('onb_alternativas').insert(linhas);
+    if (r2.error) { toast(r2.error.message, { tipo: 'bad' }); return false; }
+    toast('Questão salva.');
+    onbEditorQuestoes(provaId || row.prova_id);
+  });
+}
+
+function onbFormMatricula(trilhaId) {
+  q('v_onb_trilhas', x => x.eq('ativo', true)).then(trilhas => {
+    form('Matricular na trilha', [
+      { k:'trilha_id', label:'Trilha', type:'select', req:true, value:trilhaId,
+        opts:trilhas.map(t => ({ v:t.id, t:`${t.nome}${t.setor ? ` — ${t.setor}` : ''}` })) },
+      { k:'usuario_id', label:'Pessoa', type:'select', value:'',
+        opts:[{ v:'', t:'— todo o setor da trilha —' },
+              ...cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome }))],
+        hint:'Sem escolher ninguém, entra todo mundo que ainda não está matriculado. O sistema não sabe o setor de cada pessoa, então nesse caso ele matricula o time ativo inteiro.' }
+    ], async d => {
+      const alvos = d.usuario_id ? [d.usuario_id] : cache.usuarios.filter(u => u.ativo).map(u => u.id);
+      let n = 0;
+      for (const uid of alvos) if (await onbMatricular(d.trilha_id, uid)) n++;
+      toast(`${n} matrícula(s) garantida(s).`);
+    }, 'Matricular');
+  });
+}
+
+/* ── minha trilha ────────────────────────────────────────────────── */
+R.onbMinha = {
+  label: 'Minha trilha', curto: 'Minha', icone: 'play', titulo: 'Minha trilha',
+  async dados() {
+    if (!eu) return { minhas: [] };
+    const minhas = await q('v_onb_matriculas', x => x.eq('usuario_id', eu.id));
+    minhas.sort((a, b) => (a.status === 'concluida') - (b.status === 'concluida') || a.pct - b.pct);
+    return { minhas };
+  },
+  render({ minhas }) {
+    if (!eu) return `<div class="card">${vazio('user', 'Sem perfil ligado ao login',
+      'Peça a quem administra para ligar seu login a uma pessoa do cadastro — sem isso o progresso não tem onde ser gravado.')}</div>`;
+
+    const cartao = m => `<div class="card" style="margin:0"><div class="ch">
+        <div style="flex:1;min-width:0"><h3>${esc(m.trilha)}</h3>
+          <div class="sm2">${esc(m.setor || 'Toda a empresa')}</div></div>
+        ${m.status === 'concluida' ? `<span class="pill ok">${ico('medal',11)} concluída</span>`
+          : m.dias_parado >= 7 ? `<span class="pill warn">${m.dias_parado}d parado</span>`
+          : `<span class="pill info">${m.pct}%</span>`}</div>
+      <div class="cb">
+        <div class="bar" style="margin-bottom:10px"><i class="${m.pct === 100 ? 'ok' : ''}" style="width:${m.pct}%"></i></div>
+        <div class="sm2" style="margin-bottom:14px">${m.aulas_feitas} de ${m.aulas_total} aulas${
+          m.provas_total ? ` · ${m.provas_ok} de ${m.provas_total} provas` : ''}
+          ${m.prazo ? ` · prazo ${dtl(m.prazo)}` : ''}</div>
+        <button class="btn sm" data-act="ir" data-id="${m.trilha_id}">
+          ${ico(m.status === 'concluida' ? 'book' : 'play', 13)}${m.status === 'concluida' ? 'Rever' : 'Continuar'}</button>
+      </div></div>`;
+
+    return `<div class="head"><div><h2>Minha trilha</h2>
+        <div class="sub">O que está no seu nome. O resto do catálogo fica em Trilhas.</div></div></div>
+      ${minhas.length
+        ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px" class="stg">
+             ${minhas.map(cartao).join('')}</div>`
+        : `<div class="card">${vazio('book', 'Nenhuma trilha no seu nome',
+            'Abra o catálogo em Trilhas e comece pela do seu setor — ou peça para quem conduz seu onboarding te matricular.')}</div>`}`;
+  },
+  acoes: {
+    ir(b) { onbSel = b.dataset.id; onbAula = null; onbProva = null; vai('onbTrilhas'); }
+  }
+};
+
+/* ── acompanhamento ──────────────────────────────────────────────── */
+R.onbAcompanhar = {
+  label: 'Acompanhamento', curto: 'Acomp.', icone: 'users', titulo: 'Acompanhamento do onboarding',
+  async dados() {
+    const linhas = await q('v_onb_matriculas');
+    linhas.sort((a, b) => a.pessoa.localeCompare(b.pessoa) || a.trilha.localeCompare(b.trilha));
+    return { linhas };
+  },
+  render({ linhas }) {
+    const ativas = linhas.filter(l => l.pessoa_ativa !== false);
+    const andando = ativas.filter(l => l.status === 'em_andamento');
+    const parados = andando.filter(l => l.dias_parado >= 7);
+
+    const tr = l => `<tr>
+      <td><div style="display:flex;align-items:center;gap:9px">${avatar(
+        { nome: l.pessoa, foto: l.foto }, 26)}<div><div style="font-weight:600">${esc(l.pessoa)}</div>
+        <div class="sm2">${esc(l.cargo || '—')}</div></div></div></td>
+      <td>${esc(l.trilha)}<div class="sm2">${esc(l.setor || 'Toda a empresa')}</div></td>
+      <td style="min-width:150px"><div style="display:flex;align-items:center;gap:9px">
+        <div class="bar" style="flex:1"><i class="${l.pct === 100 ? 'ok' : l.dias_parado >= 7 ? 'warn' : ''}"
+          style="width:${l.pct}%"></i></div><span class="sm2">${l.pct}%</span></div></td>
+      <td class="num">${l.aulas_feitas}/${l.aulas_total}</td>
+      <td class="num">${l.provas_total ? `${l.provas_ok}/${l.provas_total}` : '—'}</td>
+      <td>${l.status === 'concluida' ? `<span class="pill ok">concluída ${dt(l.concluida_em)}</span>`
+            : l.dias_parado >= 7 ? `<span class="pill warn">parado há ${l.dias_parado}d</span>`
+            : `<span class="pill info">em andamento</span>`}</td>
+      <td class="act">
+        <button class="btn sm ghost" data-act="ver" data-id="${l.trilha_id}">Abrir</button>
+        <button class="btn sm ghost" data-act="tirar" data-id="${l.id}"
+          data-n="${esc(l.pessoa)}" data-t="${esc(l.trilha)}">${ico('trash',13)}</button></td></tr>`;
+
+    return `<div class="head"><div><h2>Acompanhamento</h2>
+        <div class="sub">Quem está em qual trilha, quanto andou e quem travou.</div></div>
+      <div class="push">
+        <button class="btn ghost" data-act="csv">${ico('down',15)}CSV</button>
+        <button class="btn" data-act="matricular">${ico('plus',15)}Matricular</button></div></div>
+
+      <div class="tiles stg">
+        <div class="tile"><div class="ic">${ico('users',18)}</div><div class="n">${andando.length}</div>
+          <div class="l">Em andamento</div></div>
+        <div class="tile ${parados.length ? 'warn' : ''}"><div class="ic">${ico('clock',18)}</div>
+          <div class="n">${parados.length}</div><div class="l">Parados há 7 dias ou mais</div></div>
+        <div class="tile ok"><div class="ic">${ico('medal',18)}</div>
+          <div class="n">${ativas.filter(l => l.status === 'concluida').length}</div>
+          <div class="l">Concluídas</div></div>
+        <div class="tile"><div class="ic">${ico('chart',18)}</div>
+          <div class="n">${andando.length ? Math.round(andando.reduce((s, l) => s + Number(l.pct), 0) / andando.length) : 0}%</div>
+          <div class="l">Progresso médio</div></div>
+      </div>
+
+      <div class="card"><div class="ch"><h3>Matrículas</h3>
+        <div class="push"><span class="sm2">${ativas.length} no total</span></div></div>
+        ${ativas.length ? `<div class="t-scroll"><table><thead><tr>
+            <th>Pessoa</th><th>Trilha</th><th>Progresso</th><th class="num">Aulas</th>
+            <th class="num">Provas</th><th>Situação</th><th></th></tr></thead>
+          <tbody>${ativas.map(tr).join('')}</tbody></table></div>`
+          : vazio('users', 'Ninguém matriculado ainda',
+              'Matricule alguém para começar a acompanhar. Uma trilha sem matrícula é só um documento.',
+              { act: 'matricular', label: 'Matricular' })}</div>`;
+  },
+  acoes: {
+    matricular() { onbFormMatricula(); },
+    ver(b) { onbSel = b.dataset.id; onbAula = null; onbProva = null; vai('onbTrilhas'); },
+    tirar(b) {
+      confirma('Tirar da trilha',
+        `<p>Remove a matrícula de <b>${esc(b.dataset.n)}</b> em <b>${esc(b.dataset.t)}</b>.
+          O progresso e as notas dessa trilha vão junto.</p>`,
+        () => apaga('onb_matriculas', b.dataset.id));
+    },
+    async csv() { csv('onboarding', await q('v_onb_matriculas')); }
+  }
+};
+
+/* ── biblioteca de treinamentos ──────────────────────────────────── */
+R.treinamentos = {
+  label: 'Treinamentos', curto: 'Treinos', icone: 'film', titulo: 'Biblioteca de treinamentos',
+  async dados() {
+    if (treinSel) {
+      const [t] = await q('onb_treinamentos', x => x.eq('id', treinSel));
+      return { aberto: t };
+    }
+    const lista = await q('v_onb_treinamentos', x => x.order('titulo'));
+    return { lista };
+  },
+  render({ lista, aberto }) {
+    if (treinSel) {
+      if (!aberto) return `<div class="card">${vazio('alert', 'Treinamento não encontrado', 'Volte e escolha de novo.')}</div>`;
+      return `<div class="volta" data-act="fechar">${ico('arrowL',14)}Biblioteca</div>
+        <div class="head"><div><h2>${esc(aberto.titulo)}</h2>
+            <div class="sub">${esc(aberto.descricao || '')}</div></div>
+          <div class="push">
+            <button class="btn ghost" data-act="editar" data-id="${aberto.id}">${ico('edit',15)}Editar</button>
+            ${aberto.tipo === 'html'
+              ? `<button class="btn ghost" data-act="nova-aba" data-id="${aberto.id}">${ico('out',15)}Nova aba</button>` : ''}</div></div>
+        ${aberto.tipo === 'html' && aberto.conteudo_html
+          ? `<iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+               srcdoc="${esc(aberto.conteudo_html)}"></iframe>`
+          : `<div class="card"><div class="cb">
+              <a class="btn" href="${esc(aberto.url || '#')}" target="_blank" rel="noopener">
+                ${ico('link',15)}Abrir o material</a></div></div>`}`;
+    }
+
+    const setores = [...new Set(lista.map(t => t.setor || 'Toda a empresa'))].sort();
+    const vis = treinSetor ? lista.filter(t => (t.setor || 'Toda a empresa') === treinSetor) : lista;
+
+    const cartao = t => `<div class="card" style="margin:0">
+      <div class="ch">
+        <div class="ic" style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+          background:var(--ac-bg);color:var(--ac);flex:none">${ico(t.tipo === 'html' ? 'book' : 'link', 16)}</div>
+        <div style="flex:1;min-width:0"><h3 style="line-height:1.3">${esc(t.titulo)}</h3>
+          <div class="sm2">${esc(t.setor || 'Toda a empresa')}${
+            t.duracao_min ? ` · ${onbDur(t.duracao_min)} de leitura` : ''}</div></div></div>
+      <div class="cb">
+        ${t.descricao ? `<p class="sm2" style="margin-bottom:12px;line-height:1.55">${esc(t.descricao)}</p>` : ''}
+        <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+          <button class="btn sm" data-act="abrir" data-id="${t.id}">${ico('play',13)}Abrir</button>
+          <button class="btn sm ghost" data-act="editar" data-id="${t.id}">${ico('edit',13)}</button>
+          <button class="btn sm ghost" data-act="excluir" data-id="${t.id}" data-n="${esc(t.titulo)}">${ico('trash',13)}</button>
+          <div style="flex:1"></div>
+          <span class="pill dim">${t.usos} uso${t.usos === 1 ? '' : 's'}</span>
+          ${t.tamanho ? `<span class="sm2">${Math.round(t.tamanho / 1024)} KB</span>` : ''}</div></div></div>`;
+
+    return `<div class="head"><div><h2>Treinamentos</h2>
+        <div class="sub">Os documentos em HTML da casa, num lugar só. As aulas das trilhas apontam para cá.</div></div>
+      <div class="push">
+        <button class="btn ghost" data-act="link">${ico('link',15)}Link externo</button>
+        <button class="btn" data-act="subir">${ico('up',15)}Subir HTML</button></div></div>
+
+      ${setores.length > 1 ? `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px">
+        <button class="btn sm ${treinSetor ? 'ghost' : ''}" data-act="filtro" data-s="">Todos</button>
+        ${setores.map(s => `<button class="btn sm ${treinSetor === s ? '' : 'ghost'}"
+          data-act="filtro" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div>` : ''}
+
+      ${vis.length
+        ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px" class="stg">
+             ${vis.map(cartao).join('')}</div>`
+        : `<div class="card">${vazio('book', 'Biblioteca vazia',
+            'Suba um HTML — POP, playbook, guia, apresentação. Ele passa a poder virar aula em qualquer trilha.',
+            { act: 'subir', label: 'Subir HTML' })}</div>`}`;
+  },
+  acoes: {
+    filtro(b) { treinSetor = b.dataset.s; pinta(); },
+    abrir(b)  { treinSel = b.dataset.id; pinta(); },
+    fechar()  { treinSel = null; pinta(); },
+    subir()   { treinEscolheArquivo(); },
+    link()    { formTreinamento(null, 'link'); },
+    async editar(b) {
+      const [r] = await q('onb_treinamentos', x => x.eq('id', b.dataset.id));
+      if (r) formTreinamento(r);
+    },
+    excluir(b) {
+      confirma('Excluir treinamento',
+        `<p>Remove <b>${esc(b.dataset.n)}</b> da biblioteca. As aulas que apontavam para ele
+          ficam sem material — não são apagadas.</p>`,
+        async () => { const ok = await apaga('onb_treinamentos', b.dataset.id); if (ok) treinSel = null; return ok; });
+    },
+    /* Blob em vez de data: — um HTML de 40 KB numa URL data: estoura o
+       limite de alguns navegadores e abre em branco sem avisar. */
+    async 'nova-aba'(b) {
+      const [t] = await q('onb_treinamentos', x => x.eq('id', b.dataset.id));
+      if (!t?.conteudo_html) return;
+      const url = URL.createObjectURL(new Blob([t.conteudo_html], { type: 'text/html' }));
+      open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  }
+};
+
+function treinEscolheArquivo() {
+  const i = document.createElement('input');
+  i.type = 'file'; i.accept = '.html,.htm,text/html';
+  i.onchange = () => { if (i.files[0]) treinLeArquivo(i.files[0]); };
+  i.click();
+}
+
+function treinLeArquivo(file) {
+  if (file.size > 4 * 1024 * 1024) {
+    return toast('Arquivo acima de 4 MB. Provavelmente tem imagem embutida em base64 — vale reduzir antes.',
+      { tipo: 'bad' });
+  }
+  const fr = new FileReader();
+  fr.onerror = () => toast('Não deu para ler o arquivo.', { tipo: 'bad' });
+  fr.onload = () => {
+    const bruto = String(fr.result);
+    const m = bruto.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const titulo = (m ? m[1].replace(/\s+/g, ' ').trim().split(/\s+[—·|]\s+/)[0] : '')
+      || file.name.replace(/\.html?$/i, '').replace(/-/g, ' ');
+    const texto = bruto.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ');
+    formTreinamento({ titulo, conteudo_html: bruto, tipo: 'html',
+                      duracao_min: Math.max(2, Math.round(texto.split(/\s+/).length / 200)) });
+  };
+  fr.readAsText(file, 'utf-8');
+}
+
+function formTreinamento(row, tipo) {
+  const novo = !row?.id;
+  form(novo ? 'Novo treinamento' : 'Editar treinamento', [
+    { k:'titulo', label:'Título', req:true, value:row?.titulo },
+    { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao,
+      ph:'Uma linha dizendo para que serve e para quem.' },
+    { k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores('— toda a empresa —') },
+    { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || tipo || 'html', opts:[
+      { v:'html', t:'Documento HTML' }, { v:'link', t:'Link externo' }, { v:'video', t:'Vídeo' }] },
+    { k:'url', label:'URL', value:row?.url, ph:'https://…',
+      hint:'Só para tipo link ou vídeo. Documento HTML usa o arquivo enviado.' },
+    { k:'duracao_min', label:'Duração (minutos)', type:'number', value:row?.duracao_min }
+  ], async d => {
+    const linha = { ...d };
+    if (row?.conteudo_html) linha.conteudo_html = row.conteudo_html;
+    const ok = await grava('onb_treinamentos', linha, row?.id);
+    if (ok) toast(novo ? 'Treinamento adicionado à biblioteca.' : 'Treinamento atualizado.');
+    return ok;
+  });
+}
+
 /* ── anexos de imagem ─────────────────────────────────────────────
    Ficam no Storage do Supabase, em bucket privado. O link de exibição
    é temporário e gerado na hora — imagem interna não deve viver numa
@@ -4830,6 +6081,7 @@ const fin = {
   conta: '', categoria: '', busca: '', sinal: '',
   cats: [], contas: [], regras: [], temBanco: null,
   imp: null,          // rascunho da importação em andamento
+  ultimo: null,       // resumo da última importação, para o painel abrir explicando
   abaCat: 'categorias'
 };
 
@@ -5376,6 +6628,29 @@ function finOptMeses(n = 24) {
 const finLancsDoMes = mes => q('fin_lancamentos', x =>
   x.gte('data', mes + '-01').lt('data', finProxMes(mes)).order('data', { ascending:false }));
 
+/* Cartão que abre o painel logo depois de importar: diz o que acabou
+   de entrar, para a pessoa não cair numa tela cheia de número sem
+   saber qual parte é do arquivo que ela mandou agora.
+
+   Vive só na memória — fecha no botão, na próxima importação, ou
+   quando a página recarrega. Não vai para o banco de propósito: é
+   recado de um instante, e recado que persiste vira sujeira. */
+function finCartaoImport() {
+  const u = fin.ultimo; if (!u) return '';
+  return `<div class="card" style="border-color:var(--ac)">
+    <div class="ch"><h3>${ico('check',15)} ${num(u.n)} lançamento(s) importado(s)</h3>
+      <div class="push">
+        ${u.semCat ? `<button class="btn sm" data-act="ver-sem">${u.semCat} sem categoria</button>` : ''}
+        <button class="btn sm ghost" data-act="fechar-import">${ico('x',13)}Fechar</button></div></div>
+    <div class="cb" style="color:var(--txt2);font-size:13px;line-height:1.65">
+      <b>${esc(u.arquivo)}</b> · ${dtl(u.de)} a ${dtl(u.ate)} ·
+      ${u.cats} categoria(s) de gasto definidas${u.semCat
+        ? ` · <span style="color:var(--warn)">${u.semCat} ainda sem categoria</span>`
+        : ' · nada ficou sem categoria'}.
+      ${u.semCat ? 'Cada correção que você fizer vira regra e não erra de novo.' : ''}
+    </div></div>`;
+}
+
 /* ───────────────────────── PAINEL PESSOAL ───────────────────────── */
 R.finPainel = {
   label:'Painel', curto:'Painel', icone:'chart', titulo:'Meu dinheiro',
@@ -5468,6 +6743,7 @@ R.finPainel = {
           <button class="btn ghost" data-act="lancamentos">${ico('filter',15)}Lançamentos</button>
           <button class="btn" data-act="importar">${ico('down',15)}Mandar extrato</button></div></div>
       ${filtros}
+      ${finCartaoImport()}
 
       <div class="tiles stg">
         <div class="tile ok"><div class="ic">${ico('down',18)}</div><div class="n">${brl(r.entrou)}</div>
@@ -5513,6 +6789,13 @@ R.finPainel = {
     importar() { vai('finImportar'); },
     lancamentos() { vai('finLancamentos'); },
     'ver-cat'(b) { fin.categoria = b.dataset.id || ''; fin.sinal = 'saida'; vai('finLancamentos'); },
+    'fechar-import'() { fin.ultimo = null; pinta(); },
+    'ver-sem'() {
+      fin.ultimo = null;
+      fin.categoria = finCatId('Sem categoria') || '';
+      fin.sinal = 'saida';
+      vai('finLancamentos');
+    },
     async csv() {
       const ls = await finLancsDoMes(fin.mes);
       csv(`meus-gastos-${fin.mes}`, finPorCategoria(ls).map(c => ({
@@ -5709,6 +6992,111 @@ function formFinLancamento(row) {
 }
 
 /* ───────────────────────── IMPORTAR EXTRATO ───────────────────────── */
+/* ── dashboard do extrato ─────────────────────────────────────────
+   O extrato já chegava categorizado, mas a prévia só mostrava a
+   lista: para saber em que o dinheiro foi era preciso gravar antes e
+   depois ir ao painel. Aqui a conta aparece antes de gravar — e, por
+   ser antes, corrigir uma categoria conserta o número na hora em vez
+   de virar retrabalho depois.
+
+   Soma só o que está marcado. Desmarcar uma linha redesenha o bloco:
+   é isso que faz a prévia ser uma decisão, e não uma formalidade. */
+function finDashImport(itens) {
+  const marcados = itens.filter(i => i.usar);
+  const ehTransf = i => finGrupo(i.categoria_id) === 'transferencia';
+  const semCat  = marcados.filter(i => !i.categoria_id || finNomeCat(i.categoria_id) === 'Sem categoria');
+  const saidas  = marcados.filter(i => i.valor < 0 && !ehTransf(i));
+  const entradas= marcados.filter(i => i.valor > 0 && !ehTransf(i));
+  const transf  = marcados.filter(ehTransf);
+
+  const soma = ls => ls.reduce((a, i) => a + Math.abs(Number(i.valor) || 0), 0);
+  const saiu = soma(saidas), entrou = soma(entradas);
+  const essencial = soma(saidas.filter(i => finCat(i.categoria_id)?.essencial));
+  const investido = soma(saidas.filter(i => finGrupo(i.categoria_id) === 'investimento'));
+
+  const mapa = new Map();
+  saidas.forEach(i => {
+    const k = i.categoria_id || 'sem';
+    const a = mapa.get(k) || { id:i.categoria_id, total:0, n:0 };
+    a.total += Math.abs(Number(i.valor)); a.n++; mapa.set(k, a);
+  });
+  const cats = [...mapa.values()].sort((a, b) => b.total - a.total);
+  const maior = cats[0]?.total || 1;
+  const parte = t => saiu ? t / saiu * 100 : 0;
+
+  const cabeca = `<div class="ch"><h3>${ico('chart',15)} Onde esse extrato foi parar</h3>
+    <div class="push">
+      ${semCat.length
+        ? `<span class="pill warn">${semCat.length} sem categoria</span>
+           <button class="btn sm ghost" data-act="so-sem">${
+             fin.imp?.soSem ? 'Ver todos' : 'Resolver agora'}</button>`
+        : `<span class="pill ok">${ico('check',12)} tudo categorizado</span>`}
+    </div></div>`;
+
+  if (!marcados.length) return `<div class="card" id="fdash">${cabeca}
+    <div class="cb">${vazio('inbox', 'Nada marcado',
+      'Marque as linhas que devem entrar e o resumo se desenha aqui.')}</div></div>`;
+
+  if (!cats.length) return `<div class="card" id="fdash">${cabeca}
+    <div class="cb" style="color:var(--txt2);font-size:13.5px">
+      Nenhuma saída neste arquivo — só ${entradas.length} entrada(s), somando
+      <b style="color:var(--ok)">${brl(entrou)}</b>.</div></div>`;
+
+  return `<div class="card" id="fdash">${cabeca}
+    <div class="cb">
+      <div class="fnums">
+        <div><div class="n" style="color:var(--bad)">${brl(saiu)}</div>
+          <div class="l">Saiu em ${cats.length} categoria(s)</div></div>
+        <div><div class="n" style="color:var(--ok)">${brl(entrou)}</div>
+          <div class="l">Entrou</div></div>
+        <div><div class="n">${brl(essencial)}</div>
+          <div class="l">Essencial · ${pc(parte(essencial))} do que saiu</div></div>
+        <div><div class="n" style="color:var(--warn)">${brl(saiu - essencial - investido)}</div>
+          <div class="l">Dá para cortar${investido ? ` · investido ${brl(investido)}` : ''}</div></div>
+      </div>
+
+      <div class="fstack">${cats.map(c =>
+        `<i style="flex:${c.total};background:${esc(finCor(c.id))}"
+            title="${esc(finNomeCat(c.id))} — ${brl(c.total)}"></i>`).join('')}</div>
+      <div class="fleg">${cats.slice(0, 6).map(c =>
+        `<span><span class="fdot" style="background:${esc(finCor(c.id))}"></span>
+          ${esc(finNomeCat(c.id))} <b>${pc(parte(c.total))}</b></span>`).join('')}
+        ${cats.length > 6 ? `<span class="sm2">+${cats.length - 6} categoria(s)</span>` : ''}</div>
+    </div>
+
+    ${cats.map(c => {
+      const cc = finCat(c.id);
+      return `<div class="fgasto">
+        <div class="g">
+          <div class="t"><span class="fdot" style="background:${esc(finCor(c.id))}"></span>
+            ${esc(finNomeCat(c.id))}
+            ${cc?.essencial ? '<span class="pill dim">essencial</span>' : ''}
+            ${!c.id || finNomeCat(c.id) === 'Sem categoria'
+              ? '<span class="pill warn">definir</span>' : ''}</div>
+          <div class="bar"><i style="width:${Math.max(2, c.total / maior * 100)}%;
+            background:${esc(finCor(c.id))}"></i></div>
+          <div class="m">${c.n} lançamento(s) · ${pc(parte(c.total))} do que saiu</div>
+        </div>
+        <div class="v"><b>${brl(c.total)}</b></div>
+      </div>`;
+    }).join('')}
+
+    ${transf.length ? `<div class="cb" style="border-top:1px solid var(--line);
+        color:var(--dim);font-size:12.5px;line-height:1.6">
+      ${transf.length} lançamento(s) em categoria de transferência (${brl(soma(transf))})
+      ficam fora destas somas — PIX entre contas suas e pagamento de fatura só mudam
+      o dinheiro de lugar, e contá-los inflaria os dois lados.</div>` : ''}
+  </div>`;
+}
+
+/* Trocar a categoria de uma linha não pode repintar a tela inteira:
+   a prévia tem centenas de linhas e o usuário perderia a rolagem no
+   meio da conferência. Redesenha só o bloco do resumo. */
+function finRedesenhaDash() {
+  const alvo = document.getElementById('fdash');
+  if (alvo && fin.imp) alvo.outerHTML = finDashImport(fin.imp.itens || []);
+}
+
 R.finImportar = {
   label:'Mandar extrato', curto:'Importar', icone:'down', titulo:'Mandar o extrato',
   async dados() {
@@ -5838,16 +7226,25 @@ R.finImportar = {
             <div class="l">Período</div></div>
         </div>
 
+        ${finDashImport(itens)}
+
         <div class="card">
           <div class="ch"><h3>Confira antes de gravar</h3>
             <div class="push">
               <button class="btn sm ghost" data-act="marcar-todos">Marcar todos</button>
               <button class="btn sm ghost" data-act="desmarcar-dups">Desmarcar repetidos</button>
               <button class="btn" data-act="gravar">${ico('check',15)}Importar ${novos.length}</button></div></div>
+          ${imp.soSem ? `<div class="cb" style="border-bottom:1px solid var(--line);
+            color:var(--txt2);font-size:12.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            ${ico('filter',14)} Mostrando só o que ficou sem categoria.
+            <button class="btn sm ghost" data-act="so-sem" style="margin-left:auto">Ver todos</button></div>` : ''}
           <div class="t-scroll fprev"><table><thead><tr>
             <th style="width:34px"></th><th>Data</th><th>Descrição</th>
             <th style="min-width:170px">Categoria</th><th class="num">Valor</th></tr></thead><tbody>
-            ${itens.map((i, n) => `<tr class="${i.usar ? '' : 'fora'}">
+            ${itens.map((i, n) => ({ i, n }))
+              .filter(({ i }) => !imp.soSem
+                || !i.categoria_id || finNomeCat(i.categoria_id) === 'Sem categoria')
+              .map(({ i, n }) => `<tr class="${i.usar ? '' : 'fora'}">
               <td><input type="checkbox" data-act="p-usar" data-i="${n}"${i.usar ? ' checked' : ''}></td>
               <td class="mut">${dtl(i.data)}</td>
               <td>${esc(i.descricao)}${i.duplicado ? ' <span class="pill dim">já importado</span>' : ''}</td>
@@ -5886,8 +7283,10 @@ R.finImportar = {
     anopdf(el)   { fin.imp.mapa.ano = Number(el.value) || fin.imp.mapa.ano; finRemontaPDF(); },
     inverterpdf(el) { fin.imp.inverter = el.checked; finRemontaPDF(); },
     'p-usar'(el) { fin.imp.itens[+el.dataset.i].usar = el.checked;
-      el.closest('tr').classList.toggle('fora', !el.checked); },
-    'p-cat'(el)  { fin.imp.itens[+el.dataset.i].categoria_id = el.value || null; },
+      el.closest('tr').classList.toggle('fora', !el.checked); finRedesenhaDash(); },
+    'p-cat'(el)  { fin.imp.itens[+el.dataset.i].categoria_id = el.value || null;
+      finRedesenhaDash(); },
+    'so-sem'()   { fin.imp.soSem = !fin.imp.soSem; pinta(); },
     'marcar-todos'() { fin.imp.itens.forEach(i => i.usar = true); pinta(); },
     'desmarcar-dups'() { fin.imp.itens.forEach(i => { if (i.duplicado) i.usar = false; }); pinta(); },
     async gravar(b) {
@@ -5907,6 +7306,19 @@ R.finImportar = {
         if (error) { toast(error.message, { tipo:'bad' }); b.disabled = false; return; }
         gravadas += Math.min(200, linhas.length - i);
       }
+      /* O que acabou de entrar, guardado para o painel abrir dizendo
+         o que mudou. Sem isso a pessoa cai numa tela cheia de números
+         sem saber quais são os do arquivo que ela mandou agora. */
+      const usados = imp.itens.filter(i => i.usar);
+      const datas = usados.map(i => i.data).sort();
+      fin.ultimo = {
+        n: gravadas,
+        arquivo: imp.nome,
+        de: datas[0], ate: datas[datas.length - 1],
+        cats: new Set(usados.filter(i => i.valor < 0).map(i => i.categoria_id || 'sem')).size,
+        semCat: usados.filter(i => !i.categoria_id
+          || finNomeCat(i.categoria_id) === 'Sem categoria').length
+      };
       fin.imp = null;
       fin.mes = linhas[0].data.slice(0, 7);
       toast(`${gravadas} lançamento(s) importado(s).`);
@@ -6345,10 +7757,17 @@ function popover(ancora, html, classe = '') {
   p.className = 'pop ' + classe; p.innerHTML = html;
   document.body.appendChild(p);
   const r = ancora.getBoundingClientRect();
-  p.style.top = (r.bottom + 8) + 'px';
   p.style.left = Math.max(10, Math.min(r.right - p.offsetWidth, innerWidth - p.offsetWidth - 10)) + 'px';
-  const fora = e => { if (!p.contains(e.target) && !ancora.contains(e.target)) { p.remove(); document.removeEventListener('mousedown', fora); } };
-  setTimeout(() => document.addEventListener('mousedown', fora), 0);
+  /* No celular a lista costuma abrir perto do rodapé e ficava metade
+     fora da tela. Se não couber abaixo da âncora, abre acima dela. */
+  const alt = p.offsetHeight;
+  p.style.top = (r.bottom + 8 + alt > innerHeight - 10 && r.top - alt - 8 > 10
+    ? r.top - alt - 8
+    : Math.min(r.bottom + 8, Math.max(10, innerHeight - alt - 10))) + 'px';
+  /* pointerdown e não mousedown: no toque o mousedown só chega
+     depois do toque terminar, e o menu demorava a fechar. */
+  const fora = e => { if (!p.contains(e.target) && !ancora.contains(e.target)) { p.remove(); document.removeEventListener('pointerdown', fora); } };
+  setTimeout(() => document.addEventListener('pointerdown', fora), 0);
   return p;
 }
 
@@ -6449,6 +7868,20 @@ function trocaModoHTML() {
     ${ico('arrowR', 14)}</button>`;
 }
 
+/* Mesmo 900px do CSS. Num lugar só: se um dia mudar o corte, muda
+   aqui e no @media, e não em cinco `innerWidth <= 900` espalhados. */
+const telaEstreita = () => innerWidth <= 900;
+
+/* Abre e fecha o menu no celular. Trava a rolagem do fundo enquanto
+   está aberto — sem isso o dedo arrasta a página atrás da gaveta e
+   a pessoa perde o lugar onde estava. */
+function gaveta(abrir) {
+  const app = $('#app'); if (!app) return;
+  const v = abrir === undefined ? !app.classList.contains('open') : !!abrir;
+  app.classList.toggle('open', v);
+  document.body.style.overflow = v ? 'hidden' : '';
+}
+
 function montaShell() {
   /* O modo é derivado da rota, sempre, e num lugar só. Assim não
      existe caminho — Ctrl+K, atalho de teclado, botão voltar do
@@ -6478,11 +7911,12 @@ function montaShell() {
         <button class="ib" id="tema">${ico(pref.theme === 'dark' ? 'sun' : 'moon', 18)}</button>
       </div>
       <div class="wrap" id="view"></div>
-    </main></div>`;
+    </main>
+    <div class="scrim" id="scrim"></div></div>`;
 
   $$('[data-r]').forEach(a => a.onclick = e => {
     e.preventDefault(); vai(a.dataset.r, a.dataset.a || null);
-    if (innerWidth <= 900) $('#app').classList.remove('open');
+    gaveta(false);
   });
   $$('[data-grupo]').forEach(b => b.onclick = () => {
     const id = b.dataset.grupo, i = pref.abertos.indexOf(id);
@@ -6491,9 +7925,13 @@ function montaShell() {
     b.classList.toggle('aberto'); b.nextElementSibling.classList.toggle('aberto');
   });
   $('#tgl').onclick = () => {
-    if (innerWidth <= 900) $('#app').classList.toggle('open');
+    if (telaEstreita()) gaveta();
     else { pref.mini = !pref.mini; savePref(); $('#app').classList.toggle('mini'); }
   };
+  $('#scrim').onclick = () => gaveta(false);
+  /* Girar o aparelho com a gaveta aberta deixava a trava de rolagem
+     ligada numa tela que já é de desktop. */
+  addEventListener('resize', () => { if (!telaEstreita()) gaveta(false); });
   $('#modo').onclick = () => trocaModo(pref.modo === 'empresa' ? 'pessoal' : 'empresa');
   $('#busca').onclick = palette;
   $('#sino').onclick = e => notificacoes(e.currentTarget);
@@ -6583,7 +8021,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'n') { e.preventDefault(); formAcao(); }
   else if (k === 'r') { e.preventDefault(); recarregaBase().then(pinta); toast('Atualizado.', { tipo:'info' }); }
   else if (e.key === '?') { e.preventDefault(); abaCfg = 'atalhos'; vai('config'); }
-  else if (e.key === 'Escape') { $$('.pop').forEach(p => p.remove()); }
+  else if (e.key === 'Escape') { $$('.pop').forEach(p => p.remove()); gaveta(false); }
 });
 function leHash() {
   const h = decodeURIComponent(location.hash.slice(1));
