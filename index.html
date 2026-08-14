@@ -1207,6 +1207,33 @@ const vazio = (icone, titulo, texto, botao) => `<div class="empty">
   <div class="ic">${ico(icone, 22)}</div><h4>${esc(titulo)}</h4><p>${esc(texto)}</p>
   ${botao ? `<button class="btn" data-act="${botao.act}">${ico('plus',15)}${esc(botao.label)}</button>` : ''}</div>`;
 
+/* ── Aviso de tabela faltando ─────────────────────────────────────
+   Uma tela nova depende de tabela que só existe depois de alguém
+   rodar o SQL. Em vez de quebrar com erro do PostgREST, ela mostra
+   isto — com os dois links que economizam a procura: o SQL Editor
+   já apontado para o projeto certo (o ref sai do próprio config.js,
+   então isto funciona em qualquer projeto) e o arquivo para copiar. */
+const REPO_SQL = 'https://raw.githubusercontent.com/phill-jr/masterinfo-gestao/main/sql/vendedores-tudo.sql';
+
+function avisoSql(oQueFalta) {   // frase completa, para concordar em número
+  let editor = 'https://supabase.com/dashboard/projects';
+  try {
+    const ref = new URL(window.MI_CONFIG.url).hostname.split('.')[0];
+    if (ref) editor = `https://supabase.com/dashboard/project/${ref}/sql/new`;
+  } catch {}
+  return `<div class="card"><div class="cb">
+    <div class="err" style="display:block">${oQueFalta}</div>
+    <p style="color:var(--txt2);font-size:13.5px;line-height:1.6;margin:12px 0">
+      Falta rodar o SQL do módulo — uma vez só, e vale para as duas telas.
+      Abra o SQL Editor, cole o arquivo inteiro, clique em <b>Run</b> e recarregue aqui.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" href="${editor}" target="_blank" rel="noopener">${ico('db',15)}Abrir o SQL Editor</a>
+      <a class="btn ghost" href="${REPO_SQL}" target="_blank" rel="noopener">${ico('copy',15)}Abrir o SQL para copiar</a>
+    </div>
+    <div class="sm2" style="margin-top:10px">Arquivo: <b>sql/vendedores-tudo.sql</b> — pode ser rodado de novo sem duplicar nada.</div>
+  </div></div>`;
+}
+
 /* ───────────────────────── INÍCIO ───────────────────────── */
 R.inicio = {
   label: 'Início', icone: 'grid', titulo: 'Dashboard',
@@ -3368,10 +3395,7 @@ R.dicionario = {
   render({ termos, lacunas }) {
     if (termos === null) return `<div class="head"><div><h2>Dicionário da Casa</h2>
         <div class="sub">O vocabulário interno da empresa, escrito uma vez.</div></div></div>
-      <div class="card"><div class="cb"><div class="err" style="display:block">
-        A tabela <b>vd_termos</b> ainda não existe neste banco.<br>
-        Rode <b>sql/vendedores-01-dicionario.sql</b> no SQL Editor do Supabase e recarregue esta tela.
-      </div></div></div>`;
+      ${avisoSql('A tabela <b>vd_termos</b> ainda não existe neste banco.')}`;
 
     const f = R.dicionario.filtro;
     const termo = f.busca.trim().toLowerCase();
@@ -3581,10 +3605,7 @@ R.onboarding = {
   render({ trilhas, etapas, progresso, pops, fluxos }) {
     if (trilhas === null) return `<div class="head"><div><h2>Onboarding</h2>
         <div class="sub">Trilha, POPs e fluxos — por setor.</div></div></div>
-      <div class="card"><div class="cb"><div class="err" style="display:block">
-        As tabelas do onboarding ainda não existem neste banco.<br>
-        Rode <b>sql/vendedores-02-onboarding.sql</b> no SQL Editor do Supabase e recarregue esta tela.
-      </div></div></div>`;
+      ${avisoSql('As tabelas do onboarding ainda não existem neste banco.')}`;
 
     const f = R.onboarding.filtro;
     /* Registro sem setor vale para a empresa inteira — por isso ele
