@@ -470,6 +470,34 @@ tr:hover td.act .btn{opacity:1}
 .quadro{width:100%;height:min(76vh,900px);border:1px solid var(--line);border-radius:var(--r-lg);
   background:#fff;display:block}
 
+/* ── passo a passo (aula e prova) ─────────────────────────────
+   Uma coisa por tela, com "passo N de M" e barra no topo. A prova
+   inteira numa página só convidava a varrer as alternativas de cima
+   a baixo procurando a que parece certa; uma questão por vez faz a
+   pessoa ler a pergunta. Vale para a aula pelo mesmo motivo: o que
+   está na tela é o que ela tem para fazer agora. */
+.wz{max-width:var(--wzw,640px);margin:0 auto 20px}
+.wzh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  font-size:12.5px;color:var(--dim);margin-bottom:9px}
+.wzh b{color:var(--txt);font-weight:600}
+.wzc{max-width:var(--wzw,640px);margin:0 auto}
+.wznav{display:flex;align-items:center;gap:10px;margin-top:22px;flex-wrap:wrap}
+.wznav .fim{margin-left:auto}
+/* botão de texto: "pular" não pode competir com o avançar */
+.lnk{font-size:12.5px;color:var(--dim);text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer;transition:color .13s}
+.lnk:hover{color:var(--ac)}
+
+/* revisão antes de entregar */
+.rev{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);
+  cursor:pointer;transition:background .13s;width:100%;text-align:left}
+.rev:last-of-type{border-bottom:0}
+.rev:hover{background:var(--surface2)}
+.rev .n{width:24px;height:24px;border-radius:7px;flex:none;display:grid;place-items:center;
+  background:var(--surface3);color:var(--dim);font-size:11.5px;font-weight:700}
+.rev.ok .n{background:var(--ac-bg);color:var(--ac)}
+.rev .q{flex:1;min-width:0;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* prova */
 .qz{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
   padding:18px 20px;margin-bottom:14px}
@@ -489,18 +517,20 @@ tr:hover td.act .btn{opacity:1}
 .alt.errada{border-color:var(--bad);background:var(--bad-bg)}
 .qz .expl{margin-top:12px;padding:11px 13px;background:var(--surface2);border-radius:var(--r);
   font-size:12.5px;color:var(--txt2);line-height:1.55;border-left:3px solid var(--info)}
-.nota{display:flex;align-items:center;gap:18px;padding:22px;border-radius:var(--r-lg);margin-bottom:20px;
+/* `placar` e não `nota`: o bloco de anotações já usa `.nota` lá embaixo,
+   e as duas classes se atropelavam nos dois sentidos. */
+.placar{display:flex;align-items:center;gap:18px;padding:22px;border-radius:var(--r-lg);margin-bottom:20px;
   border:1px solid var(--line);background:var(--surface)}
-.nota .big{font-family:"Inter Tight";font-size:46px;font-weight:700;letter-spacing:-.04em;line-height:1}
-.nota.ok{background:linear-gradient(120deg,var(--ok-bg),transparent 60%);border-color:var(--ok)}
-.nota.ok .big{color:var(--ok)}
-.nota.nao{background:linear-gradient(120deg,var(--bad-bg),transparent 60%);border-color:var(--bad)}
-.nota.nao .big{color:var(--bad)}
+.placar .big{font-family:"Inter Tight";font-size:46px;font-weight:700;letter-spacing:-.04em;line-height:1}
+.placar.ok{background:linear-gradient(120deg,var(--ok-bg),transparent 60%);border-color:var(--ok)}
+.placar.ok .big{color:var(--ok)}
+.placar.nao{background:linear-gradient(120deg,var(--bad-bg),transparent 60%);border-color:var(--bad)}
+.placar.nao .big{color:var(--bad)}
 
 @media(max-width:640px){
   .setores{grid-template-columns:1fr}
   .quadro{height:70vh}
-  .nota{flex-direction:column;text-align:center;gap:10px}
+  .placar{flex-direction:column;text-align:center;gap:10px}
 }
 
 /* formulários */
@@ -3403,7 +3433,7 @@ function md(txt) {
 
 /* ── estado da navegação interna ─────────────────────────────────── */
 let onbSel = null, onbAula = null, onbProva = null;
-let onbResp = {}, onbResultado = null, onbOrdem = null;
+let onbResp = {}, onbResultado = null, onbOrdem = null, onbQz = 0;
 let treinSel = null, treinSetor = '';
 
 const onbDur = m => !m ? '' : m >= 60
@@ -3413,7 +3443,7 @@ const onbDur = m => !m ? '' : m >= 60
    trilha mostra a prova antiga por um frame. */
 function onbVolta(nivel) {
   if (nivel === 'hub')    { onbSel = null; }
-  if (nivel !== 'prova')  { onbProva = null; onbResp = {}; onbResultado = null; onbOrdem = null; }
+  if (nivel !== 'prova')  { onbProva = null; onbResp = {}; onbResultado = null; onbOrdem = null; onbQz = 0; }
   if (nivel === 'hub' || nivel === 'trilha') onbAula = null;
   pinta();
 }
@@ -3510,7 +3540,8 @@ R.onbTrilhas = {
     /* navegação */
     abrir(b)   { onbSel = b.dataset.id; onbAula = null; onbProva = null; pinta(); },
     aula(b)    { onbAula = b.dataset.id; onbProva = null; pinta(); },
-    prova(b)   { onbProva = b.dataset.id; onbAula = null; onbResp = {}; onbResultado = null; onbOrdem = null; pinta(); },
+    prova(b)   { onbProva = b.dataset.id; onbAula = null;
+                 onbResp = {}; onbResultado = null; onbOrdem = null; onbQz = 0; pinta(); },
     'volta-hub'()    { onbVolta('hub'); },
     'volta-trilha'() { onbVolta('trilha'); },
 
@@ -3534,12 +3565,19 @@ R.onbTrilhas = {
       pinta();
     },
 
-    /* prova */
+    /* prova — uma questão por tela, revisão no fim */
+    /* Marcar não redesenha a tela: só troca as classes e destrava o
+       avançar. Redesenhar faria a página piscar e voltar ao topo a
+       cada clique numa alternativa. */
     alt(b) {
       onbResp[b.dataset.q] = b.dataset.a;
       b.parentElement.querySelectorAll('.alt').forEach(x => x.classList.toggle('on', x === b));
-      const n = $('#qzn'); if (n) n.textContent = Object.keys(onbResp).length;
+      const av = $('#wzAv'); if (av) av.disabled = false;
     },
+    'qz-avanca'() { onbQz++; pinta(); },
+    'qz-volta'()  { onbQz = Math.max(0, onbQz - 1); pinta(); },
+    'qz-pula'()   { onbQz++; pinta(); },
+    'qz-ir'(b)    { onbQz = Number(b.dataset.i); pinta(); },
     enviar(b) {
       const faltam = Number(b.dataset.total) - Object.keys(onbResp).length;
       if (faltam > 0) {
@@ -3549,7 +3587,7 @@ R.onbTrilhas = {
       }
       onbEnviaProva();
     },
-    refazer() { onbResp = {}; onbResultado = null; onbOrdem = null; pinta(); },
+    refazer() { onbResp = {}; onbResultado = null; onbOrdem = null; onbQz = 0; pinta(); },
 
     /* edição */
     'nova-trilha'()  { formTrilha(); },
@@ -3744,6 +3782,32 @@ function onbTelaTrilha({ t, modulos, aulas, provas, mat, feitas, tents }) {
   const finais = provas.filter(p => !p.modulo_id);
   const pct = mat ? mat.pct : 0;
 
+  /* Fechou a trilha: o resumo vem antes da lista de módulos. Quem
+     terminou não quer rolar 30 aulas para descobrir que terminou. */
+  const conclusao = mat?.status === 'concluida' ? (() => {
+    const itens = [
+      ...modulos.map(m => {
+        const dele = aulas.filter(a => a.modulo_id === m.id && a.obrigatoria !== false);
+        return { lb: m.titulo, ok: dele.length > 0 && dele.every(a => feitas.has(a.id)),
+                 vazio: dele.length === 0 };
+      }).filter(x => !x.vazio),
+      ...provas.map(p => ({ lb: p.titulo, ok: !!melhor[p.id]?.aprovado }))
+    ];
+    return `<div class="placar ok">
+        <div class="big" style="display:flex;align-items:center">${ico('medal', 40)}</div>
+        <div style="flex:1">
+          <h3 style="font-size:17px;margin-bottom:4px">Trilha concluída${
+            eu?.nome ? `, ${esc(eu.nome.split(' ')[0])}` : ''}!</h3>
+          <div class="sm2">${mat.aulas_feitas} de ${mat.aulas_total} aulas obrigatórias${
+            mat.provas_total ? ` · ${mat.provas_ok} de ${mat.provas_total} provas aprovadas` : ''}${
+            mat.concluida_em ? ` · em ${dtl(mat.concluida_em)}` : ''}</div></div></div>
+      <div class="card"><div class="ch"><h3>O que você fez</h3>
+        <div class="push"><span class="sm2">${itens.filter(x => x.ok).length} de ${itens.length}</span></div></div>
+        ${itens.map(x => `<div class="rev ${x.ok ? 'ok' : ''}" style="cursor:default">
+          <span class="n">${x.ok ? ico('check', 12) : '·'}</span>
+          <span class="q">${esc(x.lb)}</span></div>`).join('')}</div>`;
+  })() : '';
+
   return `<div class="volta" data-act="volta-hub">${ico('arrowL',14)}Todas as trilhas</div>
     <div class="head">
       <div><h2>${esc(t.nome)}</h2>
@@ -3775,6 +3839,8 @@ function onbTelaTrilha({ t, modulos, aulas, provas, mat, feitas, tents }) {
       : `<div class="sm2" style="max-width:230px">Você ainda não começou esta trilha.
           Clicar em <b>Começar</b> abre sua matrícula e passa a registrar o progresso.</div>`}
     </div></div>
+
+    ${conclusao}
 
     ${modulos.length ? modulos.map(bloco).join('')
       : `<div class="card">${vazio('book', 'Trilha vazia',
@@ -3813,53 +3879,85 @@ function onbTelaAula({ t, aula, aulas, mat, feitas, trein }) {
            </div></div>${aula.conteudo ? `<div class="doc">${md(aula.conteudo)}</div>` : ''}`
       : `<div class="doc">${md(aula.conteudo) || '<p class="mut">Esta aula ainda não tem conteúdo.</p>'}</div>`;
 
-  return `<div class="volta" data-act="volta-trilha">${ico('arrowL',14)}${esc(t?.nome || 'Voltar')}</div>
-    <div class="head"><div>
-        <h2>${esc(aula.titulo)}</h2>
-        <div class="sub">${esc(aula.resumo || '')}${
-          aula.duracao_min ? `${aula.resumo ? ' · ' : ''}${onbDur(aula.duracao_min)}` : ''}</div></div>
-      <div class="push">
-        <button class="btn ghost" data-act="edit-aula" data-id="${aula.id}">${ico('edit',15)}Editar</button>
-        ${mat
-          ? (ok ? `<button class="btn ghost" data-act="desfazer" data-mat="${mat.id}" data-aula="${aula.id}">
-                     ${ico('check',15)}Concluída — desmarcar</button>`
-                : `<button class="btn" data-act="concluir" data-mat="${mat.id}" data-aula="${aula.id}"
-                     ${prox ? `data-prox="${prox.id}"` : ''}>${ico('check',15)}Concluir${prox ? ' e seguir' : ''}</button>`)
-          : `<button class="btn" data-act="comecar" data-id="${t.id}">${ico('play',15)}Começar a trilha</button>`}
-      </div></div>
-    ${corpo}
-    <div style="display:flex;gap:9px;margin-top:26px;flex-wrap:wrap">
-      ${idx > 0 ? `<button class="btn ghost" data-act="aula" data-id="${aulas[idx-1].id}">
-        ${ico('arrowL',14)}${esc(aulas[idx-1].titulo)}</button>` : ''}
-      ${prox ? `<button class="btn ghost" data-act="aula" data-id="${prox.id}">
-        ${esc(prox.titulo)}${ico('arrowR',14)}</button>` : ''}</div>`;
+  /* A aula é larga porque o treinamento em HTML vem inteiro dentro
+     dela; a prova é estreita porque é só texto e alternativa. Mesmo
+     padrão de passos, largura diferente. */
+  return `<div style="--wzw:900px">
+    <div class="volta" data-act="volta-trilha">${ico('arrowL',14)}${esc(t?.nome || 'Voltar')}</div>
+    <div class="wz">
+      <div class="wzh"><span>Aula <b>${idx + 1}</b> de ${aulas.length}</span>
+        <span>${feitas.size} concluída${feitas.size === 1 ? '' : 's'}</span></div>
+      <div class="bar"><i style="width:${Math.round((idx + 1) / aulas.length * 100)}%"></i></div></div>
+    <div class="wzc">
+      <div class="head" style="margin-bottom:18px"><div>
+          <h2>${esc(aula.titulo)}</h2>
+          <div class="sub">${esc(aula.resumo || '')}${
+            aula.duracao_min ? `${aula.resumo ? ' · ' : ''}${onbDur(aula.duracao_min)}` : ''}${
+            aula.obrigatoria === false ? ' · opcional' : ''}</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="edit-aula" data-id="${aula.id}">${ico('edit',15)}Editar</button>
+        </div></div>
+      ${corpo}
+      <div class="wznav">
+        ${idx > 0 ? `<button class="btn ghost" data-act="aula" data-id="${aulas[idx-1].id}"
+          title="${esc(aulas[idx-1].titulo)}">${ico('arrowL',14)}Voltar</button>` : ''}
+        ${ok && prox ? `<span class="lnk" data-act="aula" data-id="${prox.id}">Seguir sem marcar de novo</span>` : ''}
+        <div class="fim" style="display:flex;gap:9px;flex-wrap:wrap">
+          ${!mat
+            ? `<button class="btn" data-act="comecar" data-id="${t.id}">${ico('play',15)}Começar a trilha</button>`
+            : ok
+              ? `<button class="btn ghost" data-act="desfazer" data-mat="${mat.id}" data-aula="${aula.id}">
+                   ${ico('check',15)}Concluída — desmarcar</button>
+                 ${prox ? `<button class="btn" data-act="aula" data-id="${prox.id}">
+                   Próxima aula${ico('arrowR',14)}</button>` : ''}`
+              : `<button class="btn" data-act="concluir" data-mat="${mat.id}" data-aula="${aula.id}"
+                   ${prox ? `data-prox="${prox.id}"` : ''}>${ico('check',15)}Concluir${prox ? ' e seguir' : ''}</button>`}
+        </div></div>
+      ${prox ? `<div class="sm2" style="text-align:center;margin-top:14px">A seguir: ${esc(prox.titulo)}</div>`
+             : `<div class="sm2" style="text-align:center;margin-top:14px">Última aula da trilha.</div>`}
+    </div></div>`;
 }
 
 /* ── tela: prova ─────────────────────────────────────────────────── */
 function onbTelaProva({ p, questoes, alts, tents }) {
   if (!p) return `<div class="card">${vazio('alert', 'Prova não encontrada', 'Volte e escolha de novo.')}</div>`;
 
-  const volta = `<div class="volta" data-act="volta-trilha">${ico('arrowL',14)}Voltar para a trilha</div>`;
+  const volta = `<div class="wzc"><div class="volta" data-act="volta-trilha">
+    ${ico('arrowL',14)}Voltar para a trilha</div></div>`;
 
   if (onbResultado) {
     const r = onbResultado;
     const podeRefazer = p.tentativas_max === 0 || tents.length + 1 < p.tentativas_max;
     return `${volta}
-      <div class="nota ${r.aprovado ? 'ok' : 'nao'}">
-        <div class="big">${r.nota}%</div>
-        <div style="flex:1">
-          <h3 style="font-size:17px;margin-bottom:4px">${r.aprovado ? 'Aprovado' : 'Não passou desta vez'}</h3>
-          <div class="sm2">${r.acertos} de ${r.total} questões · nota de corte ${r.nota_corte}%</div></div>
-        ${!r.aprovado && podeRefazer
-          ? `<button class="btn" data-act="refazer">${ico('refresh',15)}Refazer</button>`
-          : !r.aprovado ? `<span class="pill warn">${ico('lock',11)} sem tentativa</span>` : ''}</div>
-      ${r.gabarito.map((g, i) => `<div class="qz">
-        <div class="qn">Questão ${i + 1} · ${g.acertou ? 'certa' : 'errada'}</div>
-        <div class="qe">${esc(g.enunciado)}</div>
-        <div class="alt ${g.acertou ? 'certa' : 'errada'}" style="cursor:default">
-          <span class="rd" style="border-color:currentColor"></span>
-          <div>${g.acertou ? 'Você acertou' : `Resposta certa: <b>${esc(g.correta_txt || '—')}</b>`}</div></div>
-        ${g.explicacao ? `<div class="expl">${esc(g.explicacao)}</div>` : ''}</div>`).join('')}`;
+      <div class="wzc">
+        <div class="placar ${r.aprovado ? 'ok' : 'nao'}">
+          <div class="big">${r.nota}%</div>
+          <div style="flex:1">
+            <h3 style="font-size:17px;margin-bottom:4px">${r.aprovado ? 'Aprovado' : 'Não passou desta vez'}</h3>
+            <div class="sm2">${r.acertos} de ${r.total} questões · nota de corte ${r.nota_corte}%</div></div>
+          ${!r.aprovado && podeRefazer
+            ? `<button class="btn" data-act="refazer">${ico('refresh',15)}Refazer</button>`
+            : !r.aprovado ? `<span class="pill warn">${ico('lock',11)} sem tentativa</span>` : ''}</div>
+
+        <div class="card"><div class="ch"><h3>O que você acertou</h3>
+          <div class="push"><span class="sm2">${r.acertos} de ${r.total}</span></div></div>
+          ${r.gabarito.map((g, i) => `<div class="rev ${g.acertou ? 'ok' : ''}" style="cursor:default">
+            <span class="n" ${g.acertou ? '' : 'style="background:var(--bad-bg);color:var(--bad)"'}>${
+              g.acertou ? ico('check', 12) : i + 1}</span>
+            <span class="q" title="${esc(g.enunciado)}">${esc(g.enunciado)}</span></div>`).join('')}</div>
+
+        <h3 style="font-size:15px;margin:26px 0 12px">A correção, questão por questão</h3>
+        ${r.gabarito.map((g, i) => `<div class="qz">
+          <div class="qn">Questão ${i + 1} · ${g.acertou ? 'certa' : 'errada'}</div>
+          <div class="qe">${esc(g.enunciado)}</div>
+          <div class="alt ${g.acertou ? 'certa' : 'errada'}" style="cursor:default">
+            <span class="rd" style="border-color:currentColor"></span>
+            <div>${g.acertou ? 'Você acertou' : `Resposta certa: <b>${esc(g.correta_txt || '—')}</b>`}</div></div>
+          ${g.explicacao ? `<div class="expl">${esc(g.explicacao)}</div>` : ''}</div>`).join('')}
+
+        <div class="wznav"><button class="btn ghost" data-act="volta-trilha">
+          ${ico('arrowL',14)}Voltar para a trilha</button></div>
+      </div>`;
   }
 
   const usadas  = tents.length;
@@ -3875,36 +3973,73 @@ function onbTelaProva({ p, questoes, alts, tents }) {
   const ordemQ = onbOrdem?.q || questoes.map(x => x.id);
   const lista  = ordemQ.map(id => questoes.find(x => x.id === id)).filter(Boolean);
 
-  return `${volta}
-    <div class="head"><div><h2>${esc(p.titulo)}</h2>
-        <div class="sub">${esc(p.descricao || '')}</div></div></div>
-    <div class="card"><div class="cb" style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">
-      <div><div class="sm2">Questões</div><div style="font-weight:600">${lista.length}</div></div>
-      <div><div class="sm2">Nota de corte</div><div style="font-weight:600">${p.nota_corte}%</div></div>
-      <div><div class="sm2">Tentativas</div><div style="font-weight:600">${
-        p.tentativas_max ? `${usadas} de ${p.tentativas_max}` : `${usadas} · ilimitadas`}</div></div>
-      ${melhor ? `<div><div class="sm2">Melhor nota</div>
-        <div style="font-weight:600;color:var(--${melhor.aprovado ? 'ok' : 'bad'})">${melhor.nota}%</div></div>` : ''}
-      <div style="flex:1"></div>
-      <div class="sm2">Respondidas: <b id="qzn">0</b> de ${lista.length}</div>
-    </div></div>
+  if (!lista.length) {
+    return `${volta}<div class="card">${vazio('grid', 'Prova sem questões',
+      'Cadastre as questões antes de aplicar esta prova.')}</div>`;
+  }
 
-    ${lista.map((qq, i) => {
-      const ord = onbOrdem?.a[qq.id] || (porQ[qq.id] || []).map(a => a.id);
-      return `<div class="qz">
-        <div class="qn">Questão ${i + 1}${qq.tipo === 'vf' ? ' · verdadeiro ou falso' : ''}</div>
+  /* Passos = questões + a revisão no fim. A revisão existe porque numa
+     prova de dez questões em dez telas ninguém lembra o que deixou em
+     branco — e questão em branco conta como errada. */
+  const total     = lista.length + 1;
+  const i         = Math.min(Math.max(onbQz, 0), lista.length);
+  const naRevisao = i === lista.length;
+  const respondidas = lista.filter(x => onbResp[x.id]).length;
+
+  /* Piso de 4%: no primeiro passo a barra ficaria zerada e pareceria
+     um pedaço de interface que não carregou. */
+  const topo = rotulo => `<div class="wz">
+    <div class="wzh"><span>Passo <b>${i + 1}</b> de ${total}</span><span>${esc(rotulo)}</span></div>
+    <div class="bar"><i style="width:${Math.max(4, Math.round(i / (total - 1) * 100))}%"></i></div></div>`;
+
+  const cabeca = `${volta}
+    <div class="wzc"><div class="head" style="margin-bottom:18px"><div>
+      <h2 style="font-size:22px">${esc(p.titulo)}</h2>
+      <div class="sub">Nota de corte ${p.nota_corte}% · ${
+        p.tentativas_max ? `tentativa ${usadas + 1} de ${p.tentativas_max}` : 'tentativas ilimitadas'}${
+        melhor ? ` · melhor até aqui ${melhor.nota}%` : ''}</div></div></div></div>`;
+
+  if (naRevisao) {
+    const faltam = lista.length - respondidas;
+    return `${cabeca}${topo('Revisão')}
+      <div class="wzc">
+        <div class="card"><div class="ch"><h3>Confira antes de entregar</h3>
+          <div class="push"><span class="pill ${faltam ? 'warn' : 'ok'}">${
+            faltam ? `${faltam} em branco` : 'tudo respondido'}</span></div></div>
+          ${lista.map((qq, n) => `<button class="rev ${onbResp[qq.id] ? 'ok' : ''}" data-act="qz-ir" data-i="${n}">
+            <span class="n">${onbResp[qq.id] ? ico('check', 12) : n + 1}</span>
+            <span class="q">${esc(qq.enunciado)}</span>
+            ${onbResp[qq.id] ? '' : '<span class="pill warn">em branco</span>'}
+            <span style="color:var(--dim);display:flex">${ico('chevron', 15)}</span></button>`).join('')}</div>
+        ${faltam ? `<div class="sm2" style="margin:-6px 0 16px">Questão em branco conta como errada.
+          Clique em qualquer linha acima para voltar nela.</div>` : ''}
+        <div class="wznav">
+          <button class="btn ghost" data-act="qz-volta">${ico('arrowL',14)}Voltar</button>
+          <button class="btn fim" data-act="enviar" data-total="${lista.length}">
+            ${ico('check',15)}Entregar a prova</button></div></div>`;
+  }
+
+  const qq  = lista[i];
+  const ord = onbOrdem?.a[qq.id] || (porQ[qq.id] || []).map(a => a.id);
+  const marcada = onbResp[qq.id];
+
+  return `${cabeca}${topo(`Questão ${i + 1} de ${lista.length}`)}
+    <div class="wzc">
+      <div class="qz">
+        <div class="qn">${qq.tipo === 'vf' ? 'Verdadeiro ou falso' : 'Múltipla escolha'}</div>
         <div class="qe">${esc(qq.enunciado)}</div>
         <div>${ord.map(aid => {
           const a = (porQ[qq.id] || []).find(x => x.id === aid); if (!a) return '';
-          return `<div class="alt" data-act="alt" data-q="${qq.id}" data-a="${a.id}">
+          return `<div class="alt ${marcada === a.id ? 'on' : ''}" data-act="alt" data-q="${qq.id}" data-a="${a.id}">
             <span class="rd"></span><div>${esc(a.texto)}</div></div>`;
-        }).join('')}</div></div>`;
-    }).join('')}
-
-    ${lista.length
-      ? `<button class="btn" data-act="enviar" data-total="${lista.length}">${ico('check',15)}Entregar a prova</button>`
-      : `<div class="card">${vazio('grid', 'Prova sem questões',
-          'Cadastre as questões antes de aplicar esta prova.')}</div>`}`;
+        }).join('')}</div></div>
+      <div class="wznav">
+        ${i > 0 ? `<button class="btn ghost" data-act="qz-volta">${ico('arrowL',14)}Voltar</button>` : ''}
+        <span class="lnk" data-act="qz-pula">Pular por enquanto</span>
+        <button class="btn fim" id="wzAv" data-act="qz-avanca" ${marcada ? '' : 'disabled'}>
+          ${i === lista.length - 1 ? 'Revisar' : 'Avançar'}${ico('arrowR',14)}</button></div>
+      <div class="sm2" style="text-align:center;margin-top:14px">${respondidas} de ${lista.length} respondidas</div>
+    </div>`;
 }
 
 /* ── formulários de edição ───────────────────────────────────────── */
