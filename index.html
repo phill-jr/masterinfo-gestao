@@ -841,6 +841,21 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .semana .k .m{font-size:11px;color:var(--dim);margin-top:3px}
 .semana .livre{text-align:center;color:var(--dim);font-size:12px;padding:18px 6px;opacity:.6}
 @media(max-width:900px){.semana{grid-template-columns:repeat(7,minmax(150px,1fr))}}
+/* Blocos do checklist: o mesmo cartão da rotina, mas com o quadradinho
+   de marcar na frente — dá para fechar o dia sem sair da semana. */
+.semana .k.tarefa{display:flex;gap:8px;align-items:flex-start;cursor:pointer}
+.semana .k.tarefa .g{flex:1;min-width:0}
+.semana .k.tarefa .tick{margin-top:1px}
+.semana .k.tarefa.pt:hover{border-color:var(--pt)}
+.semana .k.feito{opacity:.55}
+.semana .k.feito .t{text-decoration:line-through;color:var(--dim)}
+.semana .k.prev{border-style:dashed;background:transparent;opacity:.75}
+.semana .col .btn.bl{width:100%;justify-content:center;margin-top:5px}
+/* Editar/excluir só aparecem no item apontado: a fila do dia é para
+   ler de cima para baixo, não para encarar seis botões por linha. */
+.tl-act{display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.tl-item:hover .tl-act,.tl-act:focus-within{opacity:1}
+@media(hover:none){.tl-act{opacity:1}}
 
 /* ── gestão pessoal ──────────────────────────────────────────── */
 .fz{border:1.5px dashed var(--line2);border-radius:var(--r-lg);padding:38px 18px;text-align:center;
@@ -1257,6 +1272,15 @@ async function conta(tab, col, id) {
   const { count } = await sb.from(tab).select('id', { count: 'exact', head: true }).eq(col, id);
   return count || 0;
 }
+/* Mesma ideia com filtro livre: conta no banco em vez de baixar as
+   linhas para medir o tamanho da lista — que é como o limite de mil
+   linhas do PostgREST vira número errado sem avisar. */
+async function contaOnde(tab, build) {
+  let s = sb.from(tab).select('id', { count: 'exact', head: true });
+  if (build) s = build(s);
+  const { count } = await s;
+  return count || 0;
+}
 /* "Meta Ads" → "Meta Ads (cópia)" → "Meta Ads (cópia 2)"… */
 function nomeLivre(base, usados) {
   let n = `${base} (cópia)`, i = 2;
@@ -1434,9 +1458,9 @@ const R = {};
 const NAV_EMPRESA = [
   { tipo:'item',  r:'inicio' },
   { tipo:'grupo', id:'comercial', label:'Comercial', icone:'money',
-    itens:['acoes', 'agenda', 'metas', 'campanhas'] },
+    itens:['acoes', 'agenda', 'metas', 'campanhas', 'canais', 'bitrix'] },
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
-    itens:['acoes', 'campanhas', 'producao', 'metas', 'financeiro', 'agenda'] },
+    itens:['acoes', 'campanhas', 'canais', 'producao', 'metas', 'financeiro', 'agenda'] },
   { tipo:'grupo', id:'onboarding', label:'Onboarding', icone:'book', semArea:true,
     itens:['onbTrilhas', 'onbMinha', 'onbAcompanhar', 'treinamentos'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
@@ -1632,12 +1656,14 @@ R.inicio = {
 };
 
 /* Tarefa pontual: nasce com prazo de hoje e sem recorrência. É o que
-   apareceu agora e não faz parte da rotina — por isso vem separada. */
-function formPontual() {
+   apareceu agora e não faz parte da rotina — por isso vem separada.
+   Quando nasce de um bloco da semana, já chega com o dia daquele
+   bloco: quem clicou em "quinta" não deveria ter que digitar a data. */
+function formPontual(dia) {
   form('Nova tarefa pontual', [
     { k:'titulo', label:'O que precisa ser feito', req:true, ph:'Ex.: Ligar para o cliente da proposta 42' },
     { k:'descricao', label:'Detalhes', type:'textarea' },
-    { k:'prazo', label:'Para quando', type:'date', value:hoje() },
+    { k:'prazo', label:'Para quando', type:'date', value:dia || hoje() },
     ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
       hint:'Opcional para a tarefa. Obrigatório se for para a agenda.' }] : []),
     { k:'responsavel_id', label:'Responsável', type:'select', value:eu?.id, opts:optUsuarios() },
@@ -1899,6 +1925,109 @@ R.agenda = {
   }
 };
 
+/* ───────────────────────── CANAIS DE VENDA ─────────────────────
+   O cadastro sempre existiu em Configurações, mas quem opera canal é
+   o time comercial — e ninguém abre Configurações para dizer "abrimos
+   um canal novo". Aqui ele mora dentro da área, já filtrado por ela,
+   e com o que Configurações não mostra: quanto de rotina, campanha e
+   meta está pendurado em cada canal. Canal sem nada em volta é canal
+   que existe só no cadastro. */
+R.canais = {
+  label: 'Canais de venda', curto: 'Canais', icone: 'target', titulo: 'Canais de venda',
+  async dados() {
+    /* Sem área escolhida (menu de gestão), mostra todos: esconder o
+       canal do outro time só faria a lista mentir sobre o total. */
+    const cs = canaisDaArea() || cache.canais;
+    const uso = {};
+    await Promise.all(cs.map(async c => {
+      const [rot, cmp, mt] = await Promise.all([
+        contaOnde('acoes', x => x.eq('canal_id', c.id).neq('recorrencia', 'nenhuma').eq('status', 'aberta')),
+        contaOnde('campanhas', x => x.eq('canal_id', c.id).eq('status', 'ativa')),
+        contaOnde('metas', x => x.eq('canal_id', c.id))
+      ]);
+      uso[c.id] = { rot, cmp, mt };
+    }));
+    return { cs, uso };
+  },
+  render({ cs, uso }) {
+    const ativos = cs.filter(c => c.ativo);
+    const u = id => uso[id] || { rot:0, cmp:0, mt:0 };
+    const soma = (campo, lista = cs) => lista.reduce((s, c) => s + u(c.id)[campo], 0);
+    const semOperacao = ativos.filter(c => !u(c.id).rot && !u(c.id).cmp && !u(c.id).mt);
+
+    const cartao = c => {
+      const { rot, cmp, mt } = u(c.id);
+      const vazio2 = !rot && !cmp && !mt;
+      return `<tr>
+        <td><b>${esc(c.nome)}</b>${vazio2 && c.ativo
+          ? ' <span class="pill warn" title="Nada pendurado neste canal">sem operação</span>' : ''}</td>
+        <td class="mut">${esc((c.tipo || '').replace('_', ' '))}</td>
+        <td><span class="pill ${c.area === 'comercial' ? 'info' : c.area === 'marketing' ? 'ac' : 'dim'}">${
+          (c.area === 'ambos' || !c.area) ? 'ambas' : esc(c.area)}</span></td>
+        <td class="mut">${esc(nomeUser(c.responsavel_id))}</td>
+        <td class="num">${rot || '<span class="mut">—</span>'}</td>
+        <td class="num">${cmp || '<span class="mut">—</span>'}</td>
+        <td class="num">${mt || '<span class="mut">—</span>'}</td>
+        <td><span class="pill ${c.ativo ? 'ok' : 'dim'}">${c.ativo ? 'ativo' : 'inativo'}</span></td>
+        <td class="act">
+          <button class="btn sm ghost" data-act="editar" data-id="${c.id}" title="Editar">${ico('edit',13)}</button>
+          <button class="btn sm ghost" data-act="virar-canal" data-id="${c.id}" data-v="${c.ativo ? '0' : '1'}"
+            title="${c.ativo ? 'Desativar' : 'Ativar'}">${c.ativo ? 'Desativar' : 'Ativar'}</button>
+          <button class="btn sm ghost" data-act="duplicar" data-id="${c.id}" title="Duplicar">${ico('copy',13)}</button>
+          <button class="btn sm ghost" data-act="excluir" data-id="${c.id}" data-t="${esc(c.nome)}" title="Excluir">${ico('trash',13)}</button>
+        </td></tr>`;
+    };
+
+    return `<div class="head"><div><h2>Canais de venda</h2>
+        <div class="sub">${area ? `Os canais que ${AREAS[area]} opera` : 'Todos os canais cadastrados'}
+          — de onde o lead entra e para onde vai a meta.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="csv">${ico('down',15)}CSV</button>
+          <button class="btn" data-act="novo">${ico('plus',15)}Novo canal</button></div></div>
+
+      ${cs.length ? `
+      <div class="tiles stg">
+        <div class="tile"><div class="ic">${ico('target',18)}</div><div class="n">${ativos.length}</div>
+          <div class="l">Canais ativos</div><div class="h">${cs.length - ativos.length} inativo(s)</div></div>
+        <div class="tile"><div class="ic">${ico('refresh',18)}</div>
+          <div class="n">${soma('rot')}</div>
+          <div class="l">Rotinas nestes canais</div></div>
+        <div class="tile"><div class="ic">${ico('zap',18)}</div>
+          <div class="n">${soma('cmp')}</div>
+          <div class="l">Campanhas no ar</div></div>
+        <div class="tile ${semOperacao.length ? 'warn' : ''}">
+          <div class="ic">${ico('alert',18)}</div>
+          <div class="n">${semOperacao.length}</div>
+          <div class="l">Ativos sem operação</div><div class="h">nada pendurado neles</div></div>
+      </div>
+
+      <div class="card"><div class="ch"><h3>Canais</h3><span class="pill dim">${cs.length}</span></div>
+        <div class="t-scroll"><table><thead><tr>
+          <th>Canal</th><th>Tipo</th><th>Área</th><th>Responsável</th>
+          <th class="num">Rotinas</th><th class="num">Campanhas</th><th class="num">Metas</th>
+          <th>Estado</th><th></th></tr></thead>
+        <tbody>${[...cs].sort((a, b) => (b.ativo ? 1 : 0) - (a.ativo ? 1 : 0)
+          || (a.nome > b.nome ? 1 : -1)).map(cartao).join('')}</tbody></table></div>
+        <div class="cb"><p class="sm2">Canal desativado some das listas de escolha e continua no histórico.
+          Excluir é o caminho sem volta — e leva metas e lançamentos junto.</p></div></div>`
+      : `<div class="card">${vazio('target', 'Nenhum canal cadastrado',
+          'Cadastre os canais que você opera de verdade: é o que faz meta, campanha e rotina terem de onde vir.',
+          { act:'novo', label:'Adicionar canal' })}</div>`}`;
+  },
+  acoes: {
+    novo() { formCanal({ area: area || 'ambos' }); },
+    async editar(b) { const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id)); if (r) formCanal(r); },
+    duplicar(b) { duplicaCanal(b.dataset.id); },
+    excluir(b)  { excluiCanal(b.dataset.id, b.dataset.t); },
+    async 'virar-canal'(b) {
+      if (await grava('canais_venda', { ativo: b.dataset.v === '1' }, b.dataset.id)) {
+        await recarregaBase(); toast('Canal atualizado.'); pinta();
+      }
+    },
+    csv() { csv('canais', canaisDaArea() || cache.canais); }
+  }
+};
+
 /* ───────────────────────── CAMPANHAS ───────────────────────── */
 R.campanhas = {
   label: 'Campanhas', curto: 'Campanhas', icone: 'target', titulo: 'Campanhas',
@@ -2126,6 +2255,282 @@ R.metas = {
   }
 };
 
+/* ───────────────────────── BITRIX ────────────────────────────────
+   O CRM é a fonte dos números de venda; este sistema é onde a meta
+   vive. Enquanto não existe rotina no servidor, quem confere é você:
+   a tela busca do Bitrix ao vivo, mostra lado a lado com o que está
+   gravado na meta e só grava se você mandar.
+
+   Três decisões que valem explicar:
+
+   1. O webhook NÃO fica no código. Este arquivo está publicado no
+      GitHub Pages; um webhook do Bitrix é acesso total ao CRM de quem
+      abrir a página. Ele mora no localStorage deste navegador, como a
+      chave do Supabase.
+   2. As contas seguem a definição fechada, não o que é mais fácil:
+      venda do mês = estoque em Agendamento + ganho no mês; venda da
+      semana = passou pelo ME11 no período; ativo = ME13 — e ativo o
+      número oficial continua sendo o do IXC.
+   3. Filtro do Bitrix só funciona em POST com JSON. Em query string
+      ele é ignorado em silêncio e devolve a base inteira — parece que
+      funcionou e o número vem errado por dez vezes mais. */
+const BX = {
+  ME11: 'UF_CRM_1765977342',    // data de entrada em Agendamento
+  ME13: 'UF_CRM_1766460217',    // data de ativação
+  FUNIL: 0,                     // funil Comercial
+  AGENDAMENTO: 'UC_VHZBMD'
+};
+const bxWebhook = () => (localStorage.getItem('bitrix-webhook') || '').trim();
+
+async function bx(metodo, params = {}) {
+  const base = bxWebhook();
+  if (!base) throw new Error('Webhook do Bitrix não configurado.');
+  const r = await fetch(base.replace(/\/*$/, '/') + metodo, {
+    method: 'POST', headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify(params)
+  });
+  const j = await r.json().catch(() => ({ error:'resposta ilegível' }));
+  if (j.error) {
+    throw new Error(/FEATURE_NOT_AVAILABLE/i.test(j.error)
+      ? 'O Bitrix respondeu que o REST não está liberado no plano/assinatura. Fale com o parceiro Bitrix.'
+      : (j.error_description || j.error));
+  }
+  return j;
+}
+
+/* Só o total: o Bitrix devolve `total` já na primeira página, então
+   contar não precisa baixar negócio nenhum. */
+async function bxConta(filter) {
+  const j = await bx('crm.deal.list', { filter, select:['ID'], start: 0 });
+  return j.total || 0;
+}
+
+async function bxNegocios(filter, select = ['ID','TITLE','OPPORTUNITY','ASSIGNED_BY_ID'], teto = 1000) {
+  const out = []; let start = 0;
+  while (out.length < teto) {
+    const j = await bx('crm.deal.list', { filter, select, start });
+    const pg = j.result || [];
+    out.push(...pg);
+    if (j.next == null || !pg.length) break;
+    start = j.next;
+  }
+  return out;
+}
+
+const bxSoma = ds => ds.reduce((s, d) => s + (Number(d.OPPORTUNITY) || 0), 0);
+
+R.bitrix = {
+  label: 'Validação Bitrix', curto: 'Bitrix', icone: 'db', titulo: 'Validação Bitrix',
+  filtro: { mes: null },
+  async dados() {
+    const f = R.bitrix.filtro;
+    const mes = f.mes || hoje().slice(0, 7);
+    const [ano, m] = mes.split('-').map(Number);
+    const ini = `${mes}-01`;
+    const fimEx = new Date(ano, m, 1).toISOString().slice(0, 10);   // 1º do mês seguinte
+    const semIni = seg();
+    const semFimEx = new Date(new Date(semIni + 'T12:00:00').getTime() + 7 * 864e5)
+      .toISOString().slice(0, 10);
+
+    const metas = await q('v_metas_progresso',
+      x => x.lte('periodo_inicio', new Date(ano, m, 0).toISOString().slice(0, 10))
+            .gte('periodo_fim', ini));
+
+    if (!bxWebhook()) return { mes, metas, semIni, sem: false };
+
+    try {
+      const doFunil = { CATEGORY_ID: BX.FUNIL };
+      // Estoque atual em Agendamento — é fotografia, não tem recorte de mês
+      const agenda = await bxNegocios({ ...doFunil, STAGE_ID: BX.AGENDAMENTO });
+      const won = await bxNegocios({ ...doFunil, STAGE_ID:'WON',
+        '>=CLOSEDATE': ini, '<CLOSEDATE': fimEx });
+      const [semana, ativos] = await Promise.all([
+        bxConta({ ...doFunil, [`>=${BX.ME11}`]: `${semIni}T00:00:00`,
+                  [`<${BX.ME11}`]: `${semFimEx}T00:00:00` }),
+        bxConta({ ...doFunil, [`>=${BX.ME13}`]: `${ini}T00:00:00`,
+                  [`<${BX.ME13}`]: `${fimEx}T00:00:00` })
+      ]);
+
+      // Nome do responsável: um user.get por id distinto, que na prática
+      // são os seis consultores — não vale a pena bater na base inteira
+      const ids = [...new Set([...agenda, ...won].map(d => d.ASSIGNED_BY_ID).filter(Boolean))];
+      const nomes = {};
+      await Promise.all(ids.map(async id => {
+        try {
+          const u = (await bx('user.get', { ID: id })).result?.[0];
+          nomes[id] = u ? [u.NAME, u.LAST_NAME].filter(Boolean).join(' ') || u.EMAIL : `#${id}`;
+        } catch { nomes[id] = `#${id}`; }
+      }));
+
+      return { mes, metas, semIni, sem: true, agenda, won, semana, ativos, nomes,
+               lido: new Date().toISOString() };
+    } catch (e) {
+      return { mes, metas, semIni, sem: true, erro: e.message };
+    }
+  },
+  render(d) {
+    const passo = n => { const [a, m] = d.mes.split('-').map(Number);
+      const x = new Date(a, m - 1 + n, 1);
+      return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2,'0')}`; };
+    const rotuloMes = (() => { const [a, m] = d.mes.split('-').map(Number);
+      const s = new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+      return s[0].toUpperCase() + s.slice(1); })();
+
+    const cabeca = `<div class="head"><div><h2>Validação Bitrix</h2>
+        <div class="sub">Os números do CRM ao vivo, na definição oficial da casa —
+          para conferir a meta antes de fechar o mês.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="webhook">${ico('key',15)}${bxWebhook() ? 'Trocar webhook' : 'Conectar'}</button>
+          <button class="btn" data-act="atualizar">${ico('refresh',15)}Atualizar</button></div></div>`;
+
+    if (!bxWebhook()) {
+      return cabeca + `<div class="card">${vazio('db', 'Bitrix ainda não conectado',
+        'Cole aqui o webhook REST de entrada do Bitrix. Ele fica só neste navegador — não vai para o repositório, ' +
+        'porque webhook publicado é CRM aberto para quem achar a página.',
+        { act:'webhook', label:'Conectar o Bitrix' })}</div>`;
+    }
+
+    if (d.erro) {
+      return cabeca + `<div class="card"><div class="cb">
+        <div class="err" style="display:block">Não deu para falar com o Bitrix: ${esc(d.erro)}</div>
+        <p class="sm2" style="margin-top:12px">Confira o webhook em <b>Conectar</b>. Se ele estiver certo e o erro
+          citar plano ou assinatura, o REST do portal é que está bloqueado — nesse caso nenhum número entra,
+          e o jeito é conferir na tela do CRM.</p></div></div>`;
+    }
+
+    const estoque = d.agenda.length, ganhos = d.won.length;
+    const vendasMes = estoque + ganhos;
+    const faturamento = bxSoma(d.agenda) + bxSoma(d.won);
+
+    // Por responsável: as duas pontas da mesma definição, lado a lado
+    const porResp = {};
+    d.agenda.forEach(x => { const k = x.ASSIGNED_BY_ID || 0;
+      (porResp[k] ||= { ag:0, won:0, val:0 }).ag++; porResp[k].val += Number(x.OPPORTUNITY) || 0; });
+    d.won.forEach(x => { const k = x.ASSIGNED_BY_ID || 0;
+      (porResp[k] ||= { ag:0, won:0, val:0 }).won++; porResp[k].val += Number(x.OPPORTUNITY) || 0; });
+    const linhas = Object.entries(porResp)
+      .sort((a, b) => (b[1].ag + b[1].won) - (a[1].ag + a[1].won));
+
+    /* De qual número do Bitrix cada indicador se alimenta. O que não
+       está no mapa não tem espelho no CRM — e é melhor dizer isso do
+       que oferecer um botão que grava um número parecido. */
+    const espelho = {
+      vendas:      { v: vendasMes,    t: 'Agendamento + ganhos do mês' },
+      ativacoes:   { v: d.ativos,     t: 'ME13 no mês (conferir no IXC)' },
+      faturamento: { v: faturamento,  t: 'Soma do valor dos mesmos negócios' },
+      receita:     { v: faturamento,  t: 'Soma do valor dos mesmos negócios' }
+    };
+
+    return cabeca + `
+      <div class="card"><div class="ch">
+        <button class="ib" data-act="mes" data-v="${passo(-1)}">${ico('arrowL',16)}</button>
+        <h3 style="min-width:190px;text-align:center">${rotuloMes}</h3>
+        <button class="ib" data-act="mes" data-v="${passo(1)}">${ico('arrowR',16)}</button>
+        <div class="push">
+          <span class="pill ok">ao vivo</span>
+          <span class="sm2">lido ${hora(d.lido)}</span></div></div></div>
+
+      <div class="tiles stg">
+        <div class="tile"><div class="ic">${ico('money',18)}</div><div class="n">${num(vendasMes)}</div>
+          <div class="l">Vendas do mês</div><div class="h">${estoque} em agendamento · ${ganhos} ganhos</div></div>
+        <div class="tile"><div class="ic">${ico('chart',18)}</div>
+          <div class="n" style="font-size:22px">${brl(faturamento)}</div>
+          <div class="l">Faturamento</div><div class="h">campo do CRM, digitado no card</div></div>
+        <div class="tile"><div class="ic">${ico('clock',18)}</div><div class="n">${num(d.semana)}</div>
+          <div class="l">Vendas da semana</div><div class="h">passou pelo ME11 desde ${dt(d.semIni)}</div></div>
+        <div class="tile warn"><div class="ic">${ico('zap',18)}</div><div class="n">${num(d.ativos)}</div>
+          <div class="l">Ativações (ME13)</div><div class="h">o número oficial é o do IXC</div></div>
+      </div>
+
+      <div class="card"><div class="ch"><h3>Por responsável</h3>
+        <span class="push sm2">agendamento em estoque + ganhos de ${rotuloMes.toLowerCase()}</span></div>
+        ${linhas.length ? `<div class="t-scroll"><table><thead><tr>
+          <th>Responsável</th><th class="num">Agendamento</th><th class="num">Ganhos</th>
+          <th class="num">Vendas</th><th class="num">Valor</th></tr></thead>
+        <tbody>${linhas.map(([id, r]) => `<tr>
+          <td><b>${esc(d.nomes[id] || 'sem responsável')}</b></td>
+          <td class="num">${r.ag}</td><td class="num">${r.won}</td>
+          <td class="num"><b>${r.ag + r.won}</b></td><td class="num">${brl(r.val)}</td>
+        </tr>`).join('')}</tbody></table></div>`
+        : `<div class="cb sm2">Nenhum negócio no funil comercial neste recorte.</div>`}</div>
+
+      <div class="card"><div class="ch"><h3>Conferir contra as metas</h3>
+        <span class="push sm2">${d.metas.length} meta(s) tocando este mês</span></div>
+        ${d.metas.length ? `<div class="t-scroll"><table><thead><tr>
+          <th>Canal</th><th>Indicador</th><th>Período</th><th class="num">Meta</th>
+          <th class="num">Gravado</th><th class="num">Bitrix</th><th>Diferença</th><th></th>
+        </tr></thead><tbody>${d.metas.map(m => {
+          const e = espelho[m.indicador];
+          const grav = Number(m.valor_realizado || 0);
+          const dif = e ? e.v - grav : null;
+          const geral = !m.canal || m.canal === '—';
+          return `<tr>
+            <td><b>${esc(m.canal || 'geral')}</b></td>
+            <td class="mut">${esc(rotuloIndicador(m.indicador))}</td>
+            <td class="mut">${dt(m.periodo_inicio)} → ${dt(m.periodo_fim)}</td>
+            <td class="num">${num(m.valor_meta)}</td>
+            <td class="num">${num(grav)}</td>
+            <td class="num">${e ? `<b>${m.indicador === 'faturamento' || m.indicador === 'receita'
+              ? brl(e.v) : num(e.v)}</b><div class="sm2">${esc(e.t)}</div>` : '<span class="mut">sem espelho</span>'}</td>
+            <td>${e ? (Math.abs(dif) < 0.005
+              ? '<span class="pill ok">bate</span>'
+              : `<span class="pill ${Math.abs(dif) / Math.max(1, e.v) > 0.05 ? 'bad' : 'warn'}">${
+                  dif > 0 ? '+' : ''}${num(Math.round(dif * 100) / 100)}</span>`) : '—'}</td>
+            <td class="act">${e ? `<button class="btn sm ${Math.abs(dif) < 0.005 ? 'ghost' : ''}"
+              data-act="aplicar" data-id="${m.id}" data-v="${e.v}"
+              ${geral ? '' : 'title="Esta meta é de um canal; o Bitrix devolve o funil inteiro"'}>Usar o do Bitrix</button>` : ''}</td>
+          </tr>`;
+        }).join('')}</tbody></table></div>
+        <div class="cb sm2" style="border-top:1px solid var(--line)">
+          O Bitrix não sabe de qual canal veio o negócio — o número é do <b>funil comercial inteiro</b>.
+          Em meta de canal específico, aplicar aqui infla o realizado; use só nas metas gerais até a
+          integração amarrar canal e origem do card.</div>`
+        : `<div class="cb sm2">Nenhuma meta cobre este mês. Crie em <b>Metas e funil</b> para ter o que conferir.</div>`}
+      </div>
+
+      <div class="card"><div class="cb sm2">
+        <b>Como cada número é feito:</b> venda do mês = estoque atual em <b>Agendamento</b> (${BX.AGENDAMENTO},
+        funil ${BX.FUNIL}) + <b>Negócio Concluído</b> com fechamento no mês — não por ME11, que o reagendamento
+        renova e puxa venda do mês anterior para dentro. Venda da semana = passou por <b>ME11</b> no período.
+        Ativação = <b>ME13</b>, e sempre que divergir do IXC, o certo é o do IXC: a diferença é card não lançado
+        no CRM.</div></div>`;
+  },
+  acoes: {
+    mes(b) { R.bitrix.filtro.mes = b.dataset.v; pinta(); },
+    atualizar() { pinta(); },
+    webhook() {
+      form('Webhook do Bitrix', [
+        { k:'url', label:'URL do webhook de entrada', value: bxWebhook(),
+          ph:'https://suaempresa.bitrix24.com.br/rest/1/xxxxxxxx/',
+          hint:'Bitrix → Recursos para desenvolvedores → Webhook de entrada, com permissão de CRM.' }
+      ], d => {
+        const u = (d.url || '').trim();
+        if (u && !/^https:\/\/.+\/rest\/\d+\/[^/]+\/?$/.test(u)) {
+          toast('A URL não parece um webhook de entrada (…/rest/ID/token/).', { tipo:'bad' });
+          return false;
+        }
+        if (u) localStorage.setItem('bitrix-webhook', u.replace(/\/*$/, '/'));
+        else localStorage.removeItem('bitrix-webhook');
+        toast(u ? 'Webhook salvo neste navegador.' : 'Webhook removido.');
+        return true;
+      }, 'Salvar');
+    },
+    async aplicar(b) {
+      const v = Number(b.dataset.v);
+      confirma('Gravar o número do Bitrix',
+        `<p>O realizado desta meta passa a ser <b>${num(v)}</b>, vindo do CRM.</p>
+         <p class="sm2" style="margin-top:10px">É o único lugar do sistema onde o realizado é escrito à mão —
+         e mesmo aqui o número não é digitado, é copiado do Bitrix.</p>`,
+        async () => {
+          // atualizado_em não vai junto: o trigger do banco carimba sozinho
+          const ok = await grava('metas', { valor_realizado: v }, b.dataset.id);
+          if (ok) toast('Meta sincronizada.');
+          return ok;
+        }, { perigo:false });
+    }
+  }
+};
+
 /* ───────────────────────── FINANCEIRO ───────────────────────── */
 R.financeiro = {
   label: 'Financeiro', curto: 'Financeiro', icone: 'money', titulo: 'Financeiro do marketing',
@@ -2278,12 +2683,20 @@ const chipsTags = tags => !tags?.length ? '' :
    que é onde constância aparece. */
 R.checkDiario = {
   label: 'Checklist', curto: 'Checklist', icone: 'check', titulo: 'Checklist',
-  filtro: { periodo: 'hoje', quem: 'minha', tag: '', natureza: 'tudo', data: null },
+  filtro: { periodo: 'hoje', quem: 'minha', tag: '', rec: 'tudo', data: null,
+            vista: 'lista', semana: null },
   async dados() {
-    const de = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+    const f = R.checkDiario.filtro;
+    const janela = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
+    /* A visão em blocos anda para trás na semana. Se a semana aberta
+       for mais antiga que a janela padrão, a busca começa nela — senão
+       o bloco viria vazio e pareceria que a semana não teve nada. */
+    const de = f.semana && f.semana < janela ? f.semana : janela;
     const [acoes, modelos] = await Promise.all([
       q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo')),
-      q('acoes', x => x.neq('recorrencia', 'nenhuma').eq('status', 'aberta'))
+      /* Inclusive as rotinas pausadas: elas não geram mais nada, mas
+         são quem sabe dizer de qual frequência veio a tarefa antiga. */
+      q('acoes', x => x.neq('recorrencia', 'nenhuma'))
     ]);
     return { acoes, modelos };
   },
@@ -2295,10 +2708,26 @@ R.checkDiario = {
     // Veio de uma rotina recorrente, ou apareceu solta hoje?
     const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
 
+    /* A tarefa guarda só o id do modelo; a frequência mora no modelo.
+       Sem esse mapa, "só as semanais" seria impossível de filtrar. */
+    const freqDo = {};
+    (modelos || []).forEach(m => { freqDo[m.id] = m.recorrencia; });
+    const freq = a => a.acao_modelo_id ? freqDo[a.acao_modelo_id] || null : null;
+    const casaRec = a =>
+        f.rec === 'tudo'    ? true
+      : f.rec === 'pontual' ? !ehRotina(a)
+      : f.rec === 'rotina'  ? ehRotina(a)
+      : freq(a) === f.rec;
+    // Mesmo filtro, aplicado no modelo — é o que a previsão usa
+    const casaRecModelo = m =>
+        f.rec === 'pontual' ? false
+      : (f.rec === 'tudo' || f.rec === 'rotina') ? true
+      : m.recorrencia === f.rec;
+
     const meus = acoes.filter(a =>
       (f.quem !== 'minha' || a.responsavel_id === eu?.id) &&
       (!f.tag || (a.tags || []).includes(f.tag)) &&
-      (f.natureza === 'tudo' || (f.natureza === 'rotina') === ehRotina(a)) &&
+      casaRec(a) &&
       a.status !== 'cancelada');
 
     // Intervalo do período escolhido
@@ -2316,12 +2745,12 @@ R.checkDiario = {
     /* Dia escolhido que ainda não foi gerado: em vez de mostrar tela
        vazia, calcula a partir das rotinas o que VAI cair ali. É uma
        previsão, não tarefa — por isso não dá para marcar. */
-    const previsao = f.periodo === 'dia' && !lista.length
+    const previsao = f.vista === 'lista' && f.periodo === 'dia' && !lista.length
       ? (modelos || [])
-          .filter(m => caiNoDia(m, f.data))
+          .filter(m => m.status === 'aberta' && caiNoDia(m, f.data))
           .filter(m => (f.quem !== 'minha' || !eu || m.responsavel_id === eu.id) &&
                        (!f.tag || (m.tags || []).includes(f.tag)) &&
-                       (f.natureza !== 'pontual'))
+                       casaRecModelo(m))
           .sort((a, b) => (a.hora || '99') > (b.hora || '99') ? 1 : -1)
       : [];
     const feitas = lista.filter(a => a.status === 'concluida');
@@ -2367,6 +2796,11 @@ R.checkDiario = {
           </div>
           ${a.prazo < hoje() && !feito ? '<span class="pill bad">atrasada</span>' : ''}
           ${feito && a.concluida_em ? `<span class="sm2">✓ ${hora(a.concluida_em)}</span>` : ''}
+          <div class="tl-act">
+            <button class="btn sm ghost" data-act="editar-tarefa" data-id="${a.id}" title="Editar">${ico('edit',13)}</button>
+            <button class="btn sm ghost" data-act="excluir-tarefa" data-id="${a.id}"
+              data-t="${esc(a.titulo)}" title="Excluir">${ico('trash',13)}</button>
+          </div>
         </div></div>`;
     };
 
@@ -2395,9 +2829,13 @@ R.checkDiario = {
 
     const raio = 52, volta = 2 * Math.PI * raio;
 
-    return `<div class="head"><div><h2>Checklist</h2>
+    const topo = `<div class="head"><div><h2>Checklist</h2>
         <div class="sub">Marque o que saiu. O que importa não é o dia perfeito, é a sequência.</div></div>
         <div class="push">
+          ${dd('Visão', 'vista', [
+            { v:'lista',  t:'Lista',            i:'check', d:'A fila do período, em ordem de horário' },
+            { v:'blocos', t:'Blocos da semana', i:'grid',  d:'Um bloco por dia — abra e mexa nas tarefas' }
+          ], f.vista)}
           ${dd(null, 'gerar-quando', [
             { v:'hoje',   t:'Hoje',            i:'clock' },
             { v:'amanha', t:'Amanhã',          i:'arrowR', d:'Deixar o dia seguinte pronto' },
@@ -2410,13 +2848,13 @@ R.checkDiario = {
         </div></div>
 
       <div class="filtros">
-        ${dd('Período', 'periodo', [
+        ${f.vista === 'lista' ? dd('Período', 'periodo', [
           { v:'hoje', t:'Hoje', i:'clock' },
           { v:'semana', t:'Esta semana', i:'cal' },
           { v:'mes', t:'Este mês', i:'chart' },
           { v:'dia', t:'Um dia específico', i:'cal', d:'Ver com antecedência como vai ser' }
-        ], f.periodo)}
-        ${f.periodo === 'dia' ? `<input type="date" data-act="escolhe-data" value="${esc(f.data || hoje())}"
+        ], f.periodo) : ''}
+        ${f.vista === 'lista' && f.periodo === 'dia' ? `<input type="date" data-act="escolhe-data" value="${esc(f.data || hoje())}"
           style="width:auto;font-weight:600">
           <span class="pill ${f.data === hoje() ? 'ac' : f.data > hoje() ? 'info' : 'dim'}">${
             f.data === hoje() ? 'hoje'
@@ -2426,15 +2864,104 @@ R.checkDiario = {
           { v:'minha', t:'Minhas', i:'user' },
           { v:'todos', t:'Do time', i:'users' }
         ], f.quem)}
-        ${dd('Natureza', 'natureza', [
-          { v:'tudo', t:'Rotina e pontual', i:'grid' },
-          { v:'rotina', t:'Só rotina', i:'refresh' },
-          { v:'pontual', t:'Só pontual', i:'zap' }
-        ], f.natureza)}
+        ${dd('Recorrência', 'rec', [
+          { v:'tudo',       t:'Rotina e pontual', i:'grid' },
+          { v:'rotina',     t:'Só rotina',        i:'refresh', d:'Qualquer frequência' },
+          { v:'pontual',    t:'Só pontual',       i:'zap',     d:'O que não veio de rotina' },
+          { v:'diaria',     t:'Todo dia',         i:'clock' },
+          { v:'dias_uteis', t:'Dias úteis',       i:'cal',     d:'Segunda a sexta' },
+          { v:'semanal',    t:'Semanal',          i:'cal',     d:'Nos dias fixos da rotina' },
+          { v:'quinzenal',  t:'Quinzenal',        i:'refresh' },
+          { v:'mensal',     t:'Mensal',           i:'chart' }
+        ], f.rec)}
         ${cache.temTags && tagsUsadas.length ? dd('Tag', 'tag',
           [{ v:'', t:'Todas as tags' }, ...tagsUsadas.map(t => ({ v:t, t }))], f.tag) : ''}
-      </div>
+      </div>`;
 
+    /* ── A semana em blocos ───────────────────────────────────────
+       Sete caixas, uma por dia. A lista responde "o que faço agora";
+       o bloco responde "como está a minha semana" — e deixa entrar no
+       dia para mexer, que é o motivo de ele existir. */
+    if (f.vista === 'blocos') {
+      const base = f.semana || seg();
+      const diaISO = n => new Date(new Date(base + 'T12:00:00').getTime() + n * 864e5)
+        .toISOString().slice(0, 10);
+      const diasSem = [...Array(7)].map((_, i) => diaISO(i));
+      const daSemana = meus.filter(a => a.prazo >= diasSem[0] && a.prazo <= diasSem[6]);
+      const okSem = daSemana.filter(a => a.status === 'concluida').length;
+      const atrasSem = daSemana.filter(a => a.status !== 'concluida' && a.prazo < hoje()).length;
+      const ehEsta = base === seg();
+
+      const doBloco = d => daSemana.filter(a => a.prazo === d)
+        .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora) || (a.titulo > b.titulo ? 1 : -1));
+      // Dia ainda não gerado: mostra o que as rotinas vão criar ali
+      const prevBloco = d => (modelos || [])
+        .filter(m => m.status === 'aberta' && caiNoDia(m, d) &&
+                     (f.quem !== 'minha' || !eu || m.responsavel_id === eu.id) &&
+                     (!f.tag || (m.tags || []).includes(f.tag)) && casaRecModelo(m))
+        .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora));
+
+      const cartaoTarefa = a => {
+        const feito = a.status === 'concluida';
+        const rot = ehRotina(a);
+        return `<div class="k tarefa ${feito ? 'feito' : ''} ${rot ? '' : 'pt'}"
+          data-act="editar-tarefa" data-id="${a.id}" title="Clique para editar">
+          <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
+            data-v="${feito ? 'aberta' : 'concluida'}"
+            title="${feito ? 'Desmarcar' : 'Marcar como feita'}">${ico('check', 12)}</button>
+          <div class="g"><div class="t">${esc(a.titulo)}</div>
+            <div class="m">${a.hora ? hm(a.hora) + ' · ' : ''}${esc(nomeUser(a.responsavel_id))}</div></div>
+        </div>`;
+      };
+
+      const colunas = diasSem.map(d => {
+        const lst = doBloco(d);
+        const ok = lst.filter(a => a.status === 'concluida').length;
+        const dow = new Date(d + 'T12:00:00').getDay();
+        const prev = lst.length ? [] : prevBloco(d);
+        return `<div class="col ${d === hoje() ? 'hoje' : ''} ${dow === 0 || dow === 6 ? 'fds' : ''}">
+          <h4 data-act="abrir-dia" data-d="${d}" style="cursor:pointer" title="Abrir este dia">
+            ${NOME_DIA[dow].slice(0, 3)} ${dt(d)}
+            ${d === hoje() ? '<span class="agora">hoje</span>' : ''}
+            <span>${lst.length ? ok + '/' + lst.length : prev.length ? '~' + prev.length : '0'}</span></h4>
+          <div class="carga"><i style="width:${lst.length ? Math.round(100 * ok / lst.length) : 0}%"></i></div>
+          ${lst.length ? lst.map(cartaoTarefa).join('')
+            : prev.length ? `${prev.map(m => `<div class="k prev">
+                  <div class="t">${esc(m.titulo)}</div>
+                  <div class="m">${m.hora ? hm(m.hora) + ' · ' : ''}prevista</div></div>`).join('')}
+                <button class="btn sm ghost bl" data-act="gerar-um-dia" data-d="${d}">${ico('zap',13)}Gerar o dia</button>`
+            : `<div class="livre">${dow === 0 || dow === 6 ? 'folga' : 'dia livre'}</div>`}
+          <button class="btn sm ghost bl" data-act="nova-no-dia" data-d="${d}">${ico('plus',13)}Tarefa</button>
+        </div>`;
+      }).join('');
+
+      return topo + `
+        <div class="card"><div class="ch">
+          <button class="ib" data-act="sem-passo" data-v="-1" title="Semana anterior">${ico('arrowL',16)}</button>
+          <h3 style="min-width:200px;text-align:center">${dt(diasSem[0])} a ${dt(diasSem[6])}</h3>
+          <button class="ib" data-act="sem-passo" data-v="1" title="Próxima semana">${ico('arrowR',16)}</button>
+          <div class="push">
+            <span class="pill ${daSemana.length && okSem === daSemana.length ? 'ok' : 'dim'}">${okSem}/${daSemana.length} feitas</span>
+            ${atrasSem ? `<span class="pill bad">${atrasSem} atrasada(s)</span>` : ''}
+            ${ehEsta ? '<span class="pill ac">semana atual</span>'
+              : `<button class="btn sm ghost" data-act="sem-passo" data-v="0">Esta semana</button>`}
+            <button class="btn sm" data-act="gerar-esta-semana">${ico('zap',13)}Gerar a semana</button>
+          </div></div></div>
+
+        <div class="semana">${colunas}</div>
+
+        <div class="legenda" style="margin-top:12px;border:0;background:none;padding:0">
+          <b><i style="background:var(--ac)"></i> Rotina — se repete</b>
+          <b><i style="background:var(--pt)"></i> Pontual — só naquele dia</b>
+          <b><i style="background:transparent;border:1px dashed var(--line2)"></i>
+            Prevista — o dia ainda não foi gerado</b>
+        </div>
+        <div class="sm2" style="margin-top:8px">Clique no <b>nome do dia</b> para abrir o bloco inteiro,
+          no <b>cartão</b> para editar a tarefa (dá para mudar de dia ali mesmo) e no
+          <b>quadradinho</b> para marcar como feita.</div>`;
+    }
+
+    return topo + `
       ${previsao.length ? `
         <div class="card"><div class="ch">
           <h3>${(() => { const d = new Date(f.data + 'T12:00:00')
@@ -2512,7 +3039,88 @@ R.checkDiario = {
     periodo(b)  { R.checkDiario.filtro.periodo = b.dataset.v; pinta(); },
     quem(b)     { R.checkDiario.filtro.quem = b.dataset.v; pinta(); },
     tag(b)      { R.checkDiario.filtro.tag = b.dataset.v; pinta(); },
-    natureza(b) { R.checkDiario.filtro.natureza = b.dataset.v; pinta(); },
+    rec(b)      { R.checkDiario.filtro.rec = b.dataset.v; pinta(); },
+    vista(b)    {
+      const f = R.checkDiario.filtro;
+      f.vista = b.dataset.v;
+      if (f.vista === 'blocos' && !f.semana) f.semana = seg();
+      pinta();
+    },
+    /* Navegação da semana. Zero volta para a semana corrente — é o
+       botão que tira você de uma semana antiga sem contar cliques. */
+    'sem-passo'(b) {
+      const f = R.checkDiario.filtro, n = +b.dataset.v;
+      f.semana = n === 0 ? seg()
+        : new Date(new Date((f.semana || seg()) + 'T12:00:00').getTime() + n * 7 * 864e5)
+            .toISOString().slice(0, 10);
+      pinta();
+    },
+    /* Do bloco para o dia: mesma tela, período de um dia só. É onde a
+       tarefa aparece inteira, com turno, tags e atraso. */
+    'abrir-dia'(b) {
+      const f = R.checkDiario.filtro;
+      f.vista = 'lista'; f.periodo = 'dia'; f.data = b.dataset.d;
+      pinta();
+    },
+    'nova-no-dia'(b) { formPontual(b.dataset.d); },
+    async 'gerar-um-dia'(b) {
+      const d = b.dataset.d;
+      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: d, p_ate: d });
+      if (error) {
+        return toast(/function|does not exist/i.test(error.message)
+          ? 'A geração por período ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
+      }
+      toast(data ? `${data} tarefa(s) criada(s) em ${dt(d)}.` : `Nada novo a gerar em ${dt(d)}.`,
+        { tipo: data ? 'ok' : 'info' });
+      pinta();
+    },
+    async 'gerar-esta-semana'() {
+      const f = R.checkDiario.filtro, de = f.semana || seg();
+      const ate = new Date(new Date(de + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
+      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
+      if (error) {
+        return toast(/function|does not exist/i.test(error.message)
+          ? 'A geração por período ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
+      }
+      toast(data ? `${data} tarefa(s) criada(s) de ${dt(de)} a ${dt(ate)}.`
+                 : 'Esta semana já estava gerada.', { tipo: data ? 'ok' : 'info' });
+      pinta();
+    },
+    /* Editar a ocorrência, não o modelo: mexer aqui muda só este dia.
+       Trocar a data move a tarefa de bloco, que é como se remaneja a
+       semana sem desfazer a rotina que a gerou. */
+    async 'editar-tarefa'(b) {
+      const [a] = await q('acoes', x => x.eq('id', b.dataset.id));
+      if (!a) return;
+      form(`Tarefa · ${a.titulo}`, [
+        { k:'titulo', label:'O que precisa ser feito', req:true, value:a.titulo },
+        { k:'descricao', label:'Detalhes', type:'textarea', value:a.descricao },
+        { k:'prazo', label:'Em que dia', type:'date', value:a.prazo,
+          hint:'Mudar a data move a tarefa para outro bloco da semana.' },
+        ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time', value:a.hora ? hm(a.hora) : '',
+          hint:'Vazio = sem hora marcada; a tarefa cai no fim do dia.' }] : []),
+        { k:'responsavel_id', label:'Responsável', type:'select', value:a.responsavel_id, opts:optUsuarios() },
+        ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:a.setor_id, opts:optSetores() }] : []),
+        { k:'canal_id', label:'Canal', type:'select', value:a.canal_id, opts:optCanais() },
+        ...(cache.temTags ? [{ k:'_tags', label:'Tags', value:(a.tags || []).join(', '),
+          ph:'comercial, prospecção', hint:'Separadas por vírgula.' }] : []),
+        { k:'status', label:'Situação', type:'select', value:a.status, opts:[
+          { v:'aberta', t:'Em aberto' }, { v:'em_andamento', t:'Em andamento' },
+          { v:'concluida', t:'Concluída' }] },
+        { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila', value:a.urgente }
+      ], d => {
+        if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
+        return grava('acoes', d, a.id);
+      });
+    },
+    'excluir-tarefa'(b) {
+      confirma('Excluir tarefa',
+        `<p>"${esc(b.dataset.t)}" sai do checklist deste dia.</p>
+         <p class="sm2" style="margin-top:10px">Se ela veio de uma rotina, a rotina continua ativa —
+         a tarefa volta no próximo dia previsto. Para tirar de vez, pause a rotina em
+         <b>Ações e rotinas</b>.</p>`,
+        async () => { const ok = await apaga('acoes', b.dataset.id); if (ok) toast('Tarefa excluída.'); return ok; });
+    },
     'escolhe-data'(el) { R.checkDiario.filtro.data = el.value || hoje(); pinta(); },
     async 'gerar-dia'() { await R.checkDiario.acoes['gerar-quando']({ dataset:{ v:'dia' } }); },
 
@@ -5271,50 +5879,8 @@ R.config = {
     async 'edit-user'(b) { const [r] = await q('usuarios', x => x.eq('id', b.dataset.id)); if (r) formUser(r); },
     async 'edit-canal'(b) { const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id)); if (r) formCanal(r); },
 
-    /* Duplicar: copia tudo menos a identidade e o nome, que é único.
-       Abre o formulário para você ajustar antes de salvar. */
-    async 'dup-canal'(b) {
-      const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id));
-      if (!r) return;
-      const { id, created_at, updated_at, ...copia } = r;
-      copia.nome = nomeLivre(r.nome, cache.canais.map(c => c.nome));
-      formCanal(copia, true);
-    },
-
-    /* Excluir: antes de perguntar, conta o que vai junto. Metas e
-       lançamentos financeiros são apagados em cascata; o resto só
-       perde o vínculo com o canal. */
-    async 'del-canal'(b) {
-      const id = b.dataset.id, nome = b.dataset.t;
-      const [metas, fin, acoes, camp, cont, fun, pess] = await Promise.all([
-        conta('metas','canal_id',id),          conta('financeiro_mkt','canal_id',id),
-        conta('acoes','canal_id',id),          conta('campanhas','canal_id',id),
-        conta('producao_conteudo','canal_id',id), conta('funil','canal_id',id),
-        conta('usuarios','canal_principal_id',id)
-      ]);
-      const cascata = metas + fin;
-      const solta = acoes + camp + cont + fun + pess;
-      const linha = (n, t) => n ? `<li>${n} ${t}</li>` : '';
-
-      confirma(`Excluir "${nome}"`, `
-        ${cascata ? `<p style="color:var(--bad);font-weight:600;margin-bottom:8px">
-            Isto apaga junto, sem volta:</p>
-          <ul style="margin:0 0 14px 18px;color:var(--bad)">
-            ${linha(metas,'meta(s)')}${linha(fin,'lançamento(s) financeiro(s)')}</ul>` : ''}
-        ${solta ? `<p style="margin-bottom:8px">Estes registros <b>não</b> são apagados — apenas ficam sem canal:</p>
-          <ul style="margin:0 0 14px 18px;color:var(--txt2)">
-            ${linha(acoes,'ação(ões)')}${linha(camp,'campanha(s)')}${linha(cont,'conteúdo(s)')}
-            ${linha(fun,'registro(s) de funil')}${linha(pess,'pessoa(s) com este canal principal')}</ul>` : ''}
-        ${!cascata && !solta ? '<p>Nada depende deste canal. Pode excluir tranquilo.</p>' : ''}
-        <p class="sm2">Se a ideia é só tirar da frente sem perder histórico, edite o canal e desmarque
-          <b>Ativo</b> — ele some das listas e mantém tudo.</p>`,
-        async () => {
-          const ok = await apaga('canais_venda', id);
-          if (ok) { await recarregaBase(); toast(`Canal "${nome}" excluído.`); }
-          return ok;
-        },
-        cascata ? { palavra: 'EXCLUIR' } : {});
-    },
+    'dup-canal'(b) { duplicaCanal(b.dataset.id); },
+    'del-canal'(b) { excluiCanal(b.dataset.id, b.dataset.t); },
     async 'csv-user'() { csv('usuarios', cache.usuarios); },
     async 'csv-canal'() { csv('canais', cache.canais); },
     /* ── perfil ──────────────────────────────────────────────────── */
@@ -5880,8 +6446,52 @@ function formCargo(row, dup) {
   });
 }
 
+/* Duplicar: copia tudo menos a identidade e o nome, que é único.
+   Abre o formulário para você ajustar antes de salvar. */
+async function duplicaCanal(id) {
+  const [r] = await q('canais_venda', x => x.eq('id', id));
+  if (!r) return;
+  const { id: _, created_at, updated_at, ...copia } = r;
+  copia.nome = nomeLivre(r.nome, cache.canais.map(c => c.nome));
+  formCanal(copia, true);
+}
+
+/* Excluir: antes de perguntar, conta o que vai junto. Metas e
+   lançamentos financeiros são apagados em cascata; o resto só
+   perde o vínculo com o canal. */
+async function excluiCanal(id, nome) {
+  const [metas, fin, acoes, camp, cont, fun, pess] = await Promise.all([
+    conta('metas','canal_id',id),          conta('financeiro_mkt','canal_id',id),
+    conta('acoes','canal_id',id),          conta('campanhas','canal_id',id),
+    conta('producao_conteudo','canal_id',id), conta('funil','canal_id',id),
+    conta('usuarios','canal_principal_id',id)
+  ]);
+  const cascata = metas + fin;
+  const solta = acoes + camp + cont + fun + pess;
+  const linha = (n, t) => n ? `<li>${n} ${t}</li>` : '';
+
+  confirma(`Excluir "${nome}"`, `
+    ${cascata ? `<p style="color:var(--bad);font-weight:600;margin-bottom:8px">
+        Isto apaga junto, sem volta:</p>
+      <ul style="margin:0 0 14px 18px;color:var(--bad)">
+        ${linha(metas,'meta(s)')}${linha(fin,'lançamento(s) financeiro(s)')}</ul>` : ''}
+    ${solta ? `<p style="margin-bottom:8px">Estes registros <b>não</b> são apagados — apenas ficam sem canal:</p>
+      <ul style="margin:0 0 14px 18px;color:var(--txt2)">
+        ${linha(acoes,'ação(ões)')}${linha(camp,'campanha(s)')}${linha(cont,'conteúdo(s)')}
+        ${linha(fun,'registro(s) de funil')}${linha(pess,'pessoa(s) com este canal principal')}</ul>` : ''}
+    ${!cascata && !solta ? '<p>Nada depende deste canal. Pode excluir tranquilo.</p>' : ''}
+    <p class="sm2">Se a ideia é só tirar da frente sem perder histórico, edite o canal e desmarque
+      <b>Ativo</b> — ele some das listas e mantém tudo.</p>`,
+    async () => {
+      const ok = await apaga('canais_venda', id);
+      if (ok) { await recarregaBase(); toast(`Canal "${nome}" excluído.`); }
+      return ok;
+    },
+    cascata ? { palavra: 'EXCLUIR' } : {});
+}
+
 function formCanal(row, dup) {
-  form(dup ? 'Duplicar canal' : row ? 'Editar canal' : 'Novo canal', [
+  form(dup ? 'Duplicar canal' : row?.id ? 'Editar canal' : 'Novo canal', [
     { k:'nome', label:'Nome', req:true, value:row?.nome },
     { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'organico', opts:[
       { v:'organico', t:'Orgânico' }, { v:'trafego_pago', t:'Tráfego pago' }, { v:'indicacao', t:'Indicação' },
