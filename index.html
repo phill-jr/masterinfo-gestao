@@ -1464,7 +1464,7 @@ const NAV_EMPRESA = [
   { tipo:'grupo', id:'onboarding', label:'Onboarding', icone:'book', semArea:true,
     itens:['onbTrilhas', 'onbMinha', 'onbAcompanhar', 'treinamentos'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
-    itens:['checkDiario', 'rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
+    itens:['rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
   { tipo:'secao', label:'Vendedores', itens:['dicionario'] },
   { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
 ];
@@ -2676,511 +2676,6 @@ const chipsTags = tags => !tags?.length ? '' :
     const c = corTag(t);
     return `<span style="color:${c};background:${c}22;border-color:${c}44">${esc(t)}</span>`;
   }).join('')}</div>`;
-
-/* ── Check do dia ─────────────────────────────────────────────────
-   Onde você marca o que fez e vê o quanto da rotina saiu. O número
-   sozinho não serve: por isso vem com os últimos 14 dias do lado,
-   que é onde constância aparece. */
-R.checkDiario = {
-  label: 'Checklist', curto: 'Checklist', icone: 'check', titulo: 'Checklist',
-  filtro: { periodo: 'hoje', quem: 'minha', tag: '', rec: 'tudo', data: null,
-            vista: 'lista', semana: null },
-  async dados() {
-    const f = R.checkDiario.filtro;
-    const janela = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10);
-    /* A visão em blocos anda para trás na semana. Se a semana aberta
-       for mais antiga que a janela padrão, a busca começa nela — senão
-       o bloco viria vazio e pareceria que a semana não teve nada. */
-    const de = f.semana && f.semana < janela ? f.semana : janela;
-    const [acoes, modelos] = await Promise.all([
-      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo')),
-      /* Inclusive as rotinas pausadas: elas não geram mais nada, mas
-         são quem sabe dizer de qual frequência veio a tarefa antiga. */
-      q('acoes', x => x.neq('recorrencia', 'nenhuma'))
-    ]);
-    return { acoes, modelos };
-  },
-  render({ acoes, modelos }) {
-    const f = R.checkDiario.filtro;
-    if (f.quem === 'minha' && !eu) f.quem = 'todos';
-    if (f.periodo === 'dia' && !f.data) f.data = hoje();
-
-    // Veio de uma rotina recorrente, ou apareceu solta hoje?
-    const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
-
-    /* A tarefa guarda só o id do modelo; a frequência mora no modelo.
-       Sem esse mapa, "só as semanais" seria impossível de filtrar. */
-    const freqDo = {};
-    (modelos || []).forEach(m => { freqDo[m.id] = m.recorrencia; });
-    const freq = a => a.acao_modelo_id ? freqDo[a.acao_modelo_id] || null : null;
-    const casaRec = a =>
-        f.rec === 'tudo'    ? true
-      : f.rec === 'pontual' ? !ehRotina(a)
-      : f.rec === 'rotina'  ? ehRotina(a)
-      : freq(a) === f.rec;
-    // Mesmo filtro, aplicado no modelo — é o que a previsão usa
-    const casaRecModelo = m =>
-        f.rec === 'pontual' ? false
-      : (f.rec === 'tudo' || f.rec === 'rotina') ? true
-      : m.recorrencia === f.rec;
-
-    const meus = acoes.filter(a =>
-      (f.quem !== 'minha' || a.responsavel_id === eu?.id) &&
-      (!f.tag || (a.tags || []).includes(f.tag)) &&
-      casaRec(a) &&
-      a.status !== 'cancelada');
-
-    // Intervalo do período escolhido
-    const ini = f.periodo === 'dia' ? f.data
-              : f.periodo === 'hoje' ? hoje()
-              : f.periodo === 'semana' ? seg()
-              : hoje().slice(0, 8) + '01';
-    const fim = f.periodo === 'dia' ? f.data
-              : f.periodo === 'hoje' ? hoje()
-              : f.periodo === 'semana' ? new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)
-              : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
-
-    let lista = meus.filter(a => a.prazo >= ini && a.prazo <= fim);
-
-    /* Dia escolhido que ainda não foi gerado: em vez de mostrar tela
-       vazia, calcula a partir das rotinas o que VAI cair ali. É uma
-       previsão, não tarefa — por isso não dá para marcar. */
-    const previsao = f.vista === 'lista' && f.periodo === 'dia' && !lista.length
-      ? (modelos || [])
-          .filter(m => m.status === 'aberta' && caiNoDia(m, f.data))
-          .filter(m => (f.quem !== 'minha' || !eu || m.responsavel_id === eu.id) &&
-                       (!f.tag || (m.tags || []).includes(f.tag)) &&
-                       casaRecModelo(m))
-          .sort((a, b) => (a.hora || '99') > (b.hora || '99') ? 1 : -1)
-      : [];
-    const feitas = lista.filter(a => a.status === 'concluida');
-    const pct = lista.length ? Math.round(100 * feitas.length / lista.length) : null;
-
-    // Últimos 14 dias: constância só aparece na sequência
-    const dias14 = [...Array(14)].map((_, i) => {
-      const d = new Date(Date.now() - (13 - i) * 864e5).toISOString().slice(0, 10);
-      const doDia = meus.filter(a => a.prazo === d);
-      const ok = doDia.filter(a => a.status === 'concluida').length;
-      return { d, total: doDia.length, ok, pct: doDia.length ? Math.round(100 * ok / doDia.length) : null };
-    });
-
-    // Sequência de dias fechados em 100%, contando de trás para frente.
-    // Dia sem nenhuma rotina não conta nem a favor nem contra.
-    let streak = 0;
-    for (let i = dias14.length - 1; i >= 0; i--) {
-      if (dias14[i].total === 0) continue;
-      if (dias14[i].pct === 100) streak++; else break;
-    }
-
-    const tagsUsadas = [...new Set(meus.flatMap(a => a.tags || []))].sort();
-    const atrasadas = lista.filter(a => a.status !== 'concluida' && a.prazo < hoje());
-
-    const porDia = f.periodo === 'hoje' || f.periodo === 'dia';
-
-    const item = a => {
-      const feito = a.status === 'concluida';
-      const rot = ehRotina(a);
-      return `<div class="tl-item ${rot ? 'rotina' : 'pontual'} ${feito ? 'feito' : ''}">
-        <div class="tl-hora ${a.hora ? '' : 'vazia'}">${a.hora ? hm(a.hora) : 'sem hora'}</div>
-        <div class="tl-rail"><span class="pt"></span></div>
-        <div class="tl-corpo">
-          <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
-            data-v="${feito ? 'aberta' : 'concluida'}">${ico('check', 12)}</button>
-          <div class="g">
-            <div class="t">${esc(a.titulo)}</div>
-            <div class="m">${!porDia ? dt(a.prazo) + ' · ' : ''}${
-              esc(nomeUser(a.responsavel_id))}${
-              a.setor_id ? ' · ' + esc(nomeSetor(a.setor_id)) : ''}${
-              a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div>
-            ${chipsTags(a.tags)}
-          </div>
-          ${a.prazo < hoje() && !feito ? '<span class="pill bad">atrasada</span>' : ''}
-          ${feito && a.concluida_em ? `<span class="sm2">✓ ${hora(a.concluida_em)}</span>` : ''}
-          <div class="tl-act">
-            <button class="btn sm ghost" data-act="editar-tarefa" data-id="${a.id}" title="Editar">${ico('edit',13)}</button>
-            <button class="btn sm ghost" data-act="excluir-tarefa" data-id="${a.id}"
-              data-t="${esc(a.titulo)}" title="Excluir">${ico('trash',13)}</button>
-          </div>
-        </div></div>`;
-    };
-
-    // No dia, agrupa por turno; em período maior, agrupa por data
-    const grupos = {};
-    if (porDia) {
-      const turno = a => {
-        if (!a.hora) return '4. Sem horário';
-        const h = +hm(a.hora).slice(0, 2);
-        return h < 12 ? '1. Manhã' : h < 18 ? '2. Tarde' : '3. Noite';
-      };
-      lista.forEach(a => { (grupos[turno(a)] ||= []).push(a); });
-    } else {
-      lista.forEach(a => { (grupos[a.prazo] ||= []).push(a); });
-    }
-    /* Cronológico dentro de qualquer agrupamento. Sem hora vai para o
-       fim — e o desempate é pelo título, para a ordem não dançar a
-       cada recarga quando duas tarefas marcam a mesma hora. */
-    Object.values(grupos).forEach(g => g.sort((a, b) =>
-      emMinuto(a.hora) - emMinuto(b.hora) || (a.titulo > b.titulo ? 1 : -1)));
-    const chaves = Object.keys(grupos).sort();
-    if (!porDia) chaves.reverse();
-    const rotuloGrupo = k => porDia ? k.slice(3)
-      : (k === hoje() ? 'Hoje · ' : '') + new Date(k + 'T12:00:00')
-          .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'2-digit' });
-
-    const raio = 52, volta = 2 * Math.PI * raio;
-
-    const topo = `<div class="head"><div><h2>Checklist</h2>
-        <div class="sub">Marque o que saiu. O que importa não é o dia perfeito, é a sequência.</div></div>
-        <div class="push">
-          ${dd('Visão', 'vista', [
-            { v:'lista',  t:'Lista',            i:'check', d:'A fila do período, em ordem de horário' },
-            { v:'blocos', t:'Blocos da semana', i:'grid',  d:'Um bloco por dia — abra e mexa nas tarefas' }
-          ], f.vista)}
-          ${dd(null, 'gerar-quando', [
-            { v:'hoje',   t:'Hoje',            i:'clock' },
-            { v:'amanha', t:'Amanhã',          i:'arrowR', d:'Deixar o dia seguinte pronto' },
-            { v:'semana', t:'Esta semana',     i:'cal',    d:'De segunda a domingo' },
-            { v:'prox',   t:'Próximos 7 dias', i:'refresh' },
-            { v:'dia',    t:'O dia escolhido', i:'target', d:'Usa a data do filtro' }
-          ], '', { fixo:'Gerar rotinas', icone:'zap' })}
-          <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
-          <button class="btn pontual" data-act="nova-pontual">${ico('zap',15)}Tarefa pontual</button>
-        </div></div>
-
-      <div class="filtros">
-        ${f.vista === 'lista' ? dd('Período', 'periodo', [
-          { v:'hoje', t:'Hoje', i:'clock' },
-          { v:'semana', t:'Esta semana', i:'cal' },
-          { v:'mes', t:'Este mês', i:'chart' },
-          { v:'dia', t:'Um dia específico', i:'cal', d:'Ver com antecedência como vai ser' }
-        ], f.periodo) : ''}
-        ${f.vista === 'lista' && f.periodo === 'dia' ? `<input type="date" data-act="escolhe-data" value="${esc(f.data || hoje())}"
-          style="width:auto;font-weight:600">
-          <span class="pill ${f.data === hoje() ? 'ac' : f.data > hoje() ? 'info' : 'dim'}">${
-            f.data === hoje() ? 'hoje'
-            : f.data > hoje() ? 'daqui a ' + Math.round((new Date(f.data + 'T12:00:00') - new Date(hoje() + 'T12:00:00')) / 864e5) + ' dia(s)'
-            : 'passado'}</span>` : ''}
-        ${dd('De quem', 'quem', [
-          { v:'minha', t:'Minhas', i:'user' },
-          { v:'todos', t:'Do time', i:'users' }
-        ], f.quem)}
-        ${dd('Recorrência', 'rec', [
-          { v:'tudo',       t:'Rotina e pontual', i:'grid' },
-          { v:'rotina',     t:'Só rotina',        i:'refresh', d:'Qualquer frequência' },
-          { v:'pontual',    t:'Só pontual',       i:'zap',     d:'O que não veio de rotina' },
-          { v:'diaria',     t:'Todo dia',         i:'clock' },
-          { v:'dias_uteis', t:'Dias úteis',       i:'cal',     d:'Segunda a sexta' },
-          { v:'semanal',    t:'Semanal',          i:'cal',     d:'Nos dias fixos da rotina' },
-          { v:'quinzenal',  t:'Quinzenal',        i:'refresh' },
-          { v:'mensal',     t:'Mensal',           i:'chart' }
-        ], f.rec)}
-        ${cache.temTags && tagsUsadas.length ? dd('Tag', 'tag',
-          [{ v:'', t:'Todas as tags' }, ...tagsUsadas.map(t => ({ v:t, t }))], f.tag) : ''}
-      </div>`;
-
-    /* ── A semana em blocos ───────────────────────────────────────
-       Sete caixas, uma por dia. A lista responde "o que faço agora";
-       o bloco responde "como está a minha semana" — e deixa entrar no
-       dia para mexer, que é o motivo de ele existir. */
-    if (f.vista === 'blocos') {
-      const base = f.semana || seg();
-      const diaISO = n => new Date(new Date(base + 'T12:00:00').getTime() + n * 864e5)
-        .toISOString().slice(0, 10);
-      const diasSem = [...Array(7)].map((_, i) => diaISO(i));
-      const daSemana = meus.filter(a => a.prazo >= diasSem[0] && a.prazo <= diasSem[6]);
-      const okSem = daSemana.filter(a => a.status === 'concluida').length;
-      const atrasSem = daSemana.filter(a => a.status !== 'concluida' && a.prazo < hoje()).length;
-      const ehEsta = base === seg();
-
-      const doBloco = d => daSemana.filter(a => a.prazo === d)
-        .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora) || (a.titulo > b.titulo ? 1 : -1));
-      // Dia ainda não gerado: mostra o que as rotinas vão criar ali
-      const prevBloco = d => (modelos || [])
-        .filter(m => m.status === 'aberta' && caiNoDia(m, d) &&
-                     (f.quem !== 'minha' || !eu || m.responsavel_id === eu.id) &&
-                     (!f.tag || (m.tags || []).includes(f.tag)) && casaRecModelo(m))
-        .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora));
-
-      const cartaoTarefa = a => {
-        const feito = a.status === 'concluida';
-        const rot = ehRotina(a);
-        return `<div class="k tarefa ${feito ? 'feito' : ''} ${rot ? '' : 'pt'}"
-          data-act="editar-tarefa" data-id="${a.id}" title="Clique para editar">
-          <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
-            data-v="${feito ? 'aberta' : 'concluida'}"
-            title="${feito ? 'Desmarcar' : 'Marcar como feita'}">${ico('check', 12)}</button>
-          <div class="g"><div class="t">${esc(a.titulo)}</div>
-            <div class="m">${a.hora ? hm(a.hora) + ' · ' : ''}${esc(nomeUser(a.responsavel_id))}</div></div>
-        </div>`;
-      };
-
-      const colunas = diasSem.map(d => {
-        const lst = doBloco(d);
-        const ok = lst.filter(a => a.status === 'concluida').length;
-        const dow = new Date(d + 'T12:00:00').getDay();
-        const prev = lst.length ? [] : prevBloco(d);
-        return `<div class="col ${d === hoje() ? 'hoje' : ''} ${dow === 0 || dow === 6 ? 'fds' : ''}">
-          <h4 data-act="abrir-dia" data-d="${d}" style="cursor:pointer" title="Abrir este dia">
-            ${NOME_DIA[dow].slice(0, 3)} ${dt(d)}
-            ${d === hoje() ? '<span class="agora">hoje</span>' : ''}
-            <span>${lst.length ? ok + '/' + lst.length : prev.length ? '~' + prev.length : '0'}</span></h4>
-          <div class="carga"><i style="width:${lst.length ? Math.round(100 * ok / lst.length) : 0}%"></i></div>
-          ${lst.length ? lst.map(cartaoTarefa).join('')
-            : prev.length ? `${prev.map(m => `<div class="k prev">
-                  <div class="t">${esc(m.titulo)}</div>
-                  <div class="m">${m.hora ? hm(m.hora) + ' · ' : ''}prevista</div></div>`).join('')}
-                <button class="btn sm ghost bl" data-act="gerar-um-dia" data-d="${d}">${ico('zap',13)}Gerar o dia</button>`
-            : `<div class="livre">${dow === 0 || dow === 6 ? 'folga' : 'dia livre'}</div>`}
-          <button class="btn sm ghost bl" data-act="nova-no-dia" data-d="${d}">${ico('plus',13)}Tarefa</button>
-        </div>`;
-      }).join('');
-
-      return topo + `
-        <div class="card"><div class="ch">
-          <button class="ib" data-act="sem-passo" data-v="-1" title="Semana anterior">${ico('arrowL',16)}</button>
-          <h3 style="min-width:200px;text-align:center">${dt(diasSem[0])} a ${dt(diasSem[6])}</h3>
-          <button class="ib" data-act="sem-passo" data-v="1" title="Próxima semana">${ico('arrowR',16)}</button>
-          <div class="push">
-            <span class="pill ${daSemana.length && okSem === daSemana.length ? 'ok' : 'dim'}">${okSem}/${daSemana.length} feitas</span>
-            ${atrasSem ? `<span class="pill bad">${atrasSem} atrasada(s)</span>` : ''}
-            ${ehEsta ? '<span class="pill ac">semana atual</span>'
-              : `<button class="btn sm ghost" data-act="sem-passo" data-v="0">Esta semana</button>`}
-            <button class="btn sm" data-act="gerar-esta-semana">${ico('zap',13)}Gerar a semana</button>
-          </div></div></div>
-
-        <div class="semana">${colunas}</div>
-
-        <div class="legenda" style="margin-top:12px;border:0;background:none;padding:0">
-          <b><i style="background:var(--ac)"></i> Rotina — se repete</b>
-          <b><i style="background:var(--pt)"></i> Pontual — só naquele dia</b>
-          <b><i style="background:transparent;border:1px dashed var(--line2)"></i>
-            Prevista — o dia ainda não foi gerado</b>
-        </div>
-        <div class="sm2" style="margin-top:8px">Clique no <b>nome do dia</b> para abrir o bloco inteiro,
-          no <b>cartão</b> para editar a tarefa (dá para mudar de dia ali mesmo) e no
-          <b>quadradinho</b> para marcar como feita.</div>`;
-    }
-
-    return topo + `
-      ${previsao.length ? `
-        <div class="card"><div class="ch">
-          <h3>${(() => { const d = new Date(f.data + 'T12:00:00')
-              .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
-            return d[0].toUpperCase() + d.slice(1); })()}</h3>
-          <span class="pill info">previsão</span>
-          <div class="push"><button class="btn" data-act="gerar-dia">${ico('zap',15)}Gerar este dia</button></div></div>
-        <div class="cb" style="padding-bottom:4px"><p class="sm2">
-          As tarefas deste dia ainda não foram criadas. Isto é o que as suas rotinas
-          <b>vão gerar</b> — dá para se preparar, mas ainda não dá para marcar.
-          Clique em "Gerar este dia" se quiser antecipar.</p></div>
-        ${previsao.map(m => `<div class="tl-item rotina previsto">
-          <div class="tl-hora ${m.hora ? '' : 'vazia'}">${m.hora ? hm(m.hora) : 'sem hora'}</div>
-          <div class="tl-rail"><span class="pt"></span></div>
-          <div class="tl-corpo">
-            <span class="tick" style="border-style:dashed;cursor:default"></span>
-            <div class="g"><div class="t">${esc(m.titulo)}</div>
-              <div class="m">${esc(nomeUser(m.responsavel_id))}${
-                m.setor_id ? ' · ' + esc(nomeSetor(m.setor_id)) : ''}</div>
-              ${chipsTags(m.tags)}</div>
-            <span class="pill dim">prevista</span></div></div>`).join('')}
-        </div>` : `
-      <div class="progresso">
-        <div class="anel">
-          <svg viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="${raio}" class="tr"/>
-            <circle cx="60" cy="60" r="${raio}" class="fr ${pct === 100 ? 'cheio' : ''}"
-              style="stroke-dasharray:${volta};stroke-dashoffset:${volta * (1 - (pct || 0) / 100)}"/>
-          </svg>
-          <div class="mid"><div class="p">${pct == null ? '—' : pct + '%'}</div>
-            <div class="s">${feitas.length}/${lista.length}</div></div>
-        </div>
-        <div class="lado">
-          <div class="linha"><div><div class="lb">Sequência</div>
-            <div class="ds">Dias seguidos fechando 100%</div></div>
-            <div class="v ${streak >= 3 ? 'ok' : ''}">${streak}${streak === 1 ? ' dia' : ' dias'}</div></div>
-          <div class="linha"><div><div class="lb">Em aberto</div>
-            <div class="ds">${atrasadas.length ? atrasadas.length + ' com prazo vencido' : 'nada atrasado'}</div></div>
-            <div class="v ${atrasadas.length ? 'bad' : ''}">${lista.length - feitas.length}</div></div>
-          <div class="heat">
-            <div class="lb" style="margin-bottom:8px">Últimos 14 dias</div>
-            <div class="grade">${dias14.map(x => `<span title="${dtl(x.d)} — ${
-              x.total ? x.ok + '/' + x.total : 'nada previsto'}"
-              class="${x.total === 0 ? 'vazio' : x.pct === 100 ? 'cheio' : x.pct >= 50 ? 'meio' : 'pouco'}"></span>`).join('')}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="ch"><h3>${f.periodo === 'hoje' ? 'A rotina de hoje'
-          : f.periodo === 'semana' ? 'Esta semana'
-          : f.periodo === 'mes' ? 'Este mês'
-          : (() => { const d = new Date(f.data + 'T12:00:00')
-              .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
-             return d[0].toUpperCase() + d.slice(1); })()}</h3>
-          <span class="push sm2">${lista.length} item(ns)</span></div>
-        <div class="legenda">
-          <b><i style="background:var(--ac)"></i> Rotina — se repete</b>
-          <b><i style="background:var(--pt)"></i> Pontual — só hoje</b>
-          <span style="margin-left:auto">${lista.filter(ehRotina).length} rotina(s) ·
-            ${lista.filter(a => !ehRotina(a)).length} pontual(is)</span></div>
-        ${lista.length ? chaves.map(k => `
-          <div class="grupo">${rotuloGrupo(k)}
-            <span>${grupos[k].filter(a => a.status === 'concluida').length}/${grupos[k].length}</span></div>
-          ${grupos[k].map(item).join('')}`).join('')
-        : vazio('check',
-            f.periodo === 'hoje' ? 'Nada previsto para hoje'
-            : f.periodo === 'dia' ? 'Nenhuma rotina cai neste dia'
-            : 'Nada neste período',
-            'Se você tem rotinas cadastradas, clique em "Gerar hoje". Se não tem, comece criando uma em Rotina semanal.',
-            { act:'gerar', label:'Gerar hoje' })}
-      </div>`}`;
-  },
-  acoes: {
-    periodo(b)  { R.checkDiario.filtro.periodo = b.dataset.v; pinta(); },
-    quem(b)     { R.checkDiario.filtro.quem = b.dataset.v; pinta(); },
-    tag(b)      { R.checkDiario.filtro.tag = b.dataset.v; pinta(); },
-    rec(b)      { R.checkDiario.filtro.rec = b.dataset.v; pinta(); },
-    vista(b)    {
-      const f = R.checkDiario.filtro;
-      f.vista = b.dataset.v;
-      if (f.vista === 'blocos' && !f.semana) f.semana = seg();
-      pinta();
-    },
-    /* Navegação da semana. Zero volta para a semana corrente — é o
-       botão que tira você de uma semana antiga sem contar cliques. */
-    'sem-passo'(b) {
-      const f = R.checkDiario.filtro, n = +b.dataset.v;
-      f.semana = n === 0 ? seg()
-        : new Date(new Date((f.semana || seg()) + 'T12:00:00').getTime() + n * 7 * 864e5)
-            .toISOString().slice(0, 10);
-      pinta();
-    },
-    /* Do bloco para o dia: mesma tela, período de um dia só. É onde a
-       tarefa aparece inteira, com turno, tags e atraso. */
-    'abrir-dia'(b) {
-      const f = R.checkDiario.filtro;
-      f.vista = 'lista'; f.periodo = 'dia'; f.data = b.dataset.d;
-      pinta();
-    },
-    'nova-no-dia'(b) { formPontual(b.dataset.d); },
-    async 'gerar-um-dia'(b) {
-      const d = b.dataset.d;
-      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: d, p_ate: d });
-      if (error) {
-        return toast(/function|does not exist/i.test(error.message)
-          ? 'A geração por período ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
-      }
-      toast(data ? `${data} tarefa(s) criada(s) em ${dt(d)}.` : `Nada novo a gerar em ${dt(d)}.`,
-        { tipo: data ? 'ok' : 'info' });
-      pinta();
-    },
-    async 'gerar-esta-semana'() {
-      const f = R.checkDiario.filtro, de = f.semana || seg();
-      const ate = new Date(new Date(de + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
-      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
-      if (error) {
-        return toast(/function|does not exist/i.test(error.message)
-          ? 'A geração por período ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
-      }
-      toast(data ? `${data} tarefa(s) criada(s) de ${dt(de)} a ${dt(ate)}.`
-                 : 'Esta semana já estava gerada.', { tipo: data ? 'ok' : 'info' });
-      pinta();
-    },
-    /* Editar a ocorrência, não o modelo: mexer aqui muda só este dia.
-       Trocar a data move a tarefa de bloco, que é como se remaneja a
-       semana sem desfazer a rotina que a gerou. */
-    async 'editar-tarefa'(b) {
-      const [a] = await q('acoes', x => x.eq('id', b.dataset.id));
-      if (!a) return;
-      form(`Tarefa · ${a.titulo}`, [
-        { k:'titulo', label:'O que precisa ser feito', req:true, value:a.titulo },
-        { k:'descricao', label:'Detalhes', type:'textarea', value:a.descricao },
-        { k:'prazo', label:'Em que dia', type:'date', value:a.prazo,
-          hint:'Mudar a data move a tarefa para outro bloco da semana.' },
-        ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time', value:a.hora ? hm(a.hora) : '',
-          hint:'Vazio = sem hora marcada; a tarefa cai no fim do dia.' }] : []),
-        { k:'responsavel_id', label:'Responsável', type:'select', value:a.responsavel_id, opts:optUsuarios() },
-        ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:a.setor_id, opts:optSetores() }] : []),
-        { k:'canal_id', label:'Canal', type:'select', value:a.canal_id, opts:optCanais() },
-        ...(cache.temTags ? [{ k:'_tags', label:'Tags', value:(a.tags || []).join(', '),
-          ph:'comercial, prospecção', hint:'Separadas por vírgula.' }] : []),
-        { k:'status', label:'Situação', type:'select', value:a.status, opts:[
-          { v:'aberta', t:'Em aberto' }, { v:'em_andamento', t:'Em andamento' },
-          { v:'concluida', t:'Concluída' }] },
-        { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila', value:a.urgente }
-      ], d => {
-        if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
-        return grava('acoes', d, a.id);
-      });
-    },
-    'excluir-tarefa'(b) {
-      confirma('Excluir tarefa',
-        `<p>"${esc(b.dataset.t)}" sai do checklist deste dia.</p>
-         <p class="sm2" style="margin-top:10px">Se ela veio de uma rotina, a rotina continua ativa —
-         a tarefa volta no próximo dia previsto. Para tirar de vez, pause a rotina em
-         <b>Ações e rotinas</b>.</p>`,
-        async () => { const ok = await apaga('acoes', b.dataset.id); if (ok) toast('Tarefa excluída.'); return ok; });
-    },
-    'escolhe-data'(el) { R.checkDiario.filtro.data = el.value || hoje(); pinta(); },
-    async 'gerar-dia'() { await R.checkDiario.acoes['gerar-quando']({ dataset:{ v:'dia' } }); },
-
-    async 'gerar-quando'(b) {
-      const f = R.checkDiario.filtro;
-      const mais = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
-      const faixas = {
-        hoje:   [hoje(), hoje()],
-        amanha: [mais(1), mais(1)],
-        semana: [seg(), new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)],
-        prox:   [hoje(), mais(6)],
-        dia:    [f.data || hoje(), f.data || hoje()]
-      };
-      const [de, ate] = faixas[b.dataset.v] || faixas.hoje;
-
-      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
-      if (error) {
-        return toast(/function|does not exist/i.test(error.message)
-          ? 'A geração por período ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
-      }
-      const quando = de === ate ? dt(de) : `${dt(de)} a ${dt(ate)}`;
-      toast(data ? `${data} tarefa(s) criada(s) — ${quando}.` : `Nada novo a gerar em ${quando}.`,
-        { tipo: data ? 'ok' : 'info' });
-
-      // Leva a tela para onde o usuário acabou de gerar
-      if (b.dataset.v === 'amanha') { f.periodo = 'dia'; f.data = mais(1); }
-      else if (b.dataset.v === 'semana' || b.dataset.v === 'prox') f.periodo = 'semana';
-      pinta();
-    },
-    'nova-rotina'()  { R.acoes.acoes.modelo(); },
-    'nova-pontual'() { formPontual(); },
-    async gerar() {
-      const { data, error } = await sb.rpc('gerar_acoes_do_dia');
-      if (error) return toast(error.message, { tipo:'bad' });
-      toast(data ? `${data} tarefa(s) criada(s) para hoje.` : 'Hoje já estava gerado.',
-        { tipo: data ? 'ok' : 'info' });
-      pinta();
-    },
-    async 'gerar-semana'() {
-      const de = seg();
-      const ate = new Date(new Date(de + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
-      const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
-      if (error) {
-        return toast(/function|does not exist/i.test(error.message)
-          ? 'A geração por semana ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
-      }
-      toast(data ? `${data} tarefa(s) criada(s) de ${dt(de)} a ${dt(ate)}.`
-                 : 'A semana já estava gerada.', { tipo: data ? 'ok' : 'info' });
-      R.checkDiario.filtro.periodo = 'semana';
-      pinta();
-    },
-    async virar(b) {
-      const novo = b.dataset.v;
-      b.classList.toggle('done', novo === 'concluida');   // resposta imediata
-      if (await grava('acoes', { status: novo }, b.dataset.id)) pinta();
-      else pinta();
-    }
-  }
-};
-
 /* ── painel de métricas ───────────────────────────────────────────
    Cada cartão é uma linha de metricas_painel. Em vez de campo de
    fórmula livre — que parece flexível e falha calado — a métrica é
@@ -3363,112 +2858,419 @@ function detalheDoDia(data) {
 }
 
 /* ── Rotina semanal ───────────────────────────────────────────────
-   A semana inteira em sete colunas. É a pergunta "como é a minha
-   segunda-feira?" respondida sem precisar abrir cada rotina. */
+   Uma tela só para a rotina, em quatro alturas de voo:
+
+     Semana      as tarefas dos sete dias, para marcar
+     Dia         a fila de hoje, com progresso e sequência
+     Rotinas     os moldes que geram tudo isso
+     Calendário  o mês, onde as mensais aparecem
+
+   Antes eram duas telas: o Checklist marcava e a Rotina semanal
+   planejava. Na prática ninguém separa as duas coisas — você olha a
+   semana e já quer marcar o que saiu. O kanban por isso mostra
+   TAREFA, não modelo: modelo não se marca, e um quadradinho que não
+   marca nada é pior do que não ter quadradinho. Onde o dia ainda não
+   foi gerado entra a previsão tracejada — a pergunta "como é a minha
+   quinta-feira?" continua respondida. */
 R.rotinaSemanal = {
   label: 'Rotina semanal', curto: 'Rotina semanal', icone: 'cal', titulo: 'Rotina semanal',
-  filtro: { quem: 'minha', vista: 'kanban', mes: null },
+  filtro: { vista:'semana', quem:'minha', rec:'tudo', tag:'',
+            periodo:'hoje', data:null, semana:null, mes:null },
   async dados() {
-    const de = new Date(Date.now() - 59 * 864e5).toISOString().slice(0, 10);
-    const [modelos, ocorrencias] = await Promise.all([
-      q('acoes', x => x.neq('recorrencia', 'nenhuma').eq('status', 'aberta')),
-      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de))
+    const f = R.rotinaSemanal.filtro;
+    const janela = new Date(Date.now() - 59 * 864e5).toISOString().slice(0, 10);
+    /* A semana anda para trás. Se a que está aberta for mais antiga
+       que a janela padrão, a busca começa nela — senão o bloco viria
+       vazio e pareceria que a semana não teve nada. */
+    const de = f.semana && f.semana < janela ? f.semana : janela;
+    const [modelos, acoes] = await Promise.all([
+      /* Inclusive as pausadas: elas não geram mais nada, mas são quem
+         sabe dizer de qual frequência veio a tarefa antiga. */
+      q('acoes', x => x.neq('recorrencia', 'nenhuma')),
+      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo'))
     ]);
-    return { modelos, ocorrencias };
+    return { modelos, acoes };
   },
-  render({ modelos, ocorrencias }) {
+  render({ modelos, acoes }) {
     const f = R.rotinaSemanal.filtro;
     if (f.quem === 'minha' && !eu) f.quem = 'todos';
-    const meus = f.quem === 'minha' && eu
-      ? modelos.filter(m => m.responsavel_id === eu.id) : modelos;
-
+    if (f.periodo === 'dia' && !f.data) f.data = hoje();
     const hojeDia = new Date().getDay();
-    const semanais = meus.filter(m => diasDaRotina(m));
-    const mensais  = meus.filter(m => !diasDaRotina(m));
 
-    // Minutos desde a meia-noite; sem hora vai para o fim do dia
-    const emMin = h => { if (!h) return 99999;
-      const [H, M] = hm(h).split(':').map(Number); return H * 60 + M; };
+    // Veio de uma rotina recorrente, ou apareceu solta no dia?
+    const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
 
-    const doDia = d => semanais
-      .filter(m => diasDaRotina(m).includes(d))
-      .sort((a, b) => emMin(a.hora) - emMin(b.hora));
+    /* A tarefa guarda só o id do modelo; a frequência mora no modelo.
+       Sem esse mapa, "só as semanais" seria impossível de filtrar. */
+    const freqDo = {};
+    modelos.forEach(m => { freqDo[m.id] = m.recorrencia; });
+    const freq = a => a.acao_modelo_id ? freqDo[a.acao_modelo_id] || null : null;
+    const casaRec = a =>
+        f.rec === 'tudo'    ? true
+      : f.rec === 'pontual' ? !ehRotina(a)
+      : f.rec === 'rotina'  ? ehRotina(a)
+      : freq(a) === f.rec;
+    // Mesmo filtro, aplicado no modelo — é o que a previsão usa
+    const casaRecModelo = m =>
+        f.rec === 'pontual' ? false
+      : (f.rec === 'tudo' || f.rec === 'rotina') ? true
+      : m.recorrencia === f.rec;
 
-    const cartao = m => `<div class="k" data-act="editar" data-id="${m.id}" style="cursor:pointer">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
-        ${m.hora
-          ? `<span class="pill ac" style="font-variant-numeric:tabular-nums">${hm(m.hora)}</span>`
-          : '<span class="pill dim">sem hora</span>'}
-        ${m.recorrencia === 'quinzenal' ? '<span class="pill info">quinzenal</span>' : ''}
-      </div>
-      <div class="t">${esc(m.titulo)}</div>
-      <div class="m">${esc(nomeUser(m.responsavel_id))}${
-        m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div>
-      ${chipsTags(m.tags)}</div>`;
+    const meuModelo = m => (f.quem !== 'minha' || !eu || m.responsavel_id === eu.id) &&
+                           (!f.tag || (m.tags || []).includes(f.tag));
 
-    const carga = ORDEM_SEMANA.map(d => doDia(d).length);
-    const pico = Math.max(...carga, 1);
-    const maxCarga = Math.max(...carga);
-    const diaPico = ORDEM_SEMANA[carga.indexOf(maxCarga)];
-    // Só considera os dias úteis: sábado vazio não é desequilíbrio
-    const uteis = [1,2,3,4,5].map(d => doDia(d).length);
-    const desequilibrio = Math.max(...uteis) - Math.min(...uteis);
+    // Só as ativas planejam a semana; as pausadas ficam para o histórico
+    const ativas   = modelos.filter(m => m.status === 'aberta' && meuModelo(m));
+    const semanais = ativas.filter(m => diasDaRotina(m));
+    const mensais  = ativas.filter(m => !diasDaRotina(m));
 
-    return `<div class="head"><div><h2>Rotina semanal</h2>
-        <div class="sub">Sua semana inteira em uma tela. Cada coluna é um dia, em ordem de horário.</div></div>
+    const minhas = acoes.filter(a =>
+      (f.quem !== 'minha' || a.responsavel_id === eu?.id) &&
+      (!f.tag || (a.tags || []).includes(f.tag)) &&
+      casaRec(a) &&
+      a.status !== 'cancelada');
+
+    const tagsUsadas = [...new Set([...minhas, ...ativas].flatMap(x => x.tags || []))].sort();
+    const ordena = l => l.sort((a, b) =>
+      emMinuto(a.hora) - emMinuto(b.hora) || (a.titulo > b.titulo ? 1 : -1));
+
+    /* ── topo comum às quatro visões ───────────────────────────── */
+    const topo = `<div class="head"><div><h2>Rotina semanal</h2>
+        <div class="sub">A rotina e o que já saiu dela, na mesma tela.
+          Marque na semana, planeje nas rotinas.</div></div>
         <div class="push">
           ${dd('Visão', 'vista', [
-            { v:'kanban', t:'Kanban', i:'grid', d:'A semana em sete colunas' },
-            { v:'lista', t:'Lista', i:'check', d:'Tabela para revisar e editar' },
-            { v:'calendario', t:'Calendário', i:'cal', d:'O mês inteiro, com as mensais' }
+            { v:'semana',     t:'Semana',     i:'grid',    d:'As tarefas dos sete dias, para marcar' },
+            { v:'dia',        t:'Dia',        i:'check',   d:'A fila de hoje, com progresso e sequência' },
+            { v:'rotinas',    t:'Rotinas',    i:'refresh', d:'Os moldes que geram as tarefas' },
+            { v:'calendario', t:'Calendário', i:'cal',     d:'O mês inteiro, com as mensais' }
           ], f.vista)}
-          ${dd('De quem', 'quem', [
-            { v:'minha', t:'Minha rotina', i:'user' },
-            { v:'todos', t:'Todo o time', i:'users' }
-          ], f.quem)}
-          <button class="btn" data-act="nova">${ico('plus',15)}Nova rotina</button></div></div>
+          ${dd(null, 'gerar-quando', [
+            { v:'hoje',   t:'Hoje',            i:'clock' },
+            { v:'amanha', t:'Amanhã',          i:'arrowR', d:'Deixar o dia seguinte pronto' },
+            { v:'semana', t:'Esta semana',     i:'cal',    d:'De segunda a domingo' },
+            { v:'prox',   t:'Próximos 7 dias', i:'refresh' },
+            { v:'dia',    t:'O dia escolhido', i:'target', d:'Usa a data do filtro' }
+          ], '', { fixo:'Gerar rotinas', icone:'zap' })}
+          <button class="btn ghost" data-act="nova">${ico('refresh',15)}Rotina</button>
+          <button class="btn pontual" data-act="nova-pontual">${ico('zap',15)}Tarefa pontual</button>
+        </div></div>
+
+      <div class="filtros">
+        ${f.vista === 'dia' ? dd('Período', 'periodo', [
+          { v:'hoje', t:'Hoje', i:'clock' },
+          { v:'semana', t:'Esta semana', i:'cal' },
+          { v:'mes', t:'Este mês', i:'chart' },
+          { v:'dia', t:'Um dia específico', i:'cal', d:'Ver com antecedência como vai ser' }
+        ], f.periodo) : ''}
+        ${f.vista === 'dia' && f.periodo === 'dia' ? `<input type="date" data-act="escolhe-data"
+          value="${esc(f.data || hoje())}" style="width:auto;font-weight:600">
+          <span class="pill ${f.data === hoje() ? 'ac' : f.data > hoje() ? 'info' : 'dim'}">${
+            f.data === hoje() ? 'hoje'
+            : f.data > hoje() ? 'daqui a ' + Math.round((new Date(f.data + 'T12:00:00') - new Date(hoje() + 'T12:00:00')) / 864e5) + ' dia(s)'
+            : 'passado'}</span>` : ''}
+        ${dd('De quem', 'quem', [
+          { v:'minha', t:'Minhas', i:'user' },
+          { v:'todos', t:'Do time', i:'users' }
+        ], f.quem)}
+        ${dd('Recorrência', 'rec', [
+          { v:'tudo',       t:'Rotina e pontual', i:'grid' },
+          { v:'rotina',     t:'Só rotina',        i:'refresh', d:'Qualquer frequência' },
+          { v:'pontual',    t:'Só pontual',       i:'zap',     d:'O que não veio de rotina' },
+          { v:'diaria',     t:'Todo dia',         i:'clock' },
+          { v:'dias_uteis', t:'Dias úteis',       i:'cal',     d:'Segunda a sexta' },
+          { v:'semanal',    t:'Semanal',          i:'cal',     d:'Nos dias fixos da rotina' },
+          { v:'quinzenal',  t:'Quinzenal',        i:'refresh' },
+          { v:'mensal',     t:'Mensal',           i:'chart' }
+        ], f.rec)}
+        ${cache.temTags && tagsUsadas.length ? dd('Tag', 'tag',
+          [{ v:'', t:'Todas as tags' }, ...tagsUsadas.map(t => ({ v:t, t }))], f.tag) : ''}
+      </div>
 
       ${!cache.temHora ? `<div class="card"><div class="cb"><div class="err" style="display:block">
         O campo de horário ainda não existe no banco — as rotinas aparecem sem hora.
-        Para ligar, rode <b>CORRECAO-05.sql</b> (é uma linha só).</div></div></div>` : ''}
+        Para ligar, rode <b>CORRECAO-05.sql</b> (é uma linha só).</div></div></div>` : ''}`;
 
-      ${semanais.length || mensais.length ? `
-        ${cache.temMetricas ? painelMetricas(ocorrencias) : `
+    /* Cartão de tarefa dos blocos: o quadradinho na frente é o que
+       diferencia esta tela da antiga — aqui se marca, não só se olha. */
+    const cartaoTarefa = a => {
+      const feito = a.status === 'concluida';
+      const rot = ehRotina(a);
+      return `<div class="k tarefa ${feito ? 'feito' : ''} ${rot ? '' : 'pt'}"
+        data-act="editar-tarefa" data-id="${a.id}" title="Clique para editar">
+        <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
+          data-v="${feito ? 'aberta' : 'concluida'}"
+          title="${feito ? 'Desmarcar' : 'Marcar como feita'}">${ico('check', 12)}</button>
+        <div class="g"><div class="t">${esc(a.titulo)}</div>
+          <div class="m">${a.hora ? hm(a.hora) + ' · ' : ''}${esc(nomeUser(a.responsavel_id))}${
+            a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div>
+          ${a.prazo < hoje() && !feito ? '<span class="pill bad" style="margin-top:5px">atrasada</span>' : ''}
+        </div></div>`;
+    };
+
+    /* ═══ VISÃO SEMANA — os sete blocos, com check ═══════════════ */
+    if (f.vista === 'semana') {
+      const base = f.semana || seg();
+      const diaISO = n => new Date(new Date(base + 'T12:00:00').getTime() + n * 864e5)
+        .toISOString().slice(0, 10);
+      const diasSem = [...Array(7)].map((_, i) => diaISO(i));
+      const daSemana = minhas.filter(a => a.prazo >= diasSem[0] && a.prazo <= diasSem[6]);
+      const okSem = daSemana.filter(a => a.status === 'concluida').length;
+      const atrasSem = daSemana.filter(a => a.status !== 'concluida' && a.prazo < hoje()).length;
+      const ehEsta = base === seg();
+
+      const doBloco = d => ordena(daSemana.filter(a => a.prazo === d));
+      // Dia ainda não gerado: mostra o que as rotinas vão criar ali
+      const prevBloco = d => ativas
+        .filter(m => caiNoDia(m, d) && casaRecModelo(m))
+        .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora));
+
+      const colunas = diasSem.map(d => {
+        const lst = doBloco(d);
+        const ok = lst.filter(a => a.status === 'concluida').length;
+        const dow = new Date(d + 'T12:00:00').getDay();
+        const prev = lst.length ? [] : prevBloco(d);
+        return `<div class="col ${d === hoje() ? 'hoje' : ''} ${dow === 0 || dow === 6 ? 'fds' : ''}">
+          <h4 data-act="abrir-dia" data-d="${d}" style="cursor:pointer" title="Abrir este dia">
+            ${NOME_DIA[dow].slice(0, 3)} ${dt(d)}
+            ${d === hoje() ? '<span class="agora">hoje</span>' : ''}
+            <span>${lst.length ? ok + '/' + lst.length : prev.length ? '~' + prev.length : '0'}</span></h4>
+          <div class="carga"><i style="width:${lst.length ? Math.round(100 * ok / lst.length) : 0}%"></i></div>
+          ${lst.length ? lst.map(cartaoTarefa).join('')
+            : prev.length ? `${prev.map(m => `<div class="k prev">
+                  <div class="t">${esc(m.titulo)}</div>
+                  <div class="m">${m.hora ? hm(m.hora) + ' · ' : ''}prevista</div></div>`).join('')}
+                <button class="btn sm ghost bl" data-act="gerar-um-dia" data-d="${d}">${ico('zap',13)}Gerar o dia</button>`
+            : `<div class="livre">${dow === 0 || dow === 6 ? 'folga' : 'dia livre'}</div>`}
+          <button class="btn sm ghost bl" data-act="nova-no-dia" data-d="${d}">${ico('plus',13)}Tarefa</button>
+        </div>`;
+      }).join('');
+
+      return topo + `
+        ${cache.temMetricas ? painelMetricas(acoes) + `<div class="sm2" style="margin:-8px 0 20px">
+          Estes números são configuráveis em
+          <b data-act="ir-painel" style="cursor:pointer;color:var(--ac)">Configurações › Painel</b>.</div>` : ''}
+
+        <div class="card"><div class="ch">
+          <button class="ib" data-act="sem-passo" data-v="-1" title="Semana anterior">${ico('arrowL',16)}</button>
+          <h3 style="min-width:200px;text-align:center">${dt(diasSem[0])} a ${dt(diasSem[6])}</h3>
+          <button class="ib" data-act="sem-passo" data-v="1" title="Próxima semana">${ico('arrowR',16)}</button>
+          <div class="push">
+            <span class="pill ${daSemana.length && okSem === daSemana.length ? 'ok' : 'dim'}">${okSem}/${daSemana.length} feitas</span>
+            ${atrasSem ? `<span class="pill bad">${atrasSem} atrasada(s)</span>` : ''}
+            ${ehEsta ? '<span class="pill ac">semana atual</span>'
+              : `<button class="btn sm ghost" data-act="sem-passo" data-v="0">Esta semana</button>`}
+            <button class="btn sm" data-act="gerar-esta-semana">${ico('zap',13)}Gerar a semana</button>
+          </div></div></div>
+
+        <div class="semana">${colunas}</div>
+
+        <div class="legenda" style="margin-top:12px;border:0;background:none;padding:0">
+          <b><i style="background:var(--ac)"></i> Rotina — se repete</b>
+          <b><i style="background:var(--pt)"></i> Pontual — só naquele dia</b>
+          <b><i style="background:transparent;border:1px dashed var(--line2)"></i>
+            Prevista — o dia ainda não foi gerado</b>
+        </div>
+        <div class="sm2" style="margin-top:8px">Clique no <b>nome do dia</b> para abrir o bloco inteiro,
+          no <b>cartão</b> para editar a tarefa (dá para mudar de dia ali mesmo) e no
+          <b>quadradinho</b> para marcar como feita.</div>`;
+    }
+
+    /* ═══ VISÃO DIA — a fila, o anel e a sequência ═══════════════ */
+    if (f.vista === 'dia') {
+      const ini = f.periodo === 'dia' ? f.data
+                : f.periodo === 'hoje' ? hoje()
+                : f.periodo === 'semana' ? seg()
+                : hoje().slice(0, 8) + '01';
+      const fim = f.periodo === 'dia' ? f.data
+                : f.periodo === 'hoje' ? hoje()
+                : f.periodo === 'semana' ? new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)
+                : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
+
+      const lista = minhas.filter(a => a.prazo >= ini && a.prazo <= fim);
+
+      /* Dia escolhido que ainda não foi gerado: em vez de tela vazia,
+         calcula a partir das rotinas o que VAI cair ali. É previsão,
+         não tarefa — por isso não dá para marcar. */
+      const previsao = f.periodo === 'dia' && !lista.length
+        ? ativas.filter(m => caiNoDia(m, f.data) && casaRecModelo(m))
+            .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora))
+        : [];
+      const feitas = lista.filter(a => a.status === 'concluida');
+      const pct = lista.length ? Math.round(100 * feitas.length / lista.length) : null;
+
+      // Últimos 14 dias: constância só aparece na sequência
+      const dias14 = [...Array(14)].map((_, i) => {
+        const d = new Date(Date.now() - (13 - i) * 864e5).toISOString().slice(0, 10);
+        const doDia = minhas.filter(a => a.prazo === d);
+        const ok = doDia.filter(a => a.status === 'concluida').length;
+        return { d, total: doDia.length, ok, pct: doDia.length ? Math.round(100 * ok / doDia.length) : null };
+      });
+
+      /* Sequência de dias fechados em 100%, de trás para frente. Dia
+         sem nada previsto não conta nem a favor nem contra. */
+      let streak = 0;
+      for (let i = dias14.length - 1; i >= 0; i--) {
+        if (dias14[i].total === 0) continue;
+        if (dias14[i].pct === 100) streak++; else break;
+      }
+      const atrasadas = lista.filter(a => a.status !== 'concluida' && a.prazo < hoje());
+      const porDia = f.periodo === 'hoje' || f.periodo === 'dia';
+
+      const item = a => {
+        const feito = a.status === 'concluida';
+        const rot = ehRotina(a);
+        return `<div class="tl-item ${rot ? 'rotina' : 'pontual'} ${feito ? 'feito' : ''}">
+          <div class="tl-hora ${a.hora ? '' : 'vazia'}">${a.hora ? hm(a.hora) : 'sem hora'}</div>
+          <div class="tl-rail"><span class="pt"></span></div>
+          <div class="tl-corpo">
+            <button class="tick ${rot ? '' : 'pt'} ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
+              data-v="${feito ? 'aberta' : 'concluida'}">${ico('check', 12)}</button>
+            <div class="g">
+              <div class="t">${esc(a.titulo)}</div>
+              <div class="m">${!porDia ? dt(a.prazo) + ' · ' : ''}${
+                esc(nomeUser(a.responsavel_id))}${
+                a.setor_id ? ' · ' + esc(nomeSetor(a.setor_id)) : ''}${
+                a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div>
+              ${chipsTags(a.tags)}
+            </div>
+            ${a.prazo < hoje() && !feito ? '<span class="pill bad">atrasada</span>' : ''}
+            ${feito && a.concluida_em ? `<span class="sm2">✓ ${hora(a.concluida_em)}</span>` : ''}
+            <div class="tl-act">
+              <button class="btn sm ghost" data-act="editar-tarefa" data-id="${a.id}" title="Editar">${ico('edit',13)}</button>
+              <button class="btn sm ghost" data-act="excluir-tarefa" data-id="${a.id}"
+                data-t="${esc(a.titulo)}" title="Excluir">${ico('trash',13)}</button>
+            </div>
+          </div></div>`;
+      };
+
+      // No dia, agrupa por turno; em período maior, agrupa por data
+      const grupos = {};
+      if (porDia) {
+        const turno = a => {
+          if (!a.hora) return '4. Sem horário';
+          const h = +hm(a.hora).slice(0, 2);
+          return h < 12 ? '1. Manhã' : h < 18 ? '2. Tarde' : '3. Noite';
+        };
+        lista.forEach(a => { (grupos[turno(a)] ||= []).push(a); });
+      } else {
+        lista.forEach(a => { (grupos[a.prazo] ||= []).push(a); });
+      }
+      Object.values(grupos).forEach(ordena);
+      const chaves = Object.keys(grupos).sort();
+      if (!porDia) chaves.reverse();
+      const rotuloGrupo = k => porDia ? k.slice(3)
+        : (k === hoje() ? 'Hoje · ' : '') + new Date(k + 'T12:00:00')
+            .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'2-digit' });
+
+      const raio = 52, volta = 2 * Math.PI * raio;
+
+      return topo + `
+      ${previsao.length ? `
+        <div class="card"><div class="ch">
+          <h3>${(() => { const d = new Date(f.data + 'T12:00:00')
+              .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+            return d[0].toUpperCase() + d.slice(1); })()}</h3>
+          <span class="pill info">previsão</span>
+          <div class="push"><button class="btn" data-act="gerar-dia">${ico('zap',15)}Gerar este dia</button></div></div>
+        <div class="cb" style="padding-bottom:4px"><p class="sm2">
+          As tarefas deste dia ainda não foram criadas. Isto é o que as suas rotinas
+          <b>vão gerar</b> — dá para se preparar, mas ainda não dá para marcar.</p></div>
+        ${previsao.map(m => `<div class="tl-item rotina previsto">
+          <div class="tl-hora ${m.hora ? '' : 'vazia'}">${m.hora ? hm(m.hora) : 'sem hora'}</div>
+          <div class="tl-rail"><span class="pt"></span></div>
+          <div class="tl-corpo">
+            <span class="tick" style="border-style:dashed;cursor:default"></span>
+            <div class="g"><div class="t">${esc(m.titulo)}</div>
+              <div class="m">${esc(nomeUser(m.responsavel_id))}${
+                m.setor_id ? ' · ' + esc(nomeSetor(m.setor_id)) : ''}</div>
+              ${chipsTags(m.tags)}</div>
+            <span class="pill dim">prevista</span></div></div>`).join('')}
+        </div>` : `
+      <div class="progresso">
+        <div class="anel">
+          <svg viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="${raio}" class="tr"/>
+            <circle cx="60" cy="60" r="${raio}" class="fr ${pct === 100 ? 'cheio' : ''}"
+              style="stroke-dasharray:${volta};stroke-dashoffset:${volta * (1 - (pct || 0) / 100)}"/>
+          </svg>
+          <div class="mid"><div class="p">${pct == null ? '—' : pct + '%'}</div>
+            <div class="s">${feitas.length}/${lista.length}</div></div>
+        </div>
+        <div class="lado">
+          <div class="linha"><div><div class="lb">Sequência</div>
+            <div class="ds">Dias seguidos fechando 100%</div></div>
+            <div class="v ${streak >= 3 ? 'ok' : ''}">${streak}${streak === 1 ? ' dia' : ' dias'}</div></div>
+          <div class="linha"><div><div class="lb">Em aberto</div>
+            <div class="ds">${atrasadas.length ? atrasadas.length + ' com prazo vencido' : 'nada atrasado'}</div></div>
+            <div class="v ${atrasadas.length ? 'bad' : ''}">${lista.length - feitas.length}</div></div>
+          <div class="heat">
+            <div class="lb" style="margin-bottom:8px">Últimos 14 dias</div>
+            <div class="grade">${dias14.map(x => `<span title="${dtl(x.d)} — ${
+              x.total ? x.ok + '/' + x.total : 'nada previsto'}"
+              class="${x.total === 0 ? 'vazio' : x.pct === 100 ? 'cheio' : x.pct >= 50 ? 'meio' : 'pouco'}"></span>`).join('')}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><h3>${f.periodo === 'hoje' ? 'A rotina de hoje'
+          : f.periodo === 'semana' ? 'Esta semana'
+          : f.periodo === 'mes' ? 'Este mês'
+          : (() => { const d = new Date(f.data + 'T12:00:00')
+              .toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+             return d[0].toUpperCase() + d.slice(1); })()}</h3>
+          <span class="push sm2">${lista.length} item(ns)</span></div>
+        <div class="legenda">
+          <b><i style="background:var(--ac)"></i> Rotina — se repete</b>
+          <b><i style="background:var(--pt)"></i> Pontual — só naquele dia</b>
+          <span style="margin-left:auto">${lista.filter(ehRotina).length} rotina(s) ·
+            ${lista.filter(a => !ehRotina(a)).length} pontual(is)</span></div>
+        ${lista.length ? chaves.map(k => `
+          <div class="grupo">${rotuloGrupo(k)}
+            <span>${grupos[k].filter(a => a.status === 'concluida').length}/${grupos[k].length}</span></div>
+          ${grupos[k].map(item).join('')}`).join('')
+        : vazio('check',
+            f.periodo === 'hoje' ? 'Nada previsto para hoje'
+            : f.periodo === 'dia' ? 'Nenhuma rotina cai neste dia'
+            : 'Nada neste período',
+            'Se você já tem rotinas cadastradas, clique em "Gerar rotinas". Se não tem, comece criando uma.',
+            { act:'gerar', label:'Gerar hoje' })}
+      </div>`}`;
+    }
+
+    /* ═══ VISÃO ROTINAS — os moldes ══════════════════════════════ */
+    if (f.vista === 'rotinas') {
+      const doDia = d => semanais.filter(m => diasDaRotina(m).includes(d))
+        .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora));
+      const carga = ORDEM_SEMANA.map(d => doDia(d).length);
+      const maxCarga = Math.max(...carga);
+      const diaPico = ORDEM_SEMANA[carga.indexOf(maxCarga)];
+      // Só os dias úteis: sábado vazio não é desequilíbrio
+      const uteis = [1,2,3,4,5].map(d => doDia(d).length);
+      const desequilibrio = Math.max(...uteis) - Math.min(...uteis);
+
+      return topo + `
+        ${semanais.length || mensais.length ? `
         <div class="tiles stg">
           <div class="tile"><div class="ic">${ico('refresh',18)}</div><div class="n">${semanais.length}</div>
             <div class="l">Rotinas na semana</div></div>
           <div class="tile ok"><div class="ic">${ico('clock',18)}</div>
-            <div class="n">${doDia(hojeDia).length}</div><div class="l">Para hoje</div></div>
+            <div class="n">${doDia(hojeDia).length}</div><div class="l">Caem hoje</div></div>
           <div class="tile ${desequilibrio > 4 ? 'warn' : ''}"><div class="ic">${ico('chart',18)}</div>
             <div class="n" style="font-size:22px">${NOME_DIA[diaPico]}</div>
             <div class="l">Dia mais carregado</div><div class="h">${maxCarga} rotina(s)</div></div>
           <div class="tile"><div class="ic">${ico('cal',18)}</div>
             <div class="n">${mensais.length}</div><div class="l">Mensais</div></div>
-        </div>`}
-        ${cache.temMetricas ? `<div class="sm2" style="margin:-8px 0 20px">
-          Estes números são configuráveis em
-          <b data-act="ir-painel" style="cursor:pointer;color:var(--ac)">Configurações › Painel</b>.</div>` : ''}
+        </div>
 
-        ${f.vista === 'kanban' ? `
-        <div class="semana">${ORDEM_SEMANA.map(d => {
-          const lista = doDia(d);
-          return `<div class="col ${d === hojeDia ? 'hoje' : ''} ${d === 0 || d === 6 ? 'fds' : ''}">
-            <h4>${NOME_DIA[d]}${d === hojeDia ? '<span class="agora">hoje</span>' : ''}
-              <span>${lista.length}</span></h4>
-            <div class="carga"><i style="width:${100 * lista.length / pico}%"></i></div>
-            ${lista.length ? lista.map(cartao).join('')
-              : `<div class="livre">${d === 0 || d === 6 ? 'folga' : 'dia livre'}</div>`}
-          </div>`;
-        }).join('')}</div>` : ''}
-
-        ${f.vista === 'lista' ? `
         <div class="card"><div class="ch"><h3>Todas as rotinas</h3>
           <span class="push sm2">${semanais.length + mensais.length} no total</span></div>
           <div class="t-scroll"><table><thead><tr>
             <th>Rotina</th><th>Setor</th><th>Dias de execução</th><th>Hora</th>
             <th>Responsável</th><th>Canal</th><th>Tags</th><th></th>
           </tr></thead><tbody>${[...semanais, ...mensais]
-            .sort((a, b) => emMin(a.hora) - emMin(b.hora) || (a.titulo > b.titulo ? 1 : -1))
+            .sort((a, b) => emMinuto(a.hora) - emMinuto(b.hora) || (a.titulo > b.titulo ? 1 : -1))
             .map(m => `<tr>
               <td><b>${esc(m.titulo)}</b>${m.recorrencia === 'quinzenal'
                 ? ' <span class="pill info">quinzenal</span>' : ''}</td>
@@ -3481,38 +3283,141 @@ R.rotinaSemanal = {
               <td class="mut">${m.canal_id ? esc(nomeCanal(m.canal_id)) : '—'}</td>
               <td>${chipsTags(m.tags) || '<span class="mut">—</span>'}</td>
               <td class="act">
-                <button class="btn sm ghost" data-act="editar" data-id="${m.id}" title="Editar">${ico('edit',13)}</button>
+                <button class="btn sm ghost" data-act="editar-rotina" data-id="${m.id}" title="Editar">${ico('edit',13)}</button>
                 <button class="btn sm ghost" data-act="dup-rotina" data-id="${m.id}" title="Duplicar">${ico('copy',13)}</button>
                 <button class="btn sm ghost" data-act="del-rotina" data-id="${m.id}" data-t="${esc(m.titulo)}" title="Excluir">${ico('trash',13)}</button>
               </td>
-            </tr>`).join('')}</tbody></table></div></div>` : ''}
+            </tr>`).join('')}</tbody></table></div>
+          <div class="cb sm2" style="border-top:1px solid var(--line)">
+            Rotina é molde: ela nunca aparece na fila do dia. Quem aparece são as tarefas que
+            ela gera — e é nelas que você dá o check, na visão <b>Semana</b>.</div></div>`
+        : `<div class="card">${vazio('cal',
+            f.quem === 'minha' ? 'Sua semana está vazia' : 'Nenhuma rotina cadastrada',
+            f.quem === 'minha'
+              ? 'Nenhuma rotina recorrente está no seu nome. Crie uma, ou veja a do time inteiro no filtro acima.'
+              : 'Cadastre o que se repete toda semana e ele aparece aqui, distribuído por dia.',
+            { act:'nova', label:'Criar rotina' })}</div>`}`;
+    }
 
-        ${f.vista === 'calendario' ? calendario(meus, f.mes) : ''}
-
-        ${f.vista !== 'lista' && mensais.length ? `<div class="card" style="margin-top:20px">
-          <div class="ch"><h3>Rotinas mensais</h3>
-            <span class="push sm2">não caem num dia fixo da semana</span></div>
-          ${mensais.map(m => `<div class="row" data-act="editar" data-id="${m.id}" style="cursor:pointer">
-            <span class="pill ac">dia ${m.recorrencia_dia_mes}</span>
-            <div class="g"><div class="t">${esc(m.titulo)}</div>
-              <div class="m">${esc(nomeUser(m.responsavel_id))}${
-                m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div></div>
-            ${m.hora ? `<span class="pill dim">${hm(m.hora)}</span>` : ''}</div>`).join('')}
-        </div>` : ''}`
-      : `<div class="card">${vazio('cal',
-          f.quem === 'minha' ? 'Sua semana está vazia' : 'Nenhuma rotina cadastrada',
-          f.quem === 'minha'
-            ? 'Nenhuma rotina recorrente está no seu nome. Crie uma, ou veja a do time inteiro no botão acima.'
-            : 'Cadastre o que se repete toda semana e ele aparece aqui, distribuído por dia.',
-          { act:'nova', label:'Criar rotina' })}</div>`}`;
+    /* ═══ VISÃO CALENDÁRIO — o mês ═══════════════════════════════ */
+    return topo + calendario(ativas, f.mes) + (mensais.length ? `
+      <div class="card" style="margin-top:20px">
+        <div class="ch"><h3>Rotinas mensais</h3>
+          <span class="push sm2">não caem num dia fixo da semana</span></div>
+        ${mensais.map(m => `<div class="row" data-act="editar-rotina" data-id="${m.id}" style="cursor:pointer">
+          <span class="pill ac">dia ${m.recorrencia_dia_mes}</span>
+          <div class="g"><div class="t">${esc(m.titulo)}</div>
+            <div class="m">${esc(nomeUser(m.responsavel_id))}${
+              m.canal_id ? ' · ' + esc(nomeCanal(m.canal_id)) : ''}</div></div>
+          ${m.hora ? `<span class="pill dim">${hm(m.hora)}</span>` : ''}</div>`).join('')}
+      </div>` : '');
   },
   acoes: {
-    quem(b)  { R.rotinaSemanal.filtro.quem = b.dataset.v; pinta(); },
-    vista(b) { R.rotinaSemanal.filtro.vista = b.dataset.v; pinta(); },
-    mes(b)   { R.rotinaSemanal.filtro.mes = b.dataset.v; pinta(); },
-    dia(b)   { detalheDoDia(b.dataset.d); },
-    nova() { R.acoes.acoes.modelo(); },
+    /* ── filtros e navegação ─────────────────────────────────── */
+    vista(b)   { R.rotinaSemanal.filtro.vista = b.dataset.v; pinta(); },
+    quem(b)    { R.rotinaSemanal.filtro.quem = b.dataset.v; pinta(); },
+    rec(b)     { R.rotinaSemanal.filtro.rec = b.dataset.v; pinta(); },
+    tag(b)     { R.rotinaSemanal.filtro.tag = b.dataset.v; pinta(); },
+    periodo(b) { R.rotinaSemanal.filtro.periodo = b.dataset.v; pinta(); },
+    mes(b)     { R.rotinaSemanal.filtro.mes = b.dataset.v; pinta(); },
+    dia(b)     { detalheDoDia(b.dataset.d); },
+    'escolhe-data'(el) { R.rotinaSemanal.filtro.data = el.value || hoje(); pinta(); },
     'ir-painel'() { abaCfg = 'painel'; vai('config'); },
+    /* Zero volta para a semana corrente — é o botão que tira você de
+       uma semana antiga sem contar cliques. */
+    'sem-passo'(b) {
+      const f = R.rotinaSemanal.filtro, n = +b.dataset.v;
+      f.semana = n === 0 ? seg()
+        : new Date(new Date((f.semana || seg()) + 'T12:00:00').getTime() + n * 7 * 864e5)
+            .toISOString().slice(0, 10);
+      pinta();
+    },
+    // Do bloco para o dia: mesma tela, período de um dia só
+    'abrir-dia'(b) {
+      const f = R.rotinaSemanal.filtro;
+      f.vista = 'dia'; f.periodo = 'dia'; f.data = b.dataset.d;
+      pinta();
+    },
+
+    /* ── criar ───────────────────────────────────────────────── */
+    nova() { R.acoes.acoes.modelo(); },
+    'nova-pontual'() { formPontual(); },
+    'nova-no-dia'(b) { formPontual(b.dataset.d); },
+
+    /* ── gerar as ocorrências ────────────────────────────────── */
+    async 'gerar-quando'(b) {
+      const f = R.rotinaSemanal.filtro;
+      const mais = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+      const faixas = {
+        hoje:   [hoje(), hoje()],
+        amanha: [mais(1), mais(1)],
+        semana: [seg(), new Date(new Date(seg() + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10)],
+        prox:   [hoje(), mais(6)],
+        dia:    [f.data || hoje(), f.data || hoje()]
+      };
+      const [de, ate] = faixas[b.dataset.v] || faixas.hoje;
+      if (!await geraPeriodo(de, ate)) return;
+      // Leva a tela para onde você acabou de gerar
+      if (b.dataset.v === 'amanha') { f.vista = 'dia'; f.periodo = 'dia'; f.data = mais(1); }
+      else if (b.dataset.v === 'semana' || b.dataset.v === 'prox') { f.vista = 'semana'; f.semana = seg(); }
+      pinta();
+    },
+    async 'gerar-um-dia'(b) { if (await geraPeriodo(b.dataset.d, b.dataset.d)) pinta(); },
+    async 'gerar-dia'() {
+      const d = R.rotinaSemanal.filtro.data || hoje();
+      if (await geraPeriodo(d, d)) pinta();
+    },
+    async 'gerar-esta-semana'() {
+      const de = R.rotinaSemanal.filtro.semana || seg();
+      const ate = new Date(new Date(de + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
+      if (await geraPeriodo(de, ate)) pinta();
+    },
+    async gerar() { if (await geraPeriodo(hoje(), hoje())) pinta(); },
+
+    /* ── marcar e mexer nas tarefas ──────────────────────────── */
+    async virar(b) {
+      const novo = b.dataset.v;
+      b.classList.toggle('done', novo === 'concluida');   // resposta imediata
+      await grava('acoes', { status: novo }, b.dataset.id);
+      pinta();
+    },
+    /* Editar a ocorrência, não o modelo: mexer aqui muda só este dia.
+       Trocar a data move a tarefa de bloco, que é como se remaneja a
+       semana sem desfazer a rotina que a gerou. */
+    async 'editar-tarefa'(b) {
+      const [a] = await q('acoes', x => x.eq('id', b.dataset.id));
+      if (!a) return;
+      form(`Tarefa · ${a.titulo}`, [
+        { k:'titulo', label:'O que precisa ser feito', req:true, value:a.titulo },
+        { k:'descricao', label:'Detalhes', type:'textarea', value:a.descricao },
+        { k:'prazo', label:'Em que dia', type:'date', value:a.prazo,
+          hint:'Mudar a data move a tarefa para outro bloco da semana.' },
+        ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time', value:a.hora ? hm(a.hora) : '',
+          hint:'Vazio = sem hora marcada; a tarefa cai no fim do dia.' }] : []),
+        { k:'responsavel_id', label:'Responsável', type:'select', value:a.responsavel_id, opts:optUsuarios() },
+        ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:a.setor_id, opts:optSetores() }] : []),
+        { k:'canal_id', label:'Canal', type:'select', value:a.canal_id, opts:optCanais() },
+        ...(cache.temTags ? [{ k:'_tags', label:'Tags', value:(a.tags || []).join(', '),
+          ph:'comercial, prospecção', hint:'Separadas por vírgula.' }] : []),
+        { k:'status', label:'Situação', type:'select', value:a.status, opts:[
+          { v:'aberta', t:'Em aberto' }, { v:'em_andamento', t:'Em andamento' },
+          { v:'concluida', t:'Concluída' }] },
+        { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila', value:a.urgente }
+      ], d => {
+        if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
+        return grava('acoes', d, a.id);
+      });
+    },
+    'excluir-tarefa'(b) {
+      confirma('Excluir tarefa',
+        `<p>"${esc(b.dataset.t)}" sai da semana.</p>
+         <p class="sm2" style="margin-top:10px">Se ela veio de uma rotina, a rotina continua ativa —
+         a tarefa volta no próximo dia previsto. Para tirar de vez, pause a rotina em
+         <b>Ações e rotinas</b>.</p>`,
+        async () => { const ok = await apaga('acoes', b.dataset.id); if (ok) toast('Tarefa excluída.'); return ok; });
+    },
+
+    /* ── mexer nos moldes ────────────────────────────────────── */
     async 'dup-rotina'(b) {
       const [r] = await q('acoes', x => x.eq('id', b.dataset.id));
       if (!r) return;
@@ -3534,7 +3439,7 @@ R.rotinaSemanal = {
         async () => { const ok = await apaga('acoes', b.dataset.id); if (ok) toast('Rotina excluída.'); return ok; },
         { palavra: 'EXCLUIR' });
     },
-    async editar(b) {
+    async 'editar-rotina'(b) {
       const [m] = await q('acoes', x => x.eq('id', b.dataset.id));
       if (!m) return;
       form(`Rotina · ${m.titulo}`, [
@@ -3563,6 +3468,21 @@ R.rotinaSemanal = {
   }
 };
 
+/* Gerar é sempre a mesma chamada; o que muda é a faixa de datas.
+   Devolve false quando o banco recusa, para quem chamou não repintar
+   a tela em cima de um erro. */
+async function geraPeriodo(de, ate) {
+  const { data, error } = await sb.rpc('gerar_acoes_do_periodo', { p_de: de, p_ate: ate });
+  if (error) {
+    toast(/function|does not exist/i.test(error.message)
+      ? 'A geração por período ainda não existe no banco (correção 07).' : error.message, { tipo:'bad' });
+    return false;
+  }
+  const quando = de === ate ? dt(de) : `${dt(de)} a ${dt(ate)}`;
+  toast(data ? `${data} tarefa(s) criada(s) — ${quando}.` : `Nada novo a gerar em ${quando}.`,
+    { tipo: data ? 'ok' : 'info' });
+  return true;
+}
 /* ── Rotinas do time ──────────────────────────────────────────────
    Mesmas rotinas da tela de Ações, mas olhadas pela ótica de quem
    executa: quem carrega o quê e quem está cumprindo. */
