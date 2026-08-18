@@ -3037,9 +3037,11 @@ R.rotinaSemanal = {
             <span>${lst.length ? ok + '/' + lst.length : prev.length ? '~' + prev.length : '0'}</span></h4>
           <div class="carga"><i style="width:${lst.length ? Math.round(100 * ok / lst.length) : 0}%"></i></div>
           ${lst.length ? lst.map(cartaoTarefa).join('')
-            : prev.length ? `${prev.map(m => `<div class="k prev">
-                  <div class="t">${esc(m.titulo)}</div>
-                  <div class="m">${m.hora ? hm(m.hora) + ' · ' : ''}prevista</div></div>`).join('')}
+            : prev.length ? `${prev.map(m => `<div class="k prev tarefa">
+                  <button class="tick" data-act="checar-previsto" data-d="${d}" data-m="${m.id}"
+                    style="border-style:dashed" title="Marcar como feita — cria o dia antes">${ico('check', 12)}</button>
+                  <div class="g"><div class="t">${esc(m.titulo)}</div>
+                    <div class="m">${m.hora ? hm(m.hora) + ' · ' : ''}prevista</div></div></div>`).join('')}
                 <button class="btn sm ghost bl" data-act="gerar-um-dia" data-d="${d}">${ico('zap',13)}Gerar o dia</button>`
             : `<div class="livre">${dow === 0 || dow === 6 ? 'folga' : 'dia livre'}</div>`}
           <button class="btn sm ghost bl" data-act="nova-no-dia" data-d="${d}">${ico('plus',13)}Tarefa</button>
@@ -3175,12 +3177,14 @@ R.rotinaSemanal = {
           <div class="push"><button class="btn" data-act="gerar-dia">${ico('zap',15)}Gerar este dia</button></div></div>
         <div class="cb" style="padding-bottom:4px"><p class="sm2">
           As tarefas deste dia ainda não foram criadas. Isto é o que as suas rotinas
-          <b>vão gerar</b> — dá para se preparar, mas ainda não dá para marcar.</p></div>
+          <b>vão gerar</b>. Marcar uma delas cria o dia inteiro primeiro — as outras nascem
+          em aberto, como se você tivesse clicado em "Gerar este dia".</p></div>
         ${previsao.map(m => `<div class="tl-item rotina previsto">
           <div class="tl-hora ${m.hora ? '' : 'vazia'}">${m.hora ? hm(m.hora) : 'sem hora'}</div>
           <div class="tl-rail"><span class="pt"></span></div>
           <div class="tl-corpo">
-            <span class="tick" style="border-style:dashed;cursor:default"></span>
+            <button class="tick" data-act="checar-previsto" data-d="${f.data}" data-m="${m.id}"
+              style="border-style:dashed" title="Marcar como feita — cria o dia antes">${ico('check', 12)}</button>
             <div class="g"><div class="t">${esc(m.titulo)}</div>
               <div class="m">${esc(nomeUser(m.responsavel_id))}${
                 m.setor_id ? ' · ' + esc(nomeSetor(m.setor_id)) : ''}</div>
@@ -3363,6 +3367,22 @@ R.rotinaSemanal = {
       pinta();
     },
     async 'gerar-um-dia'(b) { if (await geraPeriodo(b.dataset.d, b.dataset.d)) pinta(); },
+    /* Marcar o que ainda é previsão. A tarefa não existe no banco, então
+       não dá para gravar nela: primeiro o dia é gerado (o mesmo botão
+       "Gerar o dia", só que implícito) e aí a ocorrência recém-nascida
+       daquela rotina é que recebe o check. Sem isso, fechar a segunda de
+       manhã exigia dois cliques em lugares diferentes. */
+    async 'checar-previsto'(b) {
+      const d = b.dataset.d, modelo = b.dataset.m;
+      b.classList.add('done');
+      if (!await geraPeriodo(d, d)) return pinta();
+      const [a] = await q('acoes', x => x.eq('acao_modelo_id', modelo).eq('prazo', d).limit(1));
+      if (!a) { toast('O dia foi gerado, mas esta rotina não caiu nele.', { tipo:'info' }); return pinta(); }
+      if (await grava('acoes', { status:'concluida' }, a.id)) {
+        toast('Feita.', { desfazer: async () => { await grava('acoes', { status:'aberta' }, a.id); pinta(); } });
+      }
+      pinta();
+    },
     async 'gerar-dia'() {
       const d = R.rotinaSemanal.filtro.data || hoje();
       if (await geraPeriodo(d, d)) pinta();
