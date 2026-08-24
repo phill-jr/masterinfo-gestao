@@ -908,33 +908,17 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .tl-item:hover .tl-act,.tl-act:focus-within{opacity:1}
 @media(hover:none){.tl-act{opacity:1}}
 
-/* ── canal: hub orbital ──────────────────────────────────────── */
-.orbita{position:relative;height:470px;margin-bottom:22px}
-.orbita .anel{position:absolute;left:50%;top:50%;width:min(560px,78%);aspect-ratio:1.25;
-  transform:translate(-50%,-50%);border:1.5px dashed var(--line2);border-radius:50%;opacity:.7}
-.orb-c{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:190px;height:190px;
-  border-radius:50%;background:var(--surface);border:1.5px solid var(--ac);cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
-  padding:16px;box-shadow:0 0 0 8px var(--ac-bg);z-index:2}
-.orb-c .nm{font-weight:700;font-size:15px;line-height:1.3;margin-bottom:7px}
-.orb-i{position:absolute;transform:translate(-50%,-50%);width:118px;padding:11px 9px;
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;z-index:3;
-  color:var(--txt);transition:border-color .15s,box-shadow .15s;animation:fadeUp .4s var(--ease) both}
-.orb-i:hover{border-color:var(--ac);box-shadow:var(--sh)}
-.orb-i.on{border-color:var(--ac);background:var(--ac-bg);box-shadow:0 0 0 3px var(--ac-bg)}
-.orb-i .ic{width:32px;height:32px;border-radius:9px;background:var(--ac-bg);color:var(--ac);
-  display:grid;place-items:center}
-.orb-i.on .ic{background:var(--ac);color:var(--ac-fg)}
-.orb-i b{font-size:12.5px}
-.orb-i .inf{font-size:10.5px;color:var(--dim)}
-@media(max-width:900px){
-  .orbita{height:auto;display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-top:0}
-  .orbita .anel{display:none}
-  .orb-c{position:static;transform:none;width:auto;height:auto;border-radius:var(--r-lg);
-    grid-column:1/-1;box-shadow:none;padding:18px}
-  .orb-i{position:static;transform:none;width:auto;animation:none}
-}
+/* ── canal: ficha em abas ────────────────────────────────────── */
+.ctabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.ctabs button{flex:1;min-width:132px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  padding:11px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  cursor:pointer;color:var(--txt);text-align:left;transition:border-color .15s,box-shadow .15s}
+.ctabs button:hover{border-color:var(--ac)}
+.ctabs button.on{border-color:var(--ac);background:var(--ac-bg);box-shadow:0 0 0 3px var(--ac-bg)}
+.ctabs .bt{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:700}
+.ctabs .bt svg{color:var(--ac)}
+.ctabs .inf{font-size:11.5px;color:var(--dim)}
+@media(max-width:900px){.ctabs button{min-width:calc(50% - 8px)}}
 /* fluxograma: caixas e setas na vertical */
 .fluxo{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
 .fluxo .passo{display:flex;align-items:center;gap:11px;background:var(--surface2);
@@ -2336,11 +2320,12 @@ function linhaItem(a) {
   </div>`;
 }
 
-/* A ficha do canal é um hub: o canal é o círculo do centro e cada
-   seção é um quadrado orbitando — o que é, meta, engajamento, regras,
-   fluxograma e plano de abertura. Clicar num quadrado abre a seção
-   embaixo. É a resposta visual para "o que É este canal?" sem rolar
-   seis cards empilhados. */
+/* A ficha do canal é uma tela de abas: o que é, meta, engajamento,
+   regras, fluxograma e plano de abertura. Cada aba mostra no próprio
+   botão o estado da seção ("a definir", "3 etapas", "12/20") — o
+   panorama do hub orbital sem o custo dele: a órbita era bonita mas
+   os quadrados ficavam minúsculos e o conteúdo começava abaixo da
+   dobra (removida em 24/08 a pedido do Philipe). */
 function canalFicha(s) {
   const c = canalCache.canal || {};
   const itens = canalCache.itens.filter(a => a.bloco === canalAba);
@@ -2427,35 +2412,21 @@ function canalFicha(s) {
       : `<div class="cb">${vazio('chart', 'Sem número lançado',
           'Enquanto investimento, leads, vendas e receita não forem lançados no mês, o veredito do canal é opinião.')}</div>`}</div>`;
 
-  /* ── as seis órbitas ─────────────────────────────────────────── */
+  /* ── as seis abas ────────────────────────────────────────────── */
   const totPlano = somaBloco(s.id, 'itens'), okPlano = somaBloco(s.id, 'feitos');
   const pctPlano = totPlano ? Math.round(100 * okPlano / totPlano) : 0;
   const etapasFluxo = (c.fluxograma || '').split('\n').map(x => x.trim()).filter(Boolean);
   const SECOES = [
     ['oquee',       'O que é',    'book',    s.publico || s.mecanica ? 'definido' : 'a definir'],
     ['meta',        'Meta',       'chart',   s.meta_30d != null ? `${s.meta_30d} em 30d` : 'a definir'],
-    ['engajamento', 'Engajamento','refresh', `${canalCache.rots.length} rotina(s)`],
+    ['engajamento', 'Engajamento','refresh', `${canalCache.camps.length} campanha(s) · ${canalCache.rots.length} rotina(s)`],
     ['regras',      'Regras',     'lock',    c.regras ? 'definidas' : 'a definir'],
     ['fluxo',       'Fluxograma', 'link',    etapasFluxo.length ? `${etapasFluxo.length} etapa(s)` : 'a desenhar'],
-    ['plano',       'Plano',      'check',   totPlano ? `${okPlano}/${totPlano}` : 'sem plano']
+    ['plano',       'Plano',      'check',   totPlano ? `${okPlano}/${totPlano} · ${pctPlano}%` : 'sem plano']
   ];
-  const orbItem = ([k, t, icone, info], i) => {
-    const ang = (-90 + i * 60) * Math.PI / 180;
-    const x = 50 + 40 * Math.cos(ang), y = 50 + 41 * Math.sin(ang);
-    return `<button class="orb-i ${canalSecao === k ? 'on' : ''}" data-act="secao" data-v="${k}"
-      style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;animation-delay:${i * .06}s">
-      <span class="ic">${ico(icone, 17)}</span><b>${t}</b><span class="inf">${esc(info)}</span></button>`;
-  };
-  const orbita = `<div class="orbita">
-    <div class="anel"></div>
-    <div class="orb-c" data-act="editar-canal" title="Editar o canal">
-      <div class="nm">${esc(s.nome)}</div>
-      <span class="pill ac">${esc(NOME_ESTAGIO[s.estagio])}</span>
-      <div class="bar" style="width:70%;margin-top:9px"><i class="${pctPlano === 100 ? 'ok' : ''}"
-        style="width:${pctPlano}%"></i></div>
-      <div class="sm2" style="margin-top:5px">${totPlano ? pctPlano + '% do plano' : 'sem plano aplicado'}</div>
-    </div>
-    ${SECOES.map(orbItem).join('')}
+  const abas = `<div class="ctabs">${SECOES.map(([k, t, icone, info]) => `
+    <button class="${canalSecao === k ? 'on' : ''}" data-act="secao" data-v="${k}">
+      <span class="bt">${ico(icone, 15)}${t}</span><span class="inf">${esc(info)}</span></button>`).join('')}
   </div>`;
 
   const secOquee = canalSecao !== 'oquee' ? '' : identidade + (c.notas ? `
@@ -2511,13 +2482,14 @@ function canalFicha(s) {
     <div class="head">
       <div><h2>${esc(s.nome)}</h2>
         <div class="sub">${esc((s.tipo || '').replace('_',' '))} · ${esc(NOME_ESTAGIO[s.estagio])}${
-          s.dono ? ' · ' + esc(s.dono) : ''}</div></div>
+          s.dono ? ' · ' + esc(s.dono) : ''}${
+          totPlano ? ` · ${pctPlano}% do plano` : ''}</div></div>
       <div class="push">
         ${dd('Estágio', 'estagio', ESTAGIOS.map(([v, t, d]) => ({ v, t, d })), s.estagio)}
         <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button>
         <button class="btn" data-act="aplicar">${ico('plus',15)}Aplicar plano</button></div></div>
 
-    ${orbita}
+    ${abas}
     ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}`;
 }
 
