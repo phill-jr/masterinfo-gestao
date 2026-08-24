@@ -947,20 +947,34 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .fluxo .seta{color:var(--ac);font-size:17px;line-height:1;padding:3px 0}
 
 /* ── início lançador ─────────────────────────────────────────── */
-.lancador{max-width:880px;margin:0 auto;padding-top:4vh}
-.lan-hero{text-align:center;margin-bottom:36px}
-.lan-hero img{height:42px;margin-bottom:12px}
-.lan-hero .s{color:var(--dim);font-size:14px}
-.lan-g{margin-bottom:26px}
-.lan-g h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);
-  display:flex;align-items:center;gap:7px;margin-bottom:10px}
-.lan-cs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
-.lan-c{display:flex;align-items:center;gap:11px;padding:14px 15px;background:var(--surface);
-  border:1px solid var(--line);border-radius:var(--r-lg);cursor:pointer;font-size:13.5px;
-  font-weight:600;color:var(--txt);text-align:left;transition:all .15s var(--ease)}
-.lan-c:hover{transform:translateY(-2px);border-color:var(--ac);box-shadow:var(--sh)}
-.lan-c .ic{width:38px;height:38px;border-radius:11px;background:var(--ac-bg);color:var(--ac);
-  display:grid;place-items:center;flex:none}
+.lancador{max-width:1080px;margin:0 auto;padding-top:2vh}
+.lan-top{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:26px}
+.lan-top img{height:38px}
+.lan-top .s{color:var(--dim);font-size:13.5px}
+.lan-busca{display:flex;align-items:center;gap:10px;width:min(460px,100%);margin-top:6px;
+  background:var(--surface);border:1px solid var(--line2);border-radius:14px;padding:11px 16px;
+  color:var(--dim);transition:border-color .15s,box-shadow .15s}
+.lan-busca:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
+.lan-busca input{flex:1;border:0;background:none;font-size:14px;color:var(--txt);padding:0}
+.lan-busca input:focus{outline:none}
+.lan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;
+  align-items:start}
+.lan-g{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--gc,var(--ac));
+  border-radius:var(--r-lg);padding:7px;animation:fadeUp .35s var(--ease) both}
+.lan-g .gh{display:flex;align-items:center;gap:9px;padding:9px 10px 8px}
+.lan-g .gh .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
+.lan-g h3{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--txt2)}
+.lan-it{display:flex;width:100%;align-items:center;gap:10px;padding:8px 10px;border:0;
+  background:none;border-radius:10px;cursor:pointer;font-size:13.5px;font-weight:600;
+  color:var(--txt);text-align:left;transition:background .13s}
+.lan-it:hover{background:var(--surface2)}
+.lan-it .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
+.lan-it b{flex:1;min-width:0}
+.lan-it .chev{color:var(--dim);opacity:0;transform:translateX(-4px);transition:all .15s}
+.lan-it:hover .chev{opacity:1;transform:none}
+@media(hover:none){.lan-it .chev{opacity:.5;transform:none}}
+/* display:flex venceria o atributo hidden e a busca não filtraria nada */
+.lan-it[hidden],.lan-g[hidden]{display:none}
 
 /* ── produção: quadro trello ─────────────────────────────────── */
 .trello{display:flex;gap:12px;overflow-x:auto;align-items:flex-start;padding-bottom:14px}
@@ -1769,27 +1783,59 @@ R.inicio = {
   label: 'Início', icone: 'grid', titulo: 'Início',
   async dados() { return {}; },
   render() {
-    const cartao = ([k, a]) => `<button class="lan-c" data-act="abrir" data-r="${k}" data-a="${a || ''}">
-      <span class="ic">${ico(R[k].icone, 22)}</span><b>${esc(a ? (R[k].curto || R[k].label) : R[k].label)}</b></button>`;
+    /* Grid bento: um card por área, lado a lado, cada um com a sua
+       cor — tudo à vista sem rolar. A busca do topo filtra ao vivo e
+       Enter abre o primeiro resultado: o caminho mais curto de todos. */
+    const COR_GRUPO = {
+      comercial:'#16a34a', marketing:'#f76602', onboarding:'#0284c7',
+      desenvolvimento:'#7c3aed', Vendedores:'#ca8a04', 'Gestão':'#64748b', pessoal:'#0d9488'
+    };
+
+    const item = ([k, a], cor) => `<button class="lan-it" data-act="abrir" data-r="${k}" data-a="${a || ''}">
+      <span class="ic" style="background:${cor}1a;color:${cor}">${ico(R[k].icone, 16)}</span>
+      <b>${esc(a ? (R[k].curto || R[k].label) : R[k].label)}</b>
+      <span class="chev">${ico('arrowR', 14)}</span></button>`;
 
     const grupos = [];
     NAV_EMPRESA.forEach(sec => {
       if (sec.tipo === 'item') return;
       const a = (sec.tipo === 'grupo' && !sec.semArea) ? sec.id : null;
       const its = sec.itens.filter(podeVer);
-      if (its.length) grupos.push([sec.label, sec.icone || 'grid', its.map(k => [k, a])]);
+      if (its.length) grupos.push([sec.label, sec.icone || 'grid',
+        COR_GRUPO[sec.id || sec.label] || 'var(--ac)', its.map(k => [k, a])]);
     });
-    grupos.push(['Gestão Pessoal', 'lock', NAV_PESSOAL.flatMap(s => s.itens).map(k => [k, null])]);
+    grupos.push(['Gestão Pessoal', 'lock', COR_GRUPO.pessoal,
+      NAV_PESSOAL.flatMap(s => s.itens).map(k => [k, null])]);
 
     return `<div class="lancador">
-      <div class="lan-hero">
+      <div class="lan-top">
         <img src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
-        <div class="s">${saudacao()}${eu?.nome ? ', ' + esc(eu.nome.split(' ')[0]) : ''}. Onde você vai trabalhar agora?</div>
+        <div class="s">${saudacao()}${eu?.nome ? ', ' + esc(eu.nome.split(' ')[0]) : ''}.</div>
+        <div class="lan-busca">${ico('search', 15)}
+          <input id="lan-q" placeholder="Buscar módulo… (Enter abre)" autocomplete="off"></div>
       </div>
-      ${grupos.map(([titulo, icone, cards]) => `<div class="lan-g">
-        <h3>${ico(icone, 15)}${esc(titulo)}</h3>
-        <div class="lan-cs">${cards.map(cartao).join('')}</div></div>`).join('')}
+      <div class="lan-grid">
+        ${grupos.map(([titulo, icone, cor, cards]) => `<div class="lan-g" style="--gc:${cor}">
+          <div class="gh"><span class="ic" style="background:${cor}1a;color:${cor}">${ico(icone, 15)}</span>
+            <h3>${esc(titulo)}</h3></div>
+          <div class="its">${cards.map(c => item(c, cor)).join('')}</div></div>`).join('')}
+      </div>
     </div>`;
+  },
+  pos() {
+    const inp = $('#lan-q'); if (!inp) return;
+    inp.oninput = () => {
+      const t = inp.value.trim().toLowerCase();
+      $$('.lan-it').forEach(b => b.hidden = !!t && !b.textContent.toLowerCase().includes(t));
+      $$('.lan-g').forEach(g =>
+        g.hidden = ![...g.querySelectorAll('.lan-it')].some(b => !b.hidden));
+    };
+    inp.onkeydown = e => {
+      if (e.key !== 'Enter') return;
+      const b = $('.lan-it:not([hidden])');
+      if (b) vai(b.dataset.r, b.dataset.a || null);
+    };
+    if (!telaEstreita()) inp.focus();   // no celular abriria o teclado sozinho
   },
   acoes: {
     abrir(b) { vai(b.dataset.r, b.dataset.a || null); },
