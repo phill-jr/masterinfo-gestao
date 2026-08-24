@@ -793,6 +793,8 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .pipe .col>h4{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
 .pipe .col>.dsc{font-size:11.5px;color:var(--dim);margin:4px 0 11px;line-height:1.45;min-height:32px}
 .pipe .col>.zero{font-size:11.5px;color:var(--dim);opacity:.6;padding:6px 0}
+.pipe .col.sobre{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
+.cnl.drag{opacity:.45}
 .cnl{border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:9px;cursor:pointer;
   background:var(--surface2);transition:transform .16s var(--ease),border-color .16s var(--ease)}
 .cnl:last-child{margin-bottom:0}
@@ -2243,6 +2245,7 @@ const BLOCOS = [
 const NOME_BLOCO = Object.fromEntries(BLOCOS.map(([v, t]) => [v, t]));
 
 let canalSel = null, canalAba = 'estrutura', canalSecao = 'oquee';
+let canalArrastou = false;   // suprime o clique que sobra depois do arrasto
 const canalCache = { saude: [], blocos: [], itens: [], camps: [], rots: [], kpi: [], canal: {} };
 
 const blocoDe = (id, b) => canalCache.blocos.find(x => x.canal_id === id && x.bloco === b);
@@ -2299,7 +2302,7 @@ function canalPipeline(cs) {
   const coluna = ([v, t, d]) => {
     const meus = cs.filter(c => c.estagio === v);
     if (v === 'encerrado' && !meus.length) return '';
-    return `<div class="col"><h4>${esc(t)}</h4><div class="dsc">${esc(d)}</div>
+    return `<div class="col" data-estagio="${v}"><h4>${esc(t)}</h4><div class="dsc">${esc(d)}</div>
       ${meus.length ? meus.map(cartaoCanal).join('')
         : '<div class="zero">nenhum canal aqui</div>'}</div>`;
   };
@@ -2585,8 +2588,35 @@ R.canais = {
     return s ? canalFicha(s) : canalPipeline(canalCache.saude);
   },
 
+  /* Arrastar o card entre as colunas muda o estágio — mesma regra do
+     dropdown: muda sempre, e avisa se o gate ainda estava aberto. */
+  pos() {
+    if (canalSel) return;   // o arrasto só existe no quadro
+    let drag = null;
+    $$('.pipe .cnl').forEach(k => {
+      k.draggable = true;
+      k.ondragstart = e => { drag = k; canalArrastou = false; k.classList.add('drag');
+        e.dataTransfer.effectAllowed = 'move'; };
+      k.ondragend = () => { k.classList.remove('drag'); drag = null; };
+    });
+    $$('.pipe .col').forEach(c => {
+      c.ondragover = e => { e.preventDefault(); if (drag) c.classList.add('sobre'); };
+      c.ondragleave = () => c.classList.remove('sobre');
+      c.ondrop = async e => {
+        e.preventDefault(); c.classList.remove('sobre');
+        if (!drag) return;
+        canalArrastou = true;   // o clique que sobra do arrasto não deve abrir a ficha
+        const id = drag.dataset.id; drag = null;
+        await mudaEstagio(id, c.dataset.estagio);
+      };
+    });
+  },
+
   acoes: {
-    abrir(b) { canalSel = b.dataset.id; canalAba = 'estrutura'; canalSecao = 'oquee'; pinta(); },
+    abrir(b) {
+      if (canalArrastou) { canalArrastou = false; return; }
+      canalSel = b.dataset.id; canalAba = 'estrutura'; canalSecao = 'oquee'; pinta();
+    },
     voltar() { canalSel = null; pinta(); },
     aba(b)   { canalAba = b.dataset.v; pinta(); },
     secao(b) { canalSecao = b.dataset.v; pinta(); },
@@ -2656,16 +2686,7 @@ R.canais = {
     /* Estágio é escolha do dono, não consequência automática do
        checklist: só ele sabe se o piloto de verdade começou. O que o
        sistema faz é não deixar passar batido que o gate não fechou. */
-    async estagio(b) {
-      const s = canalCache.saude.find(x => x.id === canalSel); if (!s) return;
-      if (!await grava('canais_venda', { estagio: b.dataset.v }, canalSel)) return;
-      await recarregaBase();
-      if (!s.gate_ok && b.dataset.v !== 'encerrado' && ESTAGIOS.findIndex(e => e[0] === b.dataset.v)
-          > ESTAGIOS.findIndex(e => e[0] === s.estagio)) {
-        toast(`Avançou com o gate em aberto: ${s.gate.toLowerCase()}.`, { tipo:'info' });
-      } else toast('Estágio atualizado.');
-      pinta();
-    },
+    async estagio(b) { await mudaEstagio(canalSel, b.dataset.v); },
     avancar() {
       const s = canalCache.saude.find(x => x.id === canalSel); if (!s) return;
       const i = ESTAGIOS.findIndex(e => e[0] === s.estagio);
@@ -2732,6 +2753,21 @@ R.canais = {
     'ir-financeiro'() { vai('financeiro', area); }
   }
 };
+
+/* Usada pelo dropdown de estágio, pelo botão Avançar e pelo arrasto
+   no quadro. Muda sempre — estágio é decisão do dono — mas não deixa
+   um gate aberto passar em silêncio. */
+async function mudaEstagio(id, v) {
+  const s = canalCache.saude.find(x => x.id === id);
+  if (!s || !v || s.estagio === v) return;
+  if (!await grava('canais_venda', { estagio: v }, id)) return;
+  await recarregaBase();
+  if (!s.gate_ok && v !== 'encerrado' && ESTAGIOS.findIndex(e => e[0] === v)
+      > ESTAGIOS.findIndex(e => e[0] === s.estagio)) {
+    toast(`Avançou com o gate em aberto: ${s.gate.toLowerCase()}.`, { tipo:'info' });
+  } else toast('Estágio atualizado.');
+  pinta();
+}
 
 /* Chamada única para os dois botões: o de cima traz o plano inteiro,
    o do card traz só o bloco aberto. */
