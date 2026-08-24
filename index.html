@@ -169,8 +169,6 @@ button{cursor:pointer;border:0;background:none}
    de rolagem morta no fim de toda página. */
 /* No Início não existe barra lateral: a tela É o menu. O menu de
    verdade aparece quando se entra num módulo. */
-.app.semmenu{grid-template-columns:1fr}
-.app.semmenu aside,.app.semmenu #tgl{display:none}
 .app{display:grid;grid-template-columns:var(--sb) 1fr;min-height:100vh;min-height:100dvh;
   transition:grid-template-columns .22s var(--ease)}
 /* Véu do menu no celular. Existe sempre no HTML e some no desktop —
@@ -946,35 +944,19 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
   display:grid;place-items:center;font-size:11.5px;flex:none}
 .fluxo .seta{color:var(--ac);font-size:17px;line-height:1;padding:3px 0}
 
-/* ── início lançador ─────────────────────────────────────────── */
-.lancador{max-width:1080px;margin:0 auto;padding-top:2vh}
-.lan-top{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:26px}
-.lan-top img{height:38px}
-.lan-top .s{color:var(--dim);font-size:13.5px}
-.lan-busca{display:flex;align-items:center;gap:10px;width:min(460px,100%);margin-top:6px;
-  background:var(--surface);border:1px solid var(--line2);border-radius:14px;padding:11px 16px;
-  color:var(--dim);transition:border-color .15s,box-shadow .15s}
-.lan-busca:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
-.lan-busca input{flex:1;border:0;background:none;font-size:14px;color:var(--txt);padding:0}
-.lan-busca input:focus{outline:none}
-.lan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;
-  align-items:start}
-.lan-g{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--gc,var(--ac));
-  border-radius:var(--r-lg);padding:7px;animation:fadeUp .35s var(--ease) both}
-.lan-g .gh{display:flex;align-items:center;gap:9px;padding:9px 10px 8px}
-.lan-g .gh .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
-.lan-g h3{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--txt2)}
-.lan-it{display:flex;width:100%;align-items:center;gap:10px;padding:8px 10px;border:0;
-  background:none;border-radius:10px;cursor:pointer;font-size:13.5px;font-weight:600;
-  color:var(--txt);text-align:left;transition:background .13s}
-.lan-it:hover{background:var(--surface2)}
-.lan-it .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
-.lan-it b{flex:1;min-width:0}
-.lan-it .chev{color:var(--dim);opacity:0;transform:translateX(-4px);transition:all .15s}
-.lan-it:hover .chev{opacity:1;transform:none}
-@media(hover:none){.lan-it .chev{opacity:.5;transform:none}}
-/* display:flex venceria o atributo hidden e a busca não filtraria nada */
-.lan-it[hidden],.lan-g[hidden]{display:none}
+/* ── início: régua da semana ─────────────────────────────────── */
+.ini-sem{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;padding:14px 18px}
+.ini-sem .d{border:1px solid var(--line);border-radius:10px;padding:10px 6px;background:none;
+  cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:center;color:var(--txt);
+  transition:background .13s,border-color .13s}
+.ini-sem .d:hover{background:var(--surface2)}
+.ini-sem .d.on{border-color:var(--ac);background:var(--ac-bg)}
+.ini-sem .d b{font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.ini-sem .d .dd{font-size:11px;color:var(--dim)}
+.ini-sem .d .n{font-size:12px;font-weight:600}
+.ini-sem .d .n.ok{color:var(--ok)}
+.ini-sem .d .n.dim{color:var(--dim);font-weight:400}
+@media(max-width:900px){.ini-sem{grid-template-columns:repeat(7,minmax(72px,1fr));overflow-x:auto}}
 
 /* ── produção: quadro trello ─────────────────────────────────── */
 .trello{display:flex;gap:12px;overflow-x:auto;align-items:flex-start;padding-bottom:14px}
@@ -1776,69 +1758,111 @@ function avisoSql(oQueFalta, arquivo = REPO_SQL_ARQ) {
 }
 
 /* ───────────────────────── INÍCIO ───────────────────────── */
-/* O Início é um menu, não um painel: nenhum número, nenhuma fila —
-   só as portas de entrada. A barra lateral nem aparece aqui (classe
-   `semmenu` no shell); ela surge quando se entra num módulo. */
+/* O Início voltou a ser painel (24/08): a barra lateral fica sempre
+   visível — os módulos moram nela — e a página abre com o que decide
+   a manhã: os destaques, a semana e a fila de prioridades. */
 R.inicio = {
   label: 'Início', icone: 'grid', titulo: 'Início',
-  async dados() { return {}; },
-  render() {
-    /* Grid bento: um card por área, lado a lado, cada um com a sua
-       cor — tudo à vista sem rolar. A busca do topo filtra ao vivo e
-       Enter abre o primeiro resultado: o caminho mais curto de todos. */
-    const COR_GRUPO = {
-      comercial:'#16a34a', marketing:'#f76602', onboarding:'#0284c7',
-      desenvolvimento:'#7c3aed', Vendedores:'#ca8a04', 'Gestão':'#64748b', pessoal:'#0d9488'
-    };
-
-    const item = ([k, a], cor) => `<button class="lan-it" data-act="abrir" data-r="${k}" data-a="${a || ''}">
-      <span class="ic" style="background:${cor}1a;color:${cor}">${ico(R[k].icone, 16)}</span>
-      <b>${esc(a ? (R[k].curto || R[k].label) : R[k].label)}</b>
-      <span class="chev">${ico('arrowR', 14)}</span></button>`;
-
-    const grupos = [];
-    NAV_EMPRESA.forEach(sec => {
-      if (sec.tipo === 'item') return;
-      const a = (sec.tipo === 'grupo' && !sec.semArea) ? sec.id : null;
-      const its = sec.itens.filter(podeVer);
-      if (its.length) grupos.push([sec.label, sec.icone || 'grid',
-        COR_GRUPO[sec.id || sec.label] || 'var(--ac)', its.map(k => [k, a])]);
-    });
-    grupos.push(['Gestão Pessoal', 'lock', COR_GRUPO.pessoal,
-      NAV_PESSOAL.flatMap(s => s.itens).map(k => [k, null])]);
-
-    return `<div class="lancador">
-      <div class="lan-top">
-        <img src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
-        <div class="s">${saudacao()}${eu?.nome ? ', ' + esc(eu.nome.split(' ')[0]) : ''}.</div>
-        <div class="lan-busca">${ico('search', 15)}
-          <input id="lan-q" placeholder="Buscar módulo… (Enter abre)" autocomplete="off"></div>
-      </div>
-      <div class="lan-grid">
-        ${grupos.map(([titulo, icone, cor, cards]) => `<div class="lan-g" style="--gc:${cor}">
-          <div class="gh"><span class="ic" style="background:${cor}1a;color:${cor}">${ico(icone, 15)}</span>
-            <h3>${esc(titulo)}</h3></div>
-          <div class="its">${cards.map(c => item(c, cor)).join('')}</div></div>`).join('')}
-      </div>
-    </div>`;
+  async dados() {
+    const segunda = seg();
+    const fimSem = new Date(new Date(segunda + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
+    const [kpi, fila, semana, pends] = await Promise.all([
+      q('v_dashboard_dia'),
+      q('v_acoes_hoje'),
+      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null)
+        .gte('prazo', segunda).lte('prazo', fimSem)),
+      cache.temSemana
+        ? q('acoes', x => x.eq('recorrencia', 'nenhuma').eq('semana_de', segunda))
+        : Promise.resolve([])
+    ]);
+    return { k: kpi[0] || {}, fila: porCanalNome(fila), semana, pends: pends || [], segunda, fimSem };
   },
-  pos() {
-    const inp = $('#lan-q'); if (!inp) return;
-    inp.oninput = () => {
-      const t = inp.value.trim().toLowerCase();
-      $$('.lan-it').forEach(b => b.hidden = !!t && !b.textContent.toLowerCase().includes(t));
-      $$('.lan-g').forEach(g =>
-        g.hidden = ![...g.querySelectorAll('.lan-it')].some(b => !b.hidden));
-    };
-    inp.onkeydown = e => {
-      if (e.key !== 'Enter') return;
-      const b = $('.lan-it:not([hidden])');
-      if (b) vai(b.dataset.r, b.dataset.a || null);
-    };
-    if (!telaEstreita()) inp.focus();   // no celular abriria o teclado sozinho
+  render({ k, fila, semana, pends, segunda, fimSem }) {
+    const tile = (icone, n, l, cls = '') => `<div class="tile ${Number(n) > 0 ? cls : ''}">
+      <div class="ic">${ico(icone, 18)}</div><div class="n">${n ?? 0}</div>
+      <div class="l">${l}</div></div>`;
+
+    /* Régua da semana: um quadrado por dia, com o que ainda está
+       aberto e o que já saiu. Clicar cai na visão Semana. */
+    const dias = ORDEM_SEMANA.map((_, i) => {
+      const d = new Date(new Date(segunda + 'T12:00:00').getTime() + i * 864e5);
+      const iso = d.toISOString().slice(0, 10);
+      const doDia = semana.filter(a => a.prazo === iso && a.status !== 'cancelada');
+      const abertas = doDia.filter(a => a.status === 'aberta' || a.status === 'em_andamento').length;
+      const feitas = doDia.filter(a => a.status === 'concluida').length;
+      return `<button class="d ${iso === hoje() ? 'on' : ''}" data-act="ir-semana">
+        <b>${DIAS[d.getDay()]}</b><span class="dd">${dt(iso)}</span>
+        <span class="n ${abertas ? '' : feitas ? 'ok' : 'dim'}">${
+          abertas ? abertas + ' aberta' + (abertas > 1 ? 's' : '')
+          : feitas ? '✓ ' + feitas + ' feita' + (feitas > 1 ? 's' : '') : '—'}</span></button>`;
+    }).join('');
+
+    const pendsVivas = pends.filter(a => a.status === 'aberta' || a.status === 'em_andamento');
+    const pendsFeitas = pends.filter(a => a.status === 'concluida').length;
+    const nomeDe = id => cache.usuarios.find(u => u.id === id)?.nome || '';
+
+    const pendHtml = !cache.temSemana ? '' : `
+      <div class="ch" style="border-top:1px solid var(--line)"><h3>Pendências da semana</h3>
+        <div class="push">${pendsFeitas ? `<span class="pill ok">${pendsFeitas} concluída${pendsFeitas > 1 ? 's' : ''}</span>` : ''}
+          <button class="btn sm ghost" data-act="nova-pendencia">${ico('plus',13)}Pendência</button></div></div>
+      ${pendsVivas.length ? pendsVivas.map(p => `<div class="row" data-id="${p.id}">
+          <button class="tick" data-act="concluir" data-id="${p.id}" title="Concluir">${ico('check', 12)}</button>
+          <div class="g"><div class="t">${esc(p.titulo)}</div>
+            <div class="m">até domingo${nomeDe(p.responsavel_id) ? ' · ' + esc(nomeDe(p.responsavel_id)) : ''}</div></div>
+          ${p.urgente ? `<span class="pill ac">${ico('star',11)} urgente</span>` : ''}
+          <button class="ib" data-act="editar" data-id="${p.id}" title="Editar">${ico('edit', 15)}</button></div>`).join('')
+        : `<div class="sm2" style="padding:12px 18px">Nenhuma pendência pendurada nesta semana.</div>`}`;
+
+    const ehRot = a => a.origem === 'recorrencia';
+    const item = a => `<div class="row ${ehRot(a) ? 'rotina' : 'pontual'}" data-id="${a.id}">
+      <button class="tick ${ehRot(a) ? '' : 'pt'}" data-act="concluir" data-id="${a.id}" title="Concluir">${ico('check', 12)}</button>
+      <div class="g"><div class="t">${esc(a.titulo)}</div>
+        <div class="m">${esc(a.canal || 'Sem canal')}${a.responsavel ? ' · ' + esc(a.responsavel) : ''}${
+          a.travando ? ` · <span style="color:var(--info)">travando ${esc(a.travando)}</span>` : ''}</div></div>
+      ${a.prioridade === 'atrasada' ? `<span class="pill bad">${ico('alert',11)} ${a.dias_de_atraso}d atrasada</span>`
+        : a.prioridade === 'urgente' ? `<span class="pill ac">${ico('star',11)} urgente</span>`
+        : a.prioridade === 'hoje'    ? '<span class="pill warn">hoje</span>'
+        : a.prioridade === 'destrava'? '<span class="pill info">destrava o time</span>'
+        : `<span class="pill dim">${dt(a.prazo)}</span>`}
+      <button class="ib" data-act="editar" data-id="${a.id}" title="Editar">${ico('edit', 15)}</button></div>`;
+
+    return `<div class="head">
+        <div><h2>${saudacao()}${eu?.nome ? ', ' + esc(eu.nome.split(' ')[0]) : ''} 👋</h2>
+          <div class="sub">${dataExtenso()}</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar hoje</button>
+          <button class="btn ghost" data-act="gerar-semana">${ico('cal',15)}Gerar a semana</button>
+          <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
+          <button class="btn pontual" data-act="nova">${ico('zap',15)}Tarefa pontual</button></div></div>
+
+      <div class="tiles stg">
+        ${tile('star',  k.acoes_urgentes,      'Urgentes', 'bad')}
+        ${tile('alert', k.acoes_atrasadas,     'Atrasadas', 'bad')}
+        ${tile('clock', k.acoes_hoje,          'Vencem hoje', 'warn')}
+        ${tile('users', k.pendencias_travando, 'Travando o time', 'warn')}
+        ${tile('cal',   k.compromissos_hoje,   'Compromissos hoje')}
+        ${tile('target',k.campanhas_ativas,    'Campanhas ativas')}
+        ${tile('film',  k.conteudo_atrasado,   'Conteúdo atrasado', 'warn')}
+        ${tile('chart', k.metas_atrasadas,     'Metas atrasadas', 'bad')}
+      </div>
+
+      <div class="card"><div class="ch"><h3>A semana</h3>
+        <div class="push"><span class="sm2">${dt(segunda)} a ${dt(fimSem)}</span>
+          <button class="btn sm ghost" data-act="ir-semana">${ico('grid',13)}Abrir a semana</button></div></div>
+        <div class="ini-sem">${dias}</div>
+        ${pendHtml}
+      </div>
+
+      <div class="card"><div class="ch"><h3>Prioridades</h3>
+        <div class="push"><span class="sm2">${fila.length} em aberto</span>
+          <button class="btn sm ghost" data-act="csv">${ico('down',13)}CSV</button></div></div>
+        ${fila.length ? fila.map(item).join('')
+          : vazio('check', 'Fila limpa', 'Nada em aberto para hoje. Se isso parece bom demais, clique em "Gerar hoje".',
+                  { act: 'nova', label: 'Nova ação' })}</div>`;
   },
   acoes: {
-    abrir(b) { vai(b.dataset.r, b.dataset.a || null); },
+    'ir-semana'() { vai('rotinaSemanal'); },
+    'nova-pendencia'() { formPendencia(); },
     async gerar() {
       const { data, error } = await sb.rpc('gerar_acoes_do_dia');
       if (error) return toast(error.message, { tipo: 'bad' });
@@ -9446,7 +9470,7 @@ function montaShell() {
   if (pref.modo !== m) { pref.modo = m; savePref(); }
   const nav = navHTML();
 
-  $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}${rota === 'inicio' ? ' semmenu' : ''}" id="app">
+  $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}" id="app">
     <aside>
       <div class="brand"><img class="lg" src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
         <div class="mk">${esc(iniciais(visual.nome_sistema))}</div></div>
