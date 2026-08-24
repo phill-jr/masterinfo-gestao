@@ -167,6 +167,10 @@ button{cursor:pointer;border:0;background:none}
 /* 100dvh e não 100vh: no celular a barra do navegador aparece e some,
    e com vh a tela ficava mais alta que o visível — sobrava um pedaço
    de rolagem morta no fim de toda página. */
+/* No Início não existe barra lateral: a tela É o menu. O menu de
+   verdade aparece quando se entra num módulo. */
+.app.semmenu{grid-template-columns:1fr}
+.app.semmenu aside,.app.semmenu #tgl{display:none}
 .app{display:grid;grid-template-columns:var(--sb) 1fr;min-height:100vh;min-height:100dvh;
   transition:grid-template-columns .22s var(--ease)}
 /* Véu do menu no celular. Existe sempre no HTML e some no desktop —
@@ -781,6 +785,35 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .tick.pt.done{background:var(--pt);border-color:var(--pt)}
 .row.rotina{box-shadow:inset 3px 0 0 var(--ac)}
 .row.pontual{box-shadow:inset 3px 0 0 var(--pt)}
+
+/* ── pipeline de canais (sql/CORRECAO-15.sql) ──────────────────────
+   Uma coluna por estágio do ciclo de vida. A leitura que importa é
+   horizontal: onde os canais estão empilhados é onde a operação
+   trava. */
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:13px;margin-bottom:26px}
+.pipe .col{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:13px}
+.pipe .col>h4{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.pipe .col>.dsc{font-size:11.5px;color:var(--dim);margin:4px 0 11px;line-height:1.45;min-height:32px}
+.pipe .col>.zero{font-size:11.5px;color:var(--dim);opacity:.6;padding:6px 0}
+.cnl{border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:9px;cursor:pointer;
+  background:var(--surface2);transition:transform .16s var(--ease),border-color .16s var(--ease)}
+.cnl:last-child{margin-bottom:0}
+.cnl:hover{border-color:var(--ac);transform:translateY(-1px)}
+.cnl .cn{font-weight:650;font-size:13px}
+.cnl .cm{font-size:11.5px;color:var(--dim);margin:2px 0 9px}
+.cnl .cf{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.bnav{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:20px}
+.bnav>button{flex:1 1 165px;text-align:left;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:11px 13px;cursor:pointer;color:var(--txt);
+  transition:border-color .16s var(--ease),background .16s var(--ease)}
+.bnav>button:hover{border-color:var(--line2)}
+.bnav>button.on{border-color:var(--ac);background:var(--ac-bg)}
+.bnav .bt{font-size:12.5px;font-weight:700}
+.bnav .bs{font-size:11px;color:var(--dim);margin:3px 0 8px;line-height:1.4}
+.ficha{display:flex;gap:26px;flex-wrap:wrap}
+.ficha>div{min-width:120px}
+.ficha .fl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.ficha .fv{font-weight:600;font-size:13.5px;margin-top:3px}
 .pill.pt{background:var(--pt-bg);color:var(--pt)}
 .legenda{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--dim);
   padding:10px 18px;border-bottom:1px solid var(--line)}
@@ -851,11 +884,152 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .semana .k.feito .t{text-decoration:line-through;color:var(--dim)}
 .semana .k.prev{border-style:dashed;background:transparent;opacity:.75}
 .semana .col .btn.bl{width:100%;justify-content:center;margin-top:5px}
+/* Excluir mora no cartão, mas só aparece quando o mouse chega nele —
+   sete colunas de lixeiras acesas viram ruído. */
+.k.tarefa .del{flex:none;width:22px;height:22px;border:0;background:none;color:var(--dim);
+  border-radius:6px;display:grid;place-items:center;cursor:pointer;opacity:0;transition:opacity .15s}
+.k.tarefa:hover .del{opacity:1}
+.k.tarefa .del:hover{color:var(--bad);background:var(--bad-bg)}
+@media(hover:none){.k.tarefa .del{opacity:1}}
+/* Pendências da semana: a faixa horizontal acima dos blocos. As
+   tarefas do dia descem na vertical; o que é da semana corre deitado. */
+.pendsem{margin-bottom:16px}
+.pendsem .pends{display:flex;gap:9px;overflow-x:auto;padding:4px 16px 14px;align-items:stretch}
+.pendsem .k.tarefa{display:flex;gap:8px;align-items:flex-start;cursor:pointer;flex:none;
+  width:230px;background:var(--surface2);border:1px solid var(--line);border-radius:var(--r);
+  padding:10px;transition:transform .15s var(--ease),border-color .15s;animation:fadeUp .3s var(--ease) both}
+.pendsem .k.tarefa:hover{transform:translateY(-2px);border-color:var(--pt)}
+.pendsem .k .g{flex:1;min-width:0}
+.pendsem .k .t{font-size:12.5px;font-weight:600;line-height:1.35}
+.pendsem .k .m{font-size:11px;color:var(--dim);margin-top:3px}
+.pendsem .k.feito{opacity:.55}
+.pendsem .k.feito .t{text-decoration:line-through;color:var(--dim)}
 /* Editar/excluir só aparecem no item apontado: a fila do dia é para
    ler de cima para baixo, não para encarar seis botões por linha. */
 .tl-act{display:flex;gap:2px;opacity:0;transition:opacity .15s}
 .tl-item:hover .tl-act,.tl-act:focus-within{opacity:1}
 @media(hover:none){.tl-act{opacity:1}}
+
+/* ── canal: hub orbital ──────────────────────────────────────── */
+.orbita{position:relative;height:470px;margin-bottom:22px}
+.orbita .anel{position:absolute;left:50%;top:50%;width:min(560px,78%);aspect-ratio:1.25;
+  transform:translate(-50%,-50%);border:1.5px dashed var(--line2);border-radius:50%;opacity:.7}
+.orb-c{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:190px;height:190px;
+  border-radius:50%;background:var(--surface);border:1.5px solid var(--ac);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  padding:16px;box-shadow:0 0 0 8px var(--ac-bg);z-index:2}
+.orb-c .nm{font-weight:700;font-size:15px;line-height:1.3;margin-bottom:7px}
+.orb-i{position:absolute;transform:translate(-50%,-50%);width:118px;padding:11px 9px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;z-index:3;
+  color:var(--txt);transition:border-color .15s,box-shadow .15s;animation:fadeUp .4s var(--ease) both}
+.orb-i:hover{border-color:var(--ac);box-shadow:var(--sh)}
+.orb-i.on{border-color:var(--ac);background:var(--ac-bg);box-shadow:0 0 0 3px var(--ac-bg)}
+.orb-i .ic{width:32px;height:32px;border-radius:9px;background:var(--ac-bg);color:var(--ac);
+  display:grid;place-items:center}
+.orb-i.on .ic{background:var(--ac);color:var(--ac-fg)}
+.orb-i b{font-size:12.5px}
+.orb-i .inf{font-size:10.5px;color:var(--dim)}
+@media(max-width:900px){
+  .orbita{height:auto;display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-top:0}
+  .orbita .anel{display:none}
+  .orb-c{position:static;transform:none;width:auto;height:auto;border-radius:var(--r-lg);
+    grid-column:1/-1;box-shadow:none;padding:18px}
+  .orb-i{position:static;transform:none;width:auto;animation:none}
+}
+/* fluxograma: caixas e setas na vertical */
+.fluxo{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
+.fluxo .passo{display:flex;align-items:center;gap:11px;background:var(--surface2);
+  border:1px solid var(--line);border-radius:var(--r);padding:11px 16px;font-size:13.5px;
+  font-weight:600;min-width:min(420px,100%);max-width:520px}
+.fluxo .passo .n{width:22px;height:22px;border-radius:50%;background:var(--ac);color:var(--ac-fg);
+  display:grid;place-items:center;font-size:11.5px;flex:none}
+.fluxo .seta{color:var(--ac);font-size:17px;line-height:1;padding:3px 0}
+
+/* ── início lançador ─────────────────────────────────────────── */
+.lancador{max-width:880px;margin:0 auto;padding-top:4vh}
+.lan-hero{text-align:center;margin-bottom:36px}
+.lan-hero img{height:42px;margin-bottom:12px}
+.lan-hero .s{color:var(--dim);font-size:14px}
+.lan-g{margin-bottom:26px}
+.lan-g h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);
+  display:flex;align-items:center;gap:7px;margin-bottom:10px}
+.lan-cs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.lan-c{display:flex;align-items:center;gap:11px;padding:14px 15px;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r-lg);cursor:pointer;font-size:13.5px;
+  font-weight:600;color:var(--txt);text-align:left;transition:all .15s var(--ease)}
+.lan-c:hover{transform:translateY(-2px);border-color:var(--ac);box-shadow:var(--sh)}
+.lan-c .ic{width:38px;height:38px;border-radius:11px;background:var(--ac-bg);color:var(--ac);
+  display:grid;place-items:center;flex:none}
+
+/* ── produção: quadro trello ─────────────────────────────────── */
+.trello{display:flex;gap:12px;overflow-x:auto;align-items:flex-start;padding-bottom:14px}
+.tl{flex:none;width:272px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:10px}
+.tl.nova{background:transparent;border-style:dashed;color:var(--dim);display:flex;gap:8px;
+  align-items:center;justify-content:center;padding:16px;cursor:pointer;font-weight:600;font-size:13px}
+.tl.nova:hover{border-color:var(--ac);color:var(--ac)}
+.tlh{display:flex;align-items:center;gap:7px;padding:2px 4px 9px}
+.tlh b{font-size:13px;cursor:pointer;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tlh .ct{background:var(--surface3);border-radius:20px;padding:1px 8px;font-size:10.5px;color:var(--dim)}
+.tlh .ib svg{transform:rotate(90deg)}
+.dotl{width:8px;height:8px;border-radius:3px;flex:none}
+.tlc{min-height:6px;display:flex;flex-direction:column;gap:7px}
+.pk{background:var(--surface2);border:1px solid var(--line);border-radius:var(--r);
+  padding:9px 10px;cursor:pointer;transition:border-color .13s;overflow:hidden}
+.pk:hover{border-color:var(--ac)}
+.pk.drag{opacity:.45;transform:rotate(1.5deg)}
+.pk .capa{height:8px;margin:-9px -10px 8px}
+.pk .ets{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.pk .ets i{width:28px;height:7px;border-radius:4px;display:block}
+.pk .t{font-size:13px;font-weight:600;line-height:1.4}
+.pk .bd{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:7px}
+.pk .bd:empty{display:none}
+.pk .bd .pill{font-size:10.5px;display:inline-flex;gap:3px;align-items:center;padding:2px 7px}
+.pk .avs{display:flex;align-items:center;margin-left:auto}
+.pk .avs>*{margin-left:-6px;border-radius:50%;outline:1.5px solid var(--surface2)}
+.pk .avs .mais{font-size:10px;color:var(--dim);margin-left:4px;outline:0}
+.tla{width:100%;display:flex;align-items:center;gap:7px;padding:8px;margin-top:7px;border:0;
+  background:none;color:var(--dim);border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:600}
+.tla:hover{background:var(--surface2);color:var(--txt)}
+.pk-add{background:var(--surface2);border:1px solid var(--ac);border-radius:var(--r);
+  padding:8px;margin-top:7px}
+.pk-add textarea{width:100%;font-size:13px;border:0;background:none;resize:none;padding:2px}
+
+/* cartão aberto */
+.pcard .pc-capa{height:52px;margin:0;border-radius:16px 16px 0 0}
+.pcard .pc-titulo{flex:1;font-size:17px;font-weight:700;border:0;background:none;padding:2px 6px;
+  color:var(--txt);border-radius:8px}
+.pcard .pc-titulo:focus{background:var(--surface2);outline:2px solid var(--ac)}
+.pcard label{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--dim);font-weight:700;margin-bottom:6px}
+.pc-cores{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.pc-cores i{width:36px;height:24px;border-radius:7px;cursor:pointer;display:block;
+  border:2px solid transparent;transition:transform .12s}
+.pc-cores i:hover{transform:scale(1.08)}
+.pc-cores i.on{border-color:var(--txt)}
+.pc-ets{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pc-ets .tag{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;
+  display:inline-flex;gap:6px;align-items:center}
+.pc-ets .tag b{cursor:pointer;opacity:.65}
+.pc-ets .tag b:hover{opacity:1}
+.pc-membros{display:flex;gap:6px;flex-wrap:wrap}
+.mb-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 3px;
+  border:1px solid var(--line);border-radius:20px;cursor:pointer;font-size:12.5px;
+  font-weight:600;color:var(--dim);transition:all .13s}
+.mb-chip:hover{border-color:var(--ac)}
+.mb-chip.on{border-color:var(--ac);color:var(--ac);background:var(--ac-bg)}
+.pc-chk .item{display:flex;align-items:center;gap:9px;padding:4px 0}
+.pc-chk .item span{flex:1;font-size:13.5px}
+.pc-chk .item span.ok{text-decoration:line-through;color:var(--dim)}
+.pc-chk>input{margin-top:7px}
+.pc-com .nova{display:flex;gap:8px;align-items:flex-end;margin-bottom:13px}
+.pc-com .nova textarea{flex:1}
+.pc-com .um{display:flex;gap:9px;margin-bottom:11px}
+.pc-com .um .g{flex:1;min-width:0}
+.pc-com .um .qm{display:flex;gap:8px;align-items:center;font-size:12.5px}
+.pc-com .um .tx{font-size:13px;background:var(--surface2);border:1px solid var(--line);
+  border-radius:9px;padding:8px 11px;margin-top:4px;white-space:pre-wrap}
 
 /* ── gestão pessoal ──────────────────────────────────────────── */
 .fz{border:1.5px dashed var(--line2);border-radius:var(--r-lg);padding:38px 18px;text-align:center;
@@ -1300,12 +1474,16 @@ async function recarregaBase() {
   cache.setores = se || []; cache.temSetores = se !== null;
   cache.metricas = me || []; cache.temMetricas = me !== null;
   if (cache.temHora === undefined) {
-    const [h, t] = await Promise.all([
+    const [h, t, s, ac] = await Promise.all([
       sb.from('acoes').select('hora').limit(1),
-      sb.from('acoes').select('tags').limit(1)
+      sb.from('acoes').select('tags').limit(1),
+      sb.from('acoes').select('semana_de').limit(1),
+      sb.from('usuarios').select('papel,modulos,lider_id').limit(1)
     ]);
     cache.temHora = !h.error;
     cache.temTags = !t.error;
+    cache.temSemana = !s.error;      // pendência da semana (correção 16)
+    cache.temAcesso = !ac.error;     // papel, módulos e líder (correção 16)
   }
 }
 
@@ -1458,16 +1636,19 @@ const R = {};
 const NAV_EMPRESA = [
   { tipo:'item',  r:'inicio' },
   { tipo:'grupo', id:'comercial', label:'Comercial', icone:'money',
-    itens:['acoes', 'agenda', 'metas', 'campanhas', 'canais', 'bitrix'] },
+    itens:['canais', 'agenda'] },
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
-    itens:['acoes', 'campanhas', 'canais', 'producao', 'metas', 'financeiro', 'agenda'] },
+    itens:['campanhas', 'agenda', 'producao'] },
   { tipo:'grupo', id:'onboarding', label:'Onboarding', icone:'book', semArea:true,
     itens:['onbTrilhas', 'onbMinha', 'onbAcompanhar', 'treinamentos'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
-    itens:['rotinaSemanal', 'rotinasTime', 'horarios', 'pdi', 'feedbacks', 'anotacoes'] },
+    itens:['pdi', 'feedbacks'] },
   { tipo:'secao', label:'Vendedores', itens:['dicionario'] },
-  { tipo:'secao', label:'Gestão', itens:['time', 'config'] }
+  { tipo:'secao', label:'Gestão', itens:['horarios', 'rotinaSemanal', 'anotacoes', 'time', 'config'] }
 ];
+/* Telas fora do menu (ações, metas, bitrix, financeiro do mkt, rotinas
+   do time) continuam existindo por rota direta e pelo Ctrl+K — saíram
+   da barra por decisão de foco, não do sistema. */
 
 /* ── os dois modos ────────────────────────────────────────────────
    Empresa e Pessoal não são duas seções da mesma lista: são dois
@@ -1492,6 +1673,38 @@ if (!MODOS[pref.modo]) pref.modo = 'empresa';
    tela com a barra lateral errada do lado. */
 const ROTAS_PESSOAIS = new Set(NAV_PESSOAL.flatMap(s => s.itens));
 const modoDaRota = r => ROTAS_PESSOAIS.has(r) ? 'pessoal' : 'empresa';
+
+/* ── acesso por módulo (correção 16) ──────────────────────────────
+   O sistema é modular: cada pessoa enxerga só as telas da lista
+   `usuarios.modulos` (nulo = todas). O admin ignora a lista — é quem
+   monta o acesso dos outros. Antes da correção 16 rodar no banco,
+   nada muda: todo mundo continua vendo tudo.
+
+   Isto é trava de interface, não de dado: o RLS por trás continua
+   `tem_acesso()`. Serve para cada pessoa abrir o sistema e ver só o
+   que é dela — não para esconder segredo de quem sabe usar a API. */
+const ehAdmin = () => !cache.temAcesso || !eu || eu.papel === 'admin';
+
+/* Início e Configurações nunca somem: é onde a pessoa edita o próprio
+   perfil e troca a senha. O Pessoal (financeiro) é privado por dono
+   via RLS — não faz sentido um admin "conceder" o que já é da pessoa. */
+const ROTAS_LIVRES = new Set(['inicio', 'config']);
+function podeVer(r) {
+  if (ROTAS_LIVRES.has(r) || ROTAS_PESSOAIS.has(r)) return true;
+  if (ehAdmin()) return true;
+  return eu.modulos == null ? true : eu.modulos.includes(r);
+}
+
+/* O catálogo que a tela de acesso mostra. Uma rota que aparece em dois
+   grupos do menu (ações, campanhas…) é UM módulo só — liberar libera
+   nas duas áreas. */
+const CATALOGO_MODULOS = [
+  { grupo:'Comercial e Marketing', itens:['canais','agenda','campanhas','producao'] },
+  { grupo:'Onboarding', itens:['onbTrilhas','onbMinha','onbAcompanhar','treinamentos'] },
+  { grupo:'Desenvolvimento', itens:['pdi','feedbacks'] },
+  { grupo:'Vendedores', itens:['dicionario'] },
+  { grupo:'Gestão', itens:['horarios','rotinaSemanal','anotacoes','time'] }
+];
 
 const AREAS = { comercial:'Comercial', marketing:'Marketing' };
 
@@ -1549,74 +1762,37 @@ function avisoSql(oQueFalta, arquivo = REPO_SQL_ARQ) {
 }
 
 /* ───────────────────────── INÍCIO ───────────────────────── */
+/* O Início é um menu, não um painel: nenhum número, nenhuma fila —
+   só as portas de entrada. A barra lateral nem aparece aqui (classe
+   `semmenu` no shell); ela surge quando se entra num módulo. */
 R.inicio = {
-  label: 'Início', icone: 'grid', titulo: 'Dashboard',
-  async dados() {
-    const [kpi, fila] = await Promise.all([q('v_dashboard_dia'), q('v_acoes_hoje')]);
-    return { k: kpi[0] || {}, fila: porCanalNome(fila) };
-  },
-  render({ k, fila }) {
-    const tile = (icone, n, l, h, cls = '') => `<div class="tile ${Number(n) > 0 ? cls : ''}">
-      <div class="ic">${ico(icone, 18)}</div><div class="n">${n ?? 0}</div>
-      <div class="l">${l}</div>${h ? `<div class="h">${h}</div>` : ''}</div>`;
+  label: 'Início', icone: 'grid', titulo: 'Início',
+  async dados() { return {}; },
+  render() {
+    const cartao = ([k, a]) => `<button class="lan-c" data-act="abrir" data-r="${k}" data-a="${a || ''}">
+      <span class="ic">${ico(R[k].icone, 22)}</span><b>${esc(a ? (R[k].curto || R[k].label) : R[k].label)}</b></button>`;
 
-    const passos = [
-      { ok: cache.usuarios.length > 0, lb: 'Cadastrar o time', act: 'ir-config' },
-      { ok: cache.canais.length > 0,   lb: 'Conferir os canais de venda', act: 'ir-config' },
-      { ok: k._temModelo,              lb: 'Criar a primeira rotina recorrente', act: 'ir-acoes' },
-      { ok: fila.length > 0,           lb: 'Gerar as ações de hoje', act: 'gerar' }
-    ];
-    const feitos = passos.filter(p => p.ok).length;
-    const onboarding = (pref.ob && feitos < passos.length) ? `<div class="ob">
-      <div class="oh"><div class="tile" style="all:unset"><div class="ic" style="width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--ac-bg);color:var(--ac)">${ico('zap',18)}</div></div>
-        <div style="flex:1"><h3>Primeiros passos</h3>
-          <div class="pr">${feitos} de ${passos.length} concluídos</div></div>
-        <div class="bar" style="width:110px"><i style="width:${100*feitos/passos.length}%"></i></div>
-        <button class="ib" data-act="fecha-ob" title="Ocultar">${ico('x',15)}</button></div>
-      <ul>${passos.map(p => `<li class="${p.ok ? 'done' : ''}" data-act="${p.act}" style="cursor:pointer">
-        <span class="rg">${ico('check',11)}</span><span class="lb">${p.lb}</span>
-        ${p.ok ? '' : ico('chevron', 15)}</li>`).join('')}</ul></div>` : '';
+    const grupos = [];
+    NAV_EMPRESA.forEach(sec => {
+      if (sec.tipo === 'item') return;
+      const a = (sec.tipo === 'grupo' && !sec.semArea) ? sec.id : null;
+      const its = sec.itens.filter(podeVer);
+      if (its.length) grupos.push([sec.label, sec.icone || 'grid', its.map(k => [k, a])]);
+    });
+    grupos.push(['Gestão Pessoal', 'lock', NAV_PESSOAL.flatMap(s => s.itens).map(k => [k, null])]);
 
-    const ehRot = a => a.origem === 'recorrencia';
-    const item = a => `<div class="row ${ehRot(a) ? 'rotina' : 'pontual'}" data-id="${a.id}">
-      <button class="tick ${ehRot(a) ? '' : 'pt'}" data-act="concluir" data-id="${a.id}" title="Concluir">${ico('check', 12)}</button>
-      <div class="g"><div class="t">${esc(a.titulo)}</div>
-        <div class="m">${esc(a.canal || 'Sem canal')}${a.responsavel ? ' · ' + esc(a.responsavel) : ''}${
-          a.travando ? ` · <span style="color:var(--info)">travando ${esc(a.travando)}</span>` : ''}</div></div>
-      ${a.prioridade === 'atrasada' ? `<span class="pill bad">${ico('alert',11)} ${a.dias_de_atraso}d atrasada</span>`
-        : a.prioridade === 'urgente' ? `<span class="pill ac">${ico('star',11)} urgente</span>`
-        : a.prioridade === 'hoje'    ? '<span class="pill warn">hoje</span>'
-        : a.prioridade === 'destrava'? '<span class="pill info">destrava o time</span>'
-        : `<span class="pill dim">${dt(a.prazo)}</span>`}
-      <button class="ib" data-act="editar" data-id="${a.id}" title="Editar">${ico('edit', 15)}</button></div>`;
-
-    return `<div class="head">
-        <div><h2>${saudacao()}${eu?.nome ? ', ' + esc(eu.nome.split(' ')[0]) : ''} 👋</h2>
-          <div class="sub">${dataExtenso()}</div></div>
-        <div class="push">
-          <button class="btn ghost" data-act="gerar">${ico('refresh',15)}Gerar hoje</button>
-          <button class="btn ghost" data-act="gerar-semana">${ico('cal',15)}Gerar a semana</button>
-          <button class="btn" data-act="nova-rotina">${ico('refresh',15)}Rotina</button>
-          <button class="btn pontual" data-act="nova">${ico('zap',15)}Tarefa pontual</button></div></div>
-      ${onboarding}
-      <div class="tiles stg">
-        ${tile('star',  k.acoes_urgentes,        'Urgentes', null, 'bad')}
-        ${tile('alert', k.acoes_atrasadas,       'Atrasadas', null, 'bad')}
-        ${tile('clock', k.acoes_hoje,            'Vencem hoje', null, 'warn')}
-        ${tile('users', k.pendencias_travando,   'Travando o time', null, 'warn')}
-        ${tile('cal',   k.compromissos_hoje,     'Compromissos hoje')}
-        ${tile('target',k.campanhas_ativas,      'Campanhas ativas')}
-        ${tile('film',  k.conteudo_atrasado,     'Conteúdo atrasado', null, 'warn')}
-        ${tile('chart', k.metas_atrasadas,       'Metas atrasadas', null, 'bad')}
+    return `<div class="lancador">
+      <div class="lan-hero">
+        <img src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
+        <div class="s">${saudacao()}${eu?.nome ? ', ' + esc(eu.nome.split(' ')[0]) : ''}. Onde você vai trabalhar agora?</div>
       </div>
-      <div class="card"><div class="ch"><h3>A fila do dia</h3>
-        <div class="push"><span class="sm2">${fila.length} em aberto</span>
-          <button class="btn sm ghost" data-act="csv">${ico('down',13)}CSV</button></div></div>
-        ${fila.length ? fila.map(item).join('')
-          : vazio('check', 'Fila limpa', 'Nada em aberto para hoje. Se isso parece bom demais, clique em "Gerar rotinas de hoje".',
-                  { act: 'nova', label: 'Nova ação' })}</div>`;
+      ${grupos.map(([titulo, icone, cards]) => `<div class="lan-g">
+        <h3>${ico(icone, 15)}${esc(titulo)}</h3>
+        <div class="lan-cs">${cards.map(cartao).join('')}</div></div>`).join('')}
+    </div>`;
   },
   acoes: {
+    abrir(b) { vai(b.dataset.r, b.dataset.a || null); },
     async gerar() {
       const { data, error } = await sb.rpc('gerar_acoes_do_dia');
       if (error) return toast(error.message, { tipo: 'bad' });
@@ -1708,8 +1884,38 @@ function formPontual(dia) {
   }, 'Criar tarefa');
 }
 
+/* Pendência da semana: é da semana que começa em `segunda`, mas não
+   tem dia marcado — prazo fica nulo e semana_de segura a âncora.
+   Preencher o campo de dia converte: vira tarefa comum do bloco. */
+function formPendencia(segunda, row) {
+  segunda = segunda || seg();
+  const fim = new Date(new Date(segunda + 'T12:00:00').getTime() + 6 * 864e5).toISOString().slice(0, 10);
+  form(row ? `Pendência · ${row.titulo}` : 'Nova pendência da semana', [
+    { k:'titulo', label:'O que precisa sair até domingo', req:true, value:row?.titulo,
+      ph:'Ex.: Fechar a arte da campanha de setembro' },
+    { k:'descricao', label:'Detalhes', type:'textarea', value:row?.descricao },
+    { k:'_dia', label:'Já tem dia certo? (opcional)', type:'date', value:'',
+      hint:`Vazio, fica pendurada na faixa da semana (${dt(segunda)} a ${dt(fim)}). ` +
+           'Com um dia, vira tarefa do bloco daquele dia.' },
+    { k:'responsavel_id', label:'Responsável', type:'select',
+      value:row?.responsavel_id ?? eu?.id, opts:optUsuarios() },
+    ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores() }] : []),
+    { k:'canal_id', label:'Canal', type:'select', value:row?.canal_id, opts:optCanais() },
+    ...(cache.temTags ? [{ k:'_tags', label:'Tags', value:(row?.tags || []).join(', '),
+      ph:'comercial, urgente', hint:'Separadas por vírgula.' }] : []),
+    { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila', value:row?.urgente }
+  ], d => {
+    if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
+    const dia = d._dia; delete d._dia;
+    if (dia) { d.prazo = dia; d.semana_de = null; }
+    else     { d.prazo = null; d.semana_de = segunda; }
+    if (!row) { d.tipo = 'rotina'; d.origem = 'manual'; }
+    return grava('acoes', d, row?.id);
+  }, row ? 'Salvar' : 'Criar pendência');
+}
+
 function formAcao(row) {
-  form(row ? 'Editar ação' : 'Nova ação', [
+  form(row?.id ? 'Editar ação' : 'Nova ação', [
     { k:'titulo', label:'Título', req:true, value:row?.titulo, ph:'Ex.: Revisar criativos do Meta' },
     { k:'descricao', label:'Descrição', type:'textarea', value:row?.descricao },
     { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'rotina', opts:[
@@ -1926,107 +2132,486 @@ R.agenda = {
 };
 
 /* ───────────────────────── CANAIS DE VENDA ─────────────────────
-   O cadastro sempre existiu em Configurações, mas quem opera canal é
-   o time comercial — e ninguém abre Configurações para dizer "abrimos
-   um canal novo". Aqui ele mora dentro da área, já filtrado por ela,
-   e com o que Configurações não mostra: quanto de rotina, campanha e
-   meta está pendurado em cada canal. Canal sem nada em volta é canal
-   que existe só no cadastro. */
+   Canal não é etiqueta de dropdown: é produto com ciclo de vida. Ele
+   é aberto, estruturado, testado, operado e escalado — e some da
+   cabeça de todo mundo se ninguém enxerga em que fase está.
+
+   A tela tem duas caras:
+
+   · pipeline — uma coluna por estágio. A leitura que importa é
+     horizontal: a coluna onde os canais empilham é onde a operação
+     trava.
+   · ficha    — os cinco blocos de abertura, um por aba, com o gate
+     que o estágio atual precisa cumprir para avançar.
+
+   O checklist não guarda "feito" em lugar nenhum: cada item é uma
+   ação em `acoes`, com canal e bloco. Feito = ação concluída. Por
+   isso a abertura do canal aparece na fila do dia junto com o resto
+   do trabalho, em vez de virar uma segunda caixa de entrada que
+   ninguém abre. Estrutura em sql/CORRECAO-15.sql. */
+
+const ESTAGIOS = [
+  ['ideia',        'Ideia',        'Existe a intenção. Falta o plano.'],
+  ['estruturacao', 'Estruturação', 'Montando o que precisa existir antes do D1.'],
+  ['piloto',       'Piloto',       'No ar para a primeira leva, acompanhado de perto.'],
+  ['operacao',     'Operação',     'Rodando com rotina viva e campanha no ar.'],
+  ['escala',       'Escala',       'Se sustenta e ensina o próximo canal.'],
+  ['encerrado',    'Encerrado',    'Fora do ar. Fica no histórico.']
+];
+const NOME_ESTAGIO = Object.fromEntries(ESTAGIOS.map(([v, t]) => [v, t]));
+
+const BLOCOS = [
+  ['estrutura', '1 · Estrutura',
+   'Dono, regra, oferta que fecha a conta, materiais e rastreio.'],
+  ['ativacao',  '2 · Ativação',
+   'Acontece uma vez: primeira leva, D1 e quem recebe o lead treinado.'],
+  ['motor',     '3 · Campanhas e rotina',
+   'O que repete. Campanha tem fim; rotina é o que segura o canal entre elas.'],
+  ['medicao',   '4 · Medição',
+   'Funil chegando sozinho, CAC e ROI do canal com número real.'],
+  ['escala',    '5 · Escala',
+   'Reativar quem parou, reconhecer os melhores, documentar, abrir o próximo.']
+];
+const NOME_BLOCO = Object.fromEntries(BLOCOS.map(([v, t]) => [v, t]));
+
+let canalSel = null, canalAba = 'estrutura', canalSecao = 'oquee';
+const canalCache = { saude: [], blocos: [], itens: [], camps: [], rots: [], kpi: [], canal: {} };
+
+const blocoDe = (id, b) => canalCache.blocos.find(x => x.canal_id === id && x.bloco === b);
+const somaBloco = (id, campo) => canalCache.blocos
+  .filter(x => x.canal_id === id).reduce((n, x) => n + (+x[campo] || 0), 0);
+
+function cartaoCanal(s) {
+  const tot = somaBloco(s.id, 'itens'), ok = somaBloco(s.id, 'feitos');
+  const atrasados = somaBloco(s.id, 'atrasados');
+  const pct = tot ? Math.round(100 * ok / tot) : 0;
+  return `<div class="cnl" data-act="abrir" data-id="${s.id}">
+    <div class="cn">${esc(s.nome)}</div>
+    <div class="cm">${esc(s.dono || 'sem dono')}${
+      s.data_abertura ? ' · D1 ' + dt(s.data_abertura) : ''}</div>
+    <div class="bar"><i class="${pct === 100 ? 'ok' : ''}" style="width:${pct}%"></i></div>
+    <div class="cf">
+      ${tot ? `<span class="pill dim">${ok}/${tot} do plano</span>`
+            : '<span class="pill warn">sem plano</span>'}
+      ${atrasados ? `<span class="pill bad">${atrasados} atrasado${atrasados > 1 ? 's' : ''}</span>` : ''}
+      ${s.estagio === 'operacao' || s.estagio === 'escala'
+        ? (+s.rotinas ? `<span class="pill ok">${s.rotinas} rotina${+s.rotinas > 1 ? 's' : ''}</span>`
+                      : '<span class="pill warn">sem rotina</span>') : ''}
+      ${+s.campanhas_ativas ? `<span class="pill info">${s.campanhas_ativas} no ar</span>` : ''}
+      ${s.gate_ok && s.estagio !== 'escala' && s.estagio !== 'encerrado'
+        ? '<span class="pill ok">gate cumprido</span>' : ''}
+    </div></div>`;
+}
+
+function canalPipeline(cs) {
+  const ativos = cs.filter(c => c.estagio !== 'encerrado');
+  const abrindo = cs.filter(c => c.estagio === 'estruturacao' || c.estagio === 'ideia').length;
+  const atrasados = cs.reduce((n, c) => n + (+c.plano_atrasados || 0), 0);
+  const semMotor = cs.filter(c =>
+    (c.estagio === 'operacao' || c.estagio === 'escala') && (!+c.rotinas || !+c.campanhas_ativas)).length;
+
+  const coluna = ([v, t, d]) => {
+    const meus = cs.filter(c => c.estagio === v);
+    if (v === 'encerrado' && !meus.length) return '';
+    return `<div class="col"><h4>${esc(t)}</h4><div class="dsc">${esc(d)}</div>
+      ${meus.length ? meus.map(cartaoCanal).join('')
+        : '<div class="zero">nenhum canal aqui</div>'}</div>`;
+  };
+
+  return `<div class="head"><div><h2>Canais de venda</h2>
+      <div class="sub">${area ? `Os canais que ${AREAS[area]} opera` : 'Todos os canais'}
+        — onde cada um está no ciclo de vida, e o que falta para avançar.</div></div>
+      <div class="push">
+        <button class="btn ghost" data-act="csv">${ico('down',15)}CSV</button>
+        <button class="btn" data-act="novo">${ico('plus',15)}Novo canal</button></div></div>
+
+    ${cs.length ? `
+    <div class="tiles stg">
+      <div class="tile"><div class="ic">${ico('target',18)}</div><div class="n">${ativos.length}</div>
+        <div class="l">Canais vivos</div><div class="h">${cs.length - ativos.length} encerrado(s)</div></div>
+      <div class="tile"><div class="ic">${ico('zap',18)}</div><div class="n">${abrindo}</div>
+        <div class="l">Em abertura</div><div class="h">ainda não passaram do bloco 1</div></div>
+      <div class="tile ${atrasados ? 'bad' : ''}"><div class="ic">${ico('alert',18)}</div>
+        <div class="n">${atrasados}</div><div class="l">Passos atrasados</div>
+        <div class="h">somando todos os canais</div></div>
+      <div class="tile ${semMotor ? 'warn' : ''}"><div class="ic">${ico('refresh',18)}</div>
+        <div class="n">${semMotor}</div><div class="l">Operando sem motor</div>
+        <div class="h">sem rotina ou sem campanha</div></div>
+    </div>
+
+    <div class="pipe">${ESTAGIOS.map(coluna).join('')}</div>
+
+    <div class="card"><div class="cb"><p class="sm2">
+      Canal que fica parado numa coluna não é canal devagar — é canal sem dono ou sem gate cumprido.
+      Clique nele para ver o que trava. Lançar e parar de comunicar é o jeito mais comum de matar um canal:
+      é por isso que <b>campanha e rotina moram no mesmo bloco</b>.</p></div></div>`
+    : `<div class="card">${vazio('target', 'Nenhum canal cadastrado',
+        'Cadastre os canais que você opera de verdade: é o que faz meta, campanha e rotina terem de onde vir.',
+        { act:'novo', label:'Adicionar canal' })}</div>`}`;
+}
+
+function linhaItem(a) {
+  const feito = a.status === 'concluida';
+  const atrasada = !feito && a.prazo && a.prazo < hoje();
+  return `<div class="row ${feito ? 'off' : ''}">
+    <button class="tick ${feito ? 'done' : ''}" data-act="marcar" data-id="${a.id}"
+      title="${feito ? 'Reabrir' : 'Marcar como pronto'}">${ico('check', 12)}</button>
+    <div class="g"><div class="t" style="white-space:normal">${esc(a.titulo)}</div>
+      <div class="m">${a.criterio ? esc(a.criterio) : 'Sem critério de pronto definido.'}
+        ${a.prova ? ` · <b style="color:var(--ok)">prova:</b> ${esc(a.prova)}` : ''}</div></div>
+    <span class="pill ${feito ? 'ok' : atrasada ? 'bad' : 'dim'}">${
+      feito ? 'pronto' : a.prazo ? dt(a.prazo) : 'sem prazo'}</span>
+    <span class="pill dim">${esc(a.responsavel_id ? nomeUser(a.responsavel_id) : 'sem dono')}</span>
+    <button class="ib" data-act="editar-item" data-id="${a.id}" title="Editar">${ico('edit', 15)}</button>
+  </div>`;
+}
+
+/* A ficha do canal é um hub: o canal é o círculo do centro e cada
+   seção é um quadrado orbitando — o que é, meta, engajamento, regras,
+   fluxograma e plano de abertura. Clicar num quadrado abre a seção
+   embaixo. É a resposta visual para "o que É este canal?" sem rolar
+   seis cards empilhados. */
+function canalFicha(s) {
+  const c = canalCache.canal || {};
+  const itens = canalCache.itens.filter(a => a.bloco === canalAba);
+  const b = blocoDe(s.id, canalAba);
+  const [, tituloBloco, descBloco] = BLOCOS.find(x => x[0] === canalAba);
+
+  const botaoBloco = ([v, t, d]) => {
+    const bb = blocoDe(s.id, v);
+    const tot = bb ? +bb.itens : 0, ok = bb ? +bb.feitos : 0;
+    const pct = tot ? Math.round(100 * ok / tot) : 0;
+    return `<button class="${v === canalAba ? 'on' : ''}" data-act="aba" data-v="${v}">
+      <div class="bt">${esc(t)}</div><div class="bs">${esc(d)}</div>
+      <div class="bar"><i class="${pct === 100 ? 'ok' : ''}" style="width:${pct}%"></i></div>
+      <div class="sm2" style="margin-top:5px">${tot ? `${ok}/${tot}` : 'sem itens'}${
+        bb && +bb.atrasados ? ` · ${bb.atrasados} atrasado(s)` : ''}</div></button>`;
+  };
+
+  const identidade = `<div class="card"><div class="cb ficha">
+    <div><div class="fl">Dono</div><div class="fv">${esc(s.dono || '— defina —')}</div></div>
+    <div><div class="fl">D1</div><div class="fv">${s.data_abertura ? dt(s.data_abertura) : '— sem data —'}</div></div>
+    <div><div class="fl">Meta 30 / 90 dias</div>
+      <div class="fv">${s.meta_30d ?? '—'} / ${s.meta_90d ?? '—'} vendas</div></div>
+    <div><div class="fl">CAC-alvo</div><div class="fv">${s.cac_alvo != null ? 'R$ ' + Number(s.cac_alvo).toLocaleString('pt-BR') : '—'}</div></div>
+    <div style="flex:1;min-width:230px"><div class="fl">Quem indica</div>
+      <div class="fv" style="font-weight:500;line-height:1.5">${esc(s.publico || '— não definido —')}</div></div>
+    <div style="flex:1;min-width:230px"><div class="fl">O que o canal promete</div>
+      <div class="fv" style="font-weight:500;line-height:1.5">${esc(s.mecanica || '— não definido —')}</div></div>
+  </div></div>`;
+
+  const gate = `<div class="card"><div class="cb" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <span class="pill ${s.gate_ok ? 'ok' : 'warn'}">${s.gate_ok ? 'gate cumprido' : 'gate em aberto'}</span>
+    <div style="flex:1;min-width:240px">
+      <div class="sm2">Para sair de <b>${esc(NOME_ESTAGIO[s.estagio])}</b>, precisa ser verdade:</div>
+      <div style="font-weight:600;margin-top:3px">${esc(s.gate)}</div></div>
+    ${s.estagio === 'encerrado' ? '' : `<button class="btn ${s.gate_ok ? '' : 'ghost'}"
+      data-act="avancar">${ico('arrowR',15)}Avançar estágio</button>`}
+  </div></div>`;
+
+  /* Engajamento é campanha E rotina lado a lado: sem isso, "lançar e
+     parar de comunicar" não aparece na tela. */
+  const motor = canalSecao !== 'engajamento' ? '' : `
+    <div class="card"><div class="ch"><h3>Campanhas do canal</h3>
+      <span class="pill dim">${canalCache.camps.length}</span>
+      <div class="push"><button class="btn sm ghost" data-act="nova-campanha">${ico('plus',13)}Nova</button></div></div>
+      ${canalCache.camps.length ? canalCache.camps.map(c => `<div class="row">
+        <div class="g"><div class="t">${esc(c.nome)}</div>
+          <div class="m">${dt(c.data_inicio)} — ${c.data_fim ? dt(c.data_fim) : 'sem fim'}${
+            c.objetivo ? ' · ' + esc(c.objetivo) : ''}</div></div>
+        <span class="pill ${c.status === 'ativa' ? 'ok' : c.status === 'planejada' ? 'info'
+          : c.status === 'pausada' ? 'warn' : 'dim'}">${esc(c.status)}</span></div>`).join('')
+      : `<div class="cb">${vazio('zap', 'Nenhuma campanha neste canal',
+          'Campanha é o pico. Sem pelo menos duas por ciclo, o canal vive só do lançamento.',
+          { act:'nova-campanha', label:'Nova campanha' })}</div>`}</div>
+
+    <div class="card"><div class="ch"><h3>Rotina do canal</h3>
+      <span class="pill dim">${canalCache.rots.length}</span>
+      <div class="push"><button class="btn sm ghost" data-act="nova-rotina">${ico('plus',13)}Nova rotina</button></div></div>
+      ${canalCache.rots.length ? canalCache.rots.map(r => `<div class="row rotina">
+        <div class="g"><div class="t">${esc(r.titulo)}</div>
+          <div class="m">${esc(r.recorrencia)} · ${esc(r.responsavel_id ? nomeUser(r.responsavel_id) : 'sem dono')}</div></div>
+        <span class="pill ${r.status === 'aberta' ? 'ok' : 'dim'}">${esc(r.status)}</span></div>`).join('')
+      : `<div class="cb">${vazio('refresh', 'Nenhuma rotina neste canal',
+          'Campanha morre no dia do fim. Rotina é o que mantém o canal vivo entre uma e outra — ranking, lembrete, cobrança do SLA.',
+          { act:'nova-rotina', label:'Criar rotina' })}</div>`}</div>`;
+
+  const medicao = canalSecao !== 'meta' ? '' : `
+    <div class="card"><div class="ch"><h3>Custo e retorno</h3>
+      <div class="push"><button class="btn sm ghost" data-act="ir-financeiro">${ico('money',13)}Lançar mês</button></div></div>
+      ${canalCache.kpi && canalCache.kpi.length ? `<div class="t-scroll"><table><thead><tr>
+          <th>Mês</th><th class="num">Investimento</th><th class="num">Leads</th><th class="num">Vendas</th>
+          <th class="num">CPL</th><th class="num">CAC</th><th class="num">ROI</th><th>Veredito</th></tr></thead>
+        <tbody>${canalCache.kpi.map(k => `<tr>
+          <td>${dt(k.periodo)}</td><td class="num">${brl(k.investimento)}</td>
+          <td class="num">${k.leads_gerados}</td><td class="num">${k.vendas}</td>
+          <td class="num">${k.cpl != null ? brl(k.cpl) : '—'}</td>
+          <td class="num"${s.cac_alvo && k.cac > s.cac_alvo ? ' style="color:var(--bad)"' : ''}>${
+            k.cac != null ? brl(k.cac) : '—'}</td>
+          <td class="num">${k.roi != null ? k.roi : '—'}</td>
+          <td><span class="pill ${k.veredito === 'escalar' ? 'ok' : k.veredito === 'saudavel' ? 'info'
+            : k.veredito === 'cortar' ? 'bad' : 'dim'}">${esc(k.veredito.replace('_',' '))}</span></td>
+        </tr>`).join('')}</tbody></table></div>
+        ${s.cac_alvo ? `<div class="cb"><p class="sm2">CAC-alvo deste canal:
+          <b>R$ ${Number(s.cac_alvo).toLocaleString('pt-BR')}</b>. É contra ele que o número acima vale alguma coisa.</p></div>` : ''}`
+      : `<div class="cb">${vazio('chart', 'Sem número lançado',
+          'Enquanto investimento, leads, vendas e receita não forem lançados no mês, o veredito do canal é opinião.')}</div>`}</div>`;
+
+  /* ── as seis órbitas ─────────────────────────────────────────── */
+  const totPlano = somaBloco(s.id, 'itens'), okPlano = somaBloco(s.id, 'feitos');
+  const pctPlano = totPlano ? Math.round(100 * okPlano / totPlano) : 0;
+  const etapasFluxo = (c.fluxograma || '').split('\n').map(x => x.trim()).filter(Boolean);
+  const SECOES = [
+    ['oquee',       'O que é',    'book',    s.publico || s.mecanica ? 'definido' : 'a definir'],
+    ['meta',        'Meta',       'chart',   s.meta_30d != null ? `${s.meta_30d} em 30d` : 'a definir'],
+    ['engajamento', 'Engajamento','refresh', `${canalCache.rots.length} rotina(s)`],
+    ['regras',      'Regras',     'lock',    c.regras ? 'definidas' : 'a definir'],
+    ['fluxo',       'Fluxograma', 'link',    etapasFluxo.length ? `${etapasFluxo.length} etapa(s)` : 'a desenhar'],
+    ['plano',       'Plano',      'check',   totPlano ? `${okPlano}/${totPlano}` : 'sem plano']
+  ];
+  const orbItem = ([k, t, icone, info], i) => {
+    const ang = (-90 + i * 60) * Math.PI / 180;
+    const x = 50 + 40 * Math.cos(ang), y = 50 + 41 * Math.sin(ang);
+    return `<button class="orb-i ${canalSecao === k ? 'on' : ''}" data-act="secao" data-v="${k}"
+      style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;animation-delay:${i * .06}s">
+      <span class="ic">${ico(icone, 17)}</span><b>${t}</b><span class="inf">${esc(info)}</span></button>`;
+  };
+  const orbita = `<div class="orbita">
+    <div class="anel"></div>
+    <div class="orb-c" data-act="editar-canal" title="Editar o canal">
+      <div class="nm">${esc(s.nome)}</div>
+      <span class="pill ac">${esc(NOME_ESTAGIO[s.estagio])}</span>
+      <div class="bar" style="width:70%;margin-top:9px"><i class="${pctPlano === 100 ? 'ok' : ''}"
+        style="width:${pctPlano}%"></i></div>
+      <div class="sm2" style="margin-top:5px">${totPlano ? pctPlano + '% do plano' : 'sem plano aplicado'}</div>
+    </div>
+    ${SECOES.map(orbItem).join('')}
+  </div>`;
+
+  const secOquee = canalSecao !== 'oquee' ? '' : identidade + (c.notas ? `
+    <div class="card"><div class="ch"><h3>Notas</h3></div>
+      <div class="cb" style="white-space:pre-wrap;font-size:13.5px;line-height:1.65">${esc(c.notas)}</div></div>` : '');
+
+  const secMeta = canalSecao !== 'meta' ? '' : `
+    <div class="card"><div class="ch"><h3>Meta do canal</h3>
+      <div class="push"><button class="btn sm ghost" data-act="editar-canal">${ico('edit',13)}Editar</button></div></div>
+      <div class="cb ficha">
+        <div><div class="fl">Meta 30 dias</div><div class="fv">${s.meta_30d ?? '—'} vendas</div></div>
+        <div><div class="fl">Meta 90 dias</div><div class="fv">${s.meta_90d ?? '—'} vendas</div></div>
+        <div><div class="fl">CAC-alvo</div><div class="fv">${s.cac_alvo != null ? 'R$ ' + Number(s.cac_alvo).toLocaleString('pt-BR') : '—'}</div></div>
+        <div><div class="fl">D1</div><div class="fv">${s.data_abertura ? dt(s.data_abertura) : '—'}</div></div>
+        <div><div class="fl">Dono</div><div class="fv">${esc(s.dono || '—')}</div></div>
+      </div></div>` + medicao;
+
+  const secRegras = canalSecao !== 'regras' ? '' : `
+    <div class="card"><div class="ch"><h3>Regras do canal</h3>
+      <div class="push"><button class="btn sm" data-act="editar-regras">${ico('edit',13)}Editar regras</button></div></div>
+      ${c.regras ? `<div class="cb" style="white-space:pre-wrap;font-size:13.5px;line-height:1.7">${esc(c.regras)}</div>`
+        : `<div class="cb">${vazio('lock', 'Regras não escritas',
+            'Comissão, quem pode indicar, condições, SLA de contato, o que desclassifica. Regra que não está escrita vira discussão caso a caso.',
+            { act:'editar-regras', label:'Escrever as regras' })}</div>`}</div>`;
+
+  const secFluxo = canalSecao !== 'fluxo' ? '' : `
+    <div class="card"><div class="ch"><h3>Fluxograma do canal</h3>
+      <span class="pill dim">da indicação à ativação</span>
+      <div class="push"><button class="btn sm" data-act="editar-fluxo">${ico('edit',13)}Editar fluxo</button></div></div>
+      ${etapasFluxo.length ? `<div class="cb"><div class="fluxo">
+          ${etapasFluxo.map((e2, n) => `${n ? '<div class="seta">↓</div>' : ''}
+            <div class="passo"><span class="n">${n + 1}</span>${esc(e2)}</div>`).join('')}
+        </div></div>`
+        : `<div class="cb">${vazio('link', 'Fluxo não desenhado',
+            'Escreva uma etapa por linha — "Indicador manda o contato", "Comercial liga em até 24h"… — e o desenho aparece aqui.',
+            { act:'editar-fluxo', label:'Desenhar o fluxo' })}</div>`}</div>`;
+
+  const secPlano = canalSecao !== 'plano' ? '' : gate + `
+    <div class="bnav">${BLOCOS.map(botaoBloco).join('')}</div>
+
+    <div class="card"><div class="ch"><h3>${esc(tituloBloco)}</h3>
+      <span class="pill dim">${b ? `${b.feitos}/${b.itens}` : '0'}</span>
+      <div class="push">
+        <button class="btn sm ghost" data-act="aplicar-bloco">${ico('copy',13)}Trazer do modelo</button>
+        <button class="btn sm" data-act="novo-item">${ico('plus',13)}Novo passo</button></div></div>
+      <div class="cb" style="padding-bottom:0"><p class="sm2">${esc(descBloco)}</p></div>
+      ${itens.length ? `<div style="margin-top:12px">${itens.map(linhaItem).join('')}</div>`
+        : `<div class="cb">${vazio('check', 'Bloco vazio',
+            'Traga os passos do modelo padrão ou escreva os desta operação. Um bloco vazio não é um bloco cumprido.',
+            { act:'aplicar-bloco', label:'Trazer do modelo' })}</div>`}</div>`;
+
+  return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
+    <div class="head">
+      <div><h2>${esc(s.nome)}</h2>
+        <div class="sub">${esc((s.tipo || '').replace('_',' '))} · ${esc(NOME_ESTAGIO[s.estagio])}${
+          s.dono ? ' · ' + esc(s.dono) : ''}</div></div>
+      <div class="push">
+        ${dd('Estágio', 'estagio', ESTAGIOS.map(([v, t, d]) => ({ v, t, d })), s.estagio)}
+        <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button>
+        <button class="btn" data-act="aplicar">${ico('plus',15)}Aplicar plano</button></div></div>
+
+    ${orbita}
+    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}`;
+}
+
 R.canais = {
   label: 'Canais de venda', curto: 'Canais', icone: 'target', titulo: 'Canais de venda',
   async dados() {
-    /* Sem área escolhida (menu de gestão), mostra todos: esconder o
-       canal do outro time só faria a lista mentir sobre o total. */
-    const cs = canaisDaArea() || cache.canais;
-    const uso = {};
-    await Promise.all(cs.map(async c => {
-      const [rot, cmp, mt] = await Promise.all([
-        contaOnde('acoes', x => x.eq('canal_id', c.id).neq('recorrencia', 'nenhuma').eq('status', 'aberta')),
-        contaOnde('campanhas', x => x.eq('canal_id', c.id).eq('status', 'ativa')),
-        contaOnde('metas', x => x.eq('canal_id', c.id))
+    const saude = await qOpcional('v_canal_saude', x => x.order('nome'));
+    if (saude === null) return { semBanco: true };
+
+    const permitidos = canaisDaArea();
+    const ids = permitidos ? new Set(permitidos.map(c => c.id)) : null;
+    canalCache.saude  = ids ? saude.filter(s => ids.has(s.id)) : saude;
+    canalCache.blocos = (await qOpcional('v_canal_bloco')) || [];
+
+    if (canalSel && !canalCache.saude.some(s => s.id === canalSel)) canalSel = null;
+
+    if (canalSel) {
+      const [itens, camps, rots, kpi, canalRow] = await Promise.all([
+        q('acoes', x => x.eq('canal_id', canalSel).eq('recorrencia', 'nenhuma')
+                         .not('bloco', 'is', null).order('prazo', { nullsFirst: false })),
+        q('campanhas', x => x.eq('canal_id', canalSel).order('data_inicio', { ascending: false })),
+        q('acoes', x => x.eq('canal_id', canalSel).neq('recorrencia', 'nenhuma').order('titulo')),
+        qOpcional('v_financeiro_kpi', x => x.eq('canal_id', canalSel).order('periodo', { ascending: false }).limit(6)),
+        // A linha crua do canal: regras, fluxograma e notas não passam pela view de saúde
+        q('canais_venda', x => x.eq('id', canalSel))
       ]);
-      uso[c.id] = { rot, cmp, mt };
-    }));
-    return { cs, uso };
+      canalCache.itens = itens; canalCache.camps = camps;
+      canalCache.rots = rots;   canalCache.kpi = kpi || [];
+      canalCache.canal = canalRow[0] || {};
+    }
+    return { semBanco: false };
   },
-  render({ cs, uso }) {
-    const ativos = cs.filter(c => c.ativo);
-    const u = id => uso[id] || { rot:0, cmp:0, mt:0 };
-    const soma = (campo, lista = cs) => lista.reduce((s, c) => s + u(c.id)[campo], 0);
-    const semOperacao = ativos.filter(c => !u(c.id).rot && !u(c.id).cmp && !u(c.id).mt);
 
-    const cartao = c => {
-      const { rot, cmp, mt } = u(c.id);
-      const vazio2 = !rot && !cmp && !mt;
-      return `<tr>
-        <td><b>${esc(c.nome)}</b>${vazio2 && c.ativo
-          ? ' <span class="pill warn" title="Nada pendurado neste canal">sem operação</span>' : ''}</td>
-        <td class="mut">${esc((c.tipo || '').replace('_', ' '))}</td>
-        <td><span class="pill ${c.area === 'comercial' ? 'info' : c.area === 'marketing' ? 'ac' : 'dim'}">${
-          (c.area === 'ambos' || !c.area) ? 'ambas' : esc(c.area)}</span></td>
-        <td class="mut">${esc(nomeUser(c.responsavel_id))}</td>
-        <td class="num">${rot || '<span class="mut">—</span>'}</td>
-        <td class="num">${cmp || '<span class="mut">—</span>'}</td>
-        <td class="num">${mt || '<span class="mut">—</span>'}</td>
-        <td><span class="pill ${c.ativo ? 'ok' : 'dim'}">${c.ativo ? 'ativo' : 'inativo'}</span></td>
-        <td class="act">
-          <button class="btn sm ghost" data-act="editar" data-id="${c.id}" title="Editar">${ico('edit',13)}</button>
-          <button class="btn sm ghost" data-act="virar-canal" data-id="${c.id}" data-v="${c.ativo ? '0' : '1'}"
-            title="${c.ativo ? 'Desativar' : 'Ativar'}">${c.ativo ? 'Desativar' : 'Ativar'}</button>
-          <button class="btn sm ghost" data-act="duplicar" data-id="${c.id}" title="Duplicar">${ico('copy',13)}</button>
-          <button class="btn sm ghost" data-act="excluir" data-id="${c.id}" data-t="${esc(c.nome)}" title="Excluir">${ico('trash',13)}</button>
-        </td></tr>`;
-    };
-
-    return `<div class="head"><div><h2>Canais de venda</h2>
-        <div class="sub">${area ? `Os canais que ${AREAS[area]} opera` : 'Todos os canais cadastrados'}
-          — de onde o lead entra e para onde vai a meta.</div></div>
-        <div class="push">
-          <button class="btn ghost" data-act="csv">${ico('down',15)}CSV</button>
-          <button class="btn" data-act="novo">${ico('plus',15)}Novo canal</button></div></div>
-
-      ${cs.length ? `
-      <div class="tiles stg">
-        <div class="tile"><div class="ic">${ico('target',18)}</div><div class="n">${ativos.length}</div>
-          <div class="l">Canais ativos</div><div class="h">${cs.length - ativos.length} inativo(s)</div></div>
-        <div class="tile"><div class="ic">${ico('refresh',18)}</div>
-          <div class="n">${soma('rot')}</div>
-          <div class="l">Rotinas nestes canais</div></div>
-        <div class="tile"><div class="ic">${ico('zap',18)}</div>
-          <div class="n">${soma('cmp')}</div>
-          <div class="l">Campanhas no ar</div></div>
-        <div class="tile ${semOperacao.length ? 'warn' : ''}">
-          <div class="ic">${ico('alert',18)}</div>
-          <div class="n">${semOperacao.length}</div>
-          <div class="l">Ativos sem operação</div><div class="h">nada pendurado neles</div></div>
-      </div>
-
-      <div class="card"><div class="ch"><h3>Canais</h3><span class="pill dim">${cs.length}</span></div>
-        <div class="t-scroll"><table><thead><tr>
-          <th>Canal</th><th>Tipo</th><th>Área</th><th>Responsável</th>
-          <th class="num">Rotinas</th><th class="num">Campanhas</th><th class="num">Metas</th>
-          <th>Estado</th><th></th></tr></thead>
-        <tbody>${[...cs].sort((a, b) => (b.ativo ? 1 : 0) - (a.ativo ? 1 : 0)
-          || (a.nome > b.nome ? 1 : -1)).map(cartao).join('')}</tbody></table></div>
-        <div class="cb"><p class="sm2">Canal desativado some das listas de escolha e continua no histórico.
-          Excluir é o caminho sem volta — e leva metas e lançamentos junto.</p></div></div>`
-      : `<div class="card">${vazio('target', 'Nenhum canal cadastrado',
-          'Cadastre os canais que você opera de verdade: é o que faz meta, campanha e rotina terem de onde vir.',
-          { act:'novo', label:'Adicionar canal' })}</div>`}`;
+  render({ semBanco }) {
+    if (semBanco) return `<div class="head"><div><h2>Canais de venda</h2>
+        <div class="sub">O ciclo de vida do canal ainda não está no banco.</div></div></div>
+      ${avisoSql('Faltam a tabela <b>canal_plano_modelo</b> e as visões de saúde do canal.',
+                 'sql/CORRECAO-15.sql')}`;
+    const s = canalSel && canalCache.saude.find(x => x.id === canalSel);
+    return s ? canalFicha(s) : canalPipeline(canalCache.saude);
   },
+
   acoes: {
+    abrir(b) { canalSel = b.dataset.id; canalAba = 'estrutura'; canalSecao = 'oquee'; pinta(); },
+    voltar() { canalSel = null; pinta(); },
+    aba(b)   { canalAba = b.dataset.v; pinta(); },
+    secao(b) { canalSecao = b.dataset.v; pinta(); },
+
+    'editar-regras'() {
+      const c = canalCache.canal || {};
+      form('Regras do canal', [
+        { k:'regras', label:'As regras do jogo', type:'textarea', value:c.regras,
+          ph:'Comissão: R$50 de desconto pros dois lados\nQuem pode indicar: qualquer cliente ativo\nSLA: contato em até 24h úteis\nDesclassifica: CPF já cadastrado…',
+          hint:'Regra que não está escrita vira discussão caso a caso.' }
+      ], d => grava('canais_venda', d, canalSel), 'Salvar regras');
+    },
+    'editar-fluxo'() {
+      const c = canalCache.canal || {};
+      form('Fluxograma do canal', [
+        { k:'fluxograma', label:'Uma etapa por linha', type:'textarea', value:c.fluxograma,
+          ph:'Indicador manda o contato no WhatsApp\nComercial liga em até 24h\nProposta apresentada\nVenda no Bitrix (funil 0)\nAtivação no IXC\nBonificação aplicada nas duas faturas',
+          hint:'A tela desenha as caixas e as setas na ordem das linhas.' }
+      ], d => grava('canais_venda', d, canalSel), 'Salvar fluxo');
+    },
+
     novo() { formCanal({ area: area || 'ambos' }); },
+    async 'editar-canal'() {
+      const [r] = await q('canais_venda', x => x.eq('id', canalSel)); if (r) formCanal(r);
+    },
     async editar(b) { const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id)); if (r) formCanal(r); },
     duplicar(b) { duplicaCanal(b.dataset.id); },
     excluir(b)  { excluiCanal(b.dataset.id, b.dataset.t); },
-    async 'virar-canal'(b) {
-      if (await grava('canais_venda', { ativo: b.dataset.v === '1' }, b.dataset.id)) {
-        await recarregaBase(); toast('Canal atualizado.'); pinta();
-      }
+    csv() { csv('canais', canalCache.saude); },
+
+    /* Estágio é escolha do dono, não consequência automática do
+       checklist: só ele sabe se o piloto de verdade começou. O que o
+       sistema faz é não deixar passar batido que o gate não fechou. */
+    async estagio(b) {
+      const s = canalCache.saude.find(x => x.id === canalSel); if (!s) return;
+      if (!await grava('canais_venda', { estagio: b.dataset.v }, canalSel)) return;
+      await recarregaBase();
+      if (!s.gate_ok && b.dataset.v !== 'encerrado' && ESTAGIOS.findIndex(e => e[0] === b.dataset.v)
+          > ESTAGIOS.findIndex(e => e[0] === s.estagio)) {
+        toast(`Avançou com o gate em aberto: ${s.gate.toLowerCase()}.`, { tipo:'info' });
+      } else toast('Estágio atualizado.');
+      pinta();
     },
-    csv() { csv('canais', canaisDaArea() || cache.canais); }
+    avancar() {
+      const s = canalCache.saude.find(x => x.id === canalSel); if (!s) return;
+      const i = ESTAGIOS.findIndex(e => e[0] === s.estagio);
+      const prox = ESTAGIOS[Math.min(i + 1, ESTAGIOS.length - 2)];   // 'encerrado' nunca é o "próximo"
+      if (!prox || prox[0] === s.estagio) return toast('Já está no último estágio.', { tipo:'info' });
+      if (s.gate_ok) return R.canais.acoes.estagio({ dataset: { v: prox[0] } });
+      confirma(`Avançar para ${prox[1]}?`,
+        `O gate deste estágio ainda não fechou: <b>${esc(s.gate)}</b>.<br><br>
+         Avançar assim é decisão sua — o sistema só não deixa isso passar em silêncio.`,
+        () => R.canais.acoes.estagio({ dataset: { v: prox[0] } }), { perigo:false });
+    },
+
+    async aplicar()       { await aplicaPlano(null); },
+    async 'aplicar-bloco'() { await aplicaPlano(canalAba); },
+
+    'novo-item'() {
+      const s = canalCache.saude.find(x => x.id === canalSel);
+      form(`Novo passo · ${NOME_BLOCO[canalAba]}`, [
+        { k:'titulo', label:'O que precisa existir', req:true,
+          ph:'Ex.: Definir quem lança o desconto no IXC' },
+        { k:'criterio', label:'Critério de pronto', type:'textarea',
+          ph:'O que demonstra que ficou pronto — não "já mexi nisso".',
+          hint:'Só marca quem consegue demonstrar funcionando.' },
+        { k:'responsavel_id', label:'Responsável', type:'select', opts:optUsuarios(),
+          value: s?.responsavel_id },
+        { k:'prazo', label:'Prazo', type:'date' }
+      ], d => grava('acoes', { ...d, tipo:'campanha', origem:'manual',
+                               canal_id: canalSel, bloco: canalAba }));
+    },
+    async 'editar-item'(b) {
+      const a = canalCache.itens.find(x => x.id === b.dataset.id); if (!a) return;
+      form('Editar passo', [
+        { k:'titulo', label:'O que precisa existir', req:true, value:a.titulo },
+        { k:'criterio', label:'Critério de pronto', type:'textarea', value:a.criterio },
+        { k:'prova', label:'Prova', value:a.prova, ph:'link, print, número',
+          hint:'Onde está a demonstração de que ficou pronto.' },
+        { k:'responsavel_id', label:'Responsável', type:'select', opts:optUsuarios(), value:a.responsavel_id },
+        { k:'prazo', label:'Prazo', type:'date', value:a.prazo },
+        { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila do dia', value:a.urgente }
+      ], d => grava('acoes', d, a.id));
+    },
+
+    /* Concluir pede a prova antes. É fricção de propósito: sem ela o
+       critério de pronto vira enfeite e o checklist volta a ser
+       "acho que está feito". Dá para pular — mas conscientemente. */
+    async marcar(b) {
+      const a = canalCache.itens.find(x => x.id === b.dataset.id); if (!a) return;
+      if (a.status === 'concluida') {
+        if (await grava('acoes', { status:'aberta' }, a.id)) { toast('Passo reaberto.'); pinta(); }
+        return;
+      }
+      form('Marcar como pronto', [
+        { k:'prova', label:'Prova', value:a.prova, ph:'link, print, número…',
+          hint: a.criterio || 'O que demonstra que este passo ficou pronto.' }
+      ], async d => {
+        const ok = await grava('acoes', { prova:d.prova, status:'concluida' }, a.id);
+        if (ok) toast('Passo concluído.');
+        return ok;
+      }, 'Concluir');
+    },
+
+    'nova-campanha'() { formCampanha({ canal_id: canalSel }); },
+    'nova-rotina'()   { R.acoes.acoes.modelo(); },
+    'ir-financeiro'() { vai('financeiro', area); }
   }
 };
+
+/* Chamada única para os dois botões: o de cima traz o plano inteiro,
+   o do card traz só o bloco aberto. */
+async function aplicaPlano(bloco) {
+  const { data, error } = await sb.rpc('canal_aplicar_plano',
+    { p_canal: canalSel, p_bloco: bloco });
+  if (error) return toast(error.message, { tipo:'bad' });
+  toast(data ? `${data} passo(s) trazido(s) do modelo.` : 'O modelo já estava aplicado por aqui.',
+        { tipo: data ? 'ok' : 'info' });
+  pinta();
+}
 
 /* ───────────────────────── CAMPANHAS ───────────────────────── */
 R.campanhas = {
@@ -2058,7 +2643,7 @@ R.campanhas = {
   }
 };
 function formCampanha(row) {
-  form(row ? 'Editar campanha' : 'Nova campanha', [
+  form(row?.id ? 'Editar campanha' : 'Nova campanha', [
     { k:'nome', label:'Nome', req:true, value:row?.nome },
     { k:'canal_id', label:'Canal', type:'select', value:row?.canal_id, opts:optCanais() },
     { k:'objetivo', label:'Objetivo', type:'textarea', value:row?.objetivo, ph:'O que essa campanha precisa entregar?' },
@@ -2072,84 +2657,448 @@ function formCampanha(row) {
 }
 
 /* ───────────────────────── PRODUÇÃO ───────────────────────── */
-const COLS = [['a_criar','A criar'],['em_producao','Em produção'],['em_validacao','Em validação'],
-              ['validado','Validado'],['publicado','Publicado']];
+/* Quadro estilo Trello. As listas moram no banco (producao_listas) e
+   o cartão tem ordem própria — é o que o arrastar e soltar grava.
+   Cada lista pode espelhar um status antigo (status_equivalente):
+   mover o cartão para ela sincroniza o status, e é isso que mantém a
+   capacidade da semana e os contadores do dashboard funcionando. */
+let prodArrastou = false;   // suprime o clique que sobra depois do arrasto
+
 R.producao = {
   label: 'Produção', curto: 'Produção', icone: 'film', titulo: 'Produção de conteúdo',
+  filtro: { busca:'', membro:'', etiqueta:'' },
   async dados() {
-    const [itens, cap] = await Promise.all([
-      q('producao_conteudo', x => x.neq('status', 'arquivado').order('data_entrega')),
+    const [listas, itens, cap] = await Promise.all([
+      qOpcional('producao_listas', x => x.order('ordem')),
+      q('producao_conteudo', x => x.neq('status', 'arquivado').order('ordem')),
       q('v_capacidade_semana')
     ]);
-    return { itens: porCanalId(itens), cap };
+    return { listas, itens: porCanalId(itens), cap };
   },
-  render({ itens, cap }) {
-    const k = i => {
-      const idx = COLS.findIndex(c => c[0] === i.status);
-      const atrasado = i.data_entrega && i.data_entrega < hoje() && idx < 3;
-      return `<div class="k"><div class="t">${esc(i.titulo)}</div>
-        <div class="m">${esc(nomeUser(i.responsavel_id))} · ${esc(i.formato || i.tipo)}</div>
-        <div class="m" style="${atrasado ? 'color:var(--bad);font-weight:600' : ''}">entrega ${dt(i.data_entrega)}</div>
-        <div class="ks">
-          ${idx > 0 ? `<button class="btn sm ghost" data-act="mv" data-id="${i.id}" data-s="${COLS[idx-1][0]}">${ico('arrowL',12)}</button>` : ''}
-          ${idx < 4 ? `<button class="btn sm" data-act="mv" data-id="${i.id}" data-s="${COLS[idx+1][0]}">${ico('arrowR',12)}</button>` : ''}
-          <button class="btn sm ghost" data-act="del" data-id="${i.id}" data-t="${esc(i.titulo)}" style="margin-left:auto">${ico('trash',12)}</button>
+  render({ listas, itens, cap }) {
+    const f = R.producao.filtro;
+    const head = `<div class="head"><div><h2>Produção de conteúdo</h2>
+        <div class="sub">Arraste os cartões entre as listas. Clique no cartão para abrir tudo:
+          descrição, checklist, etiquetas, membros e comentários.</div></div>
+        <div class="push">
+          <button class="btn ghost" data-act="cap">${ico('users',15)}Capacidade</button>
+          <button class="btn" data-act="add-lista">${ico('plus',15)}Lista</button></div></div>`;
+    if (listas === null) return head +
+      avisoSql('O quadro de produção (listas e cartões completos) ainda não existe no banco.', 'sql/CORRECAO-17.sql');
+
+    R.producao._listas = listas;
+    R.producao._cap = cap;
+    const vivas = listas.filter(l => !l.arquivada);
+
+    let cards = itens.filter(i => !i.arquivado);
+    R.producao._itens = cards;
+    if (f.busca)    cards = cards.filter(i => i.titulo.toLowerCase().includes(f.busca.toLowerCase()));
+    if (f.membro)   cards = cards.filter(i => i.responsavel_id === f.membro || (i.membros || []).includes(f.membro));
+    if (f.etiqueta) cards = cards.filter(i => (i.etiquetas || []).includes(f.etiqueta));
+    const etiquetasUsadas = [...new Set(itens.flatMap(i => i.etiquetas || []))].sort();
+    const ordena = l => l.sort((a, b) => (+a.ordem || 0) - (+b.ordem || 0) || (a.created_at > b.created_at ? 1 : -1));
+
+    // Cartão órfão (lista arquivada ou apagada) não pode sumir calado
+    const idsVivas = new Set(vivas.map(l => l.id));
+    const orfaos = ordena(cards.filter(i => !i.lista_id || !idsVivas.has(i.lista_id)));
+
+    const face = i => {
+      const chk = i.checklist || [], feitos = chk.filter(c => c.ok).length;
+      const atras = i.data_entrega && i.data_entrega < hoje() && i.status !== 'publicado';
+      const membros = [...new Set([i.responsavel_id, ...(i.membros || [])].filter(Boolean))];
+      return `<div class="pk" data-act="abre-cartao" data-id="${i.id}" data-card="${i.id}" data-o="${+i.ordem || 0}">
+        ${i.capa ? `<div class="capa" style="background:${esc(i.capa)}"></div>` : ''}
+        ${(i.etiquetas || []).length ? `<div class="ets">${i.etiquetas.map(t =>
+          `<i style="background:${corTag(t)}" title="${esc(t)}"></i>`).join('')}</div>` : ''}
+        <div class="t">${esc(i.titulo)}</div>
+        <div class="bd">
+          ${i.data_entrega ? `<span class="pill ${atras ? 'bad' : i.data_entrega === hoje() ? 'warn' : 'dim'}">${ico('clock',11)}${dt(i.data_entrega)}</span>` : ''}
+          ${i.descricao ? `<span class="pill dim" title="Tem descrição">${ico('book',11)}</span>` : ''}
+          ${chk.length ? `<span class="pill ${feitos === chk.length ? 'ok' : 'dim'}">${ico('check',11)}${feitos}/${chk.length}</span>` : ''}
+          ${(i.comentarios || []).length ? `<span class="pill dim">${ico('inbox',11)}${i.comentarios.length}</span>` : ''}
+          ${membros.length ? `<span class="avs">${membros.slice(0, 3).map(id =>
+            avatar(cache.usuarios.find(u => u.id === id), 20)).join('')}${
+            membros.length > 3 ? `<span class="mais">+${membros.length - 3}</span>` : ''}</span>` : ''}
         </div></div>`;
     };
-    return `<div class="head"><div><h2>Produção de conteúdo</h2>
-        <div class="sub">Capacidade declarada contra o que foi entregue nesta semana.</div></div>
-        <div class="push">
-          <button class="btn ghost" data-act="cap">${ico('users',15)}Definir capacidade</button>
-          <button class="btn" data-act="novo">${ico('plus',15)}Novo conteúdo</button></div></div>
 
-      <div class="card"><div class="ch"><h3>Capacidade da semana</h3>
-        <span class="push sm2">${seg()} em diante</span></div>
-        ${cap.length ? `<div class="t-scroll"><table><thead><tr>
+    const colLista = l => {
+      const doL = ordena(cards.filter(i => i.lista_id === l.id));
+      return `<div class="tl" data-l="${l.id}">
+        <div class="tlh">
+          ${l.cor ? `<i class="dotl" style="background:${esc(l.cor)}"></i>` : ''}
+          <b data-act="menu-lista" data-id="${l.id}" title="Opções da lista">${esc(l.nome)}</b>
+          <span class="ct">${doL.length}</span>
+          <button class="ib" data-act="menu-lista" data-id="${l.id}" title="Opções da lista"
+            style="width:26px;height:26px">${ico('chevron',13)}</button>
+        </div>
+        <div class="tlc" data-lista="${l.id}">${doL.map(face).join('')}</div>
+        <button class="tla" data-act="add-cartao" data-l="${l.id}">${ico('plus',13)}Adicionar cartão</button>
+      </div>`;
+    };
+
+    return head + `
+      <div class="filtros">
+        <input data-act="f-busca" value="${esc(f.busca)}" placeholder="Buscar cartão…"
+          style="width:190px;font-size:13px">
+        ${dd('Membro', 'f-membro', [{ v:'', t:'Todo mundo', i:'users' },
+          ...cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome }))], f.membro)}
+        ${etiquetasUsadas.length ? dd('Etiqueta', 'f-etiqueta',
+          [{ v:'', t:'Todas as etiquetas' }, ...etiquetasUsadas.map(t => ({ v:t, t }))], f.etiqueta) : ''}
+      </div>
+      <div class="trello" id="trello">
+        ${vivas.map(colLista).join('')}
+        ${orfaos.length ? `<div class="tl"><div class="tlh"><b>Sem lista</b><span class="ct">${orfaos.length}</span></div>
+          <div class="tlc" data-lista="">${orfaos.map(face).join('')}</div></div>` : ''}
+        <button class="tl nova" data-act="add-lista">${ico('plus',15)}Nova lista</button>
+      </div>`;
+  },
+  pos() { prodDnD(); },
+  acoes: {
+    'f-busca'(el)    { R.producao.filtro.busca = el.value; pinta(); },
+    'f-membro'(b)    { R.producao.filtro.membro = b.dataset.v; pinta(); },
+    'f-etiqueta'(b)  { R.producao.filtro.etiqueta = b.dataset.v; pinta(); },
+    'abre-cartao'(b) { if (prodArrastou) { prodArrastou = false; return; } abreCartaoProd(b.dataset.id); },
+
+    'add-lista'() {
+      form('Nova lista', [
+        { k:'nome', label:'Nome da lista', req:true, ph:'Ex.: Aguardando aprovação' },
+        { k:'cor', label:'Cor (opcional)', ph:'#f76602', hint:'Só o pontinho no título da lista.' }
+      ], d => {
+        if (d.cor && !/^#[0-9a-f]{6}$/i.test(d.cor)) { toast('Cor no formato #rrggbb.', { tipo:'bad' }); return false; }
+        const max = Math.max(0, ...(R.producao._listas || []).map(l => +l.ordem || 0));
+        return grava('producao_listas', { nome:d.nome, cor:d.cor, ordem:max + 1 });
+      }, 'Criar lista');
+    },
+
+    'menu-lista'(b) {
+      const listas = (R.producao._listas || []).filter(l => !l.arquivada);
+      const l = listas.find(x => x.id === b.dataset.id); if (!l) return;
+      const i = listas.indexOf(l);
+      const naLista = (R.producao._itens || []).filter(c => c.lista_id === l.id);
+      const p = popover(b, `<div class="pl">
+        <div class="mi" data-m="ren">${ico('edit',15)} Renomear</div>
+        ${i > 0 ? `<div class="mi" data-m="esq">${ico('arrowL',15)} Mover para a esquerda</div>` : ''}
+        ${i < listas.length - 1 ? `<div class="mi" data-m="dir">${ico('arrowR',15)} Mover para a direita</div>` : ''}
+        <div class="mi" data-m="arq">${ico('inbox',15)} Arquivar lista</div>
+        <div class="mi" data-m="del" style="color:var(--bad)">${ico('trash',15)} Excluir lista</div></div>`, 'menu');
+      p.onclick = async e => {
+        const mi = e.target.closest('.mi'); if (!mi) return;
+        p.remove();
+        const m = mi.dataset.m;
+        if (m === 'ren') form(`Renomear · ${l.nome}`, [
+          { k:'nome', label:'Nome da lista', req:true, value:l.nome },
+          { k:'cor', label:'Cor', value:l.cor || '', ph:'#f76602' }
+        ], d => {
+          if (d.cor && !/^#[0-9a-f]{6}$/i.test(d.cor)) { toast('Cor no formato #rrggbb.', { tipo:'bad' }); return false; }
+          return grava('producao_listas', d, l.id);
+        });
+        if (m === 'esq' || m === 'dir') {
+          const viz = listas[i + (m === 'dir' ? 1 : -1)]; if (!viz) return;
+          await Promise.all([
+            grava('producao_listas', { ordem: viz.ordem }, l.id),
+            grava('producao_listas', { ordem: l.ordem }, viz.id)
+          ]);
+          pinta();
+        }
+        if (m === 'arq') confirma('Arquivar lista',
+          `<p>"${esc(l.nome)}" sai do quadro. ${naLista.length
+            ? `Os <b>${naLista.length} cartão(ões)</b> dela aparecem na coluna "Sem lista" até você movê-los.`
+            : 'Ela está vazia.'}</p>`,
+          () => grava('producao_listas', { arquivada:true }, l.id), { perigo:false });
+        if (m === 'del') {
+          if (naLista.length) return toast('Mova ou arquive os cartões antes de excluir a lista.', { tipo:'bad' });
+          confirma('Excluir lista', `<p>"${esc(l.nome)}" some de vez. Ela está vazia, nada mais é afetado.</p>`,
+            () => apaga('producao_listas', l.id));
+        }
+      };
+    },
+
+    /* Composer do Trello: o botão vira caixa de texto ali mesmo.
+       Enter cria e mantém a caixa aberta para emendar o próximo. */
+    'add-cartao'(b) {
+      const lid = b.dataset.l;
+      const box = document.createElement('div');
+      box.className = 'pk-add';
+      box.innerHTML = `<textarea rows="2" placeholder="Título do cartão…"></textarea>
+        <div style="display:flex;gap:6px;margin-top:7px">
+          <button class="btn sm" data-s>Adicionar</button>
+          <button class="btn sm ghost" data-c>Cancelar</button></div>`;
+      b.style.display = 'none';
+      b.parentNode.insertBefore(box, b);
+      const ta = box.querySelector('textarea');
+      const cancela = () => { box.remove(); b.style.display = ''; };
+      const salvar = async () => {
+        const t = ta.value.trim(); if (!t) return cancela();
+        const l = (R.producao._listas || []).find(x => x.id === lid);
+        const max = Math.max(0, ...(R.producao._itens || [])
+          .filter(c => c.lista_id === lid).map(c => +c.ordem || 0));
+        const d = { titulo:t, lista_id:lid, ordem:max + 1, responsavel_id:eu?.id || null };
+        if (l?.status_equivalente) {
+          d.status = l.status_equivalente;
+          if (l.status_equivalente === 'publicado') d.publicado_em = hoje();
+        }
+        if (await grava('producao_conteudo', d)) pinta();
+      };
+      box.querySelector('[data-s]').onclick = salvar;
+      box.querySelector('[data-c]').onclick = cancela;
+      ta.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); salvar(); }
+        if (e.key === 'Escape') cancela();
+      };
+      ta.focus();
+    },
+
+    cap() {
+      const capdata = R.producao._cap || [];
+      modal({ titulo:'Capacidade da semana', ok:'Fechar', largura:640, onOk:() => true,
+        corpo: `${capdata.length ? `<div class="t-scroll"><table><thead><tr>
           <th>Pessoa</th><th class="num">Capacidade</th><th class="num">Entregue</th><th class="num">Em aberto</th><th>Uso</th>
-        </tr></thead><tbody>${cap.map(c => {
+        </tr></thead><tbody>${capdata.map(c => {
           const p = c.capacidade ? Math.min(100, 100 * c.entregue / c.capacidade) : 0;
           const cls = c.saldo < 0 ? 'bad' : (c.capacidade && c.entregue >= c.capacidade) ? 'ok' : '';
           return `<tr><td><b>${esc(c.responsavel)}</b></td>
             <td class="num">${c.capacidade || '—'}</td><td class="num">${c.entregue}</td><td class="num">${c.em_aberto}</td>
-            <td><div class="bar" style="max-width:150px"><i class="${cls}" style="width:${p}%"></i></div>
-              ${c.saldo < 0 ? `<div class="sm2" style="color:var(--bad)">${Math.abs(c.saldo)} acima da capacidade</div>` : ''}</td></tr>`;
+            <td><div class="bar" style="max-width:130px"><i class="${cls}" style="width:${p}%"></i></div></td></tr>`;
         }).join('')}</tbody></table></div>`
-        : vazio('users', 'Sem time cadastrado', 'Cadastre o time em Configurações para medir capacidade.')}</div>
-
-      <div class="kb">${COLS.map(([s, l]) => {
-        const list = itens.filter(i => i.status === s);
-        return `<div class="col"><h4>${l}<span>${list.length}</span></h4>${list.map(k).join('')}</div>`;
-      }).join('')}</div>`;
-  },
-  acoes: {
-    novo: () => form('Novo conteúdo', [
-      { k:'titulo', label:'Título', req:true },
-      { k:'tipo', label:'Tipo', type:'select', value:'organico',
-        opts:[{ v:'organico', t:'Orgânico' }, { v:'ativo', t:'Ativo (campanha)' }] },
-      { k:'formato', label:'Formato', ph:'reel, carrossel, story, VSL…' },
-      { k:'canal_id', label:'Canal', type:'select', opts:optCanais() },
-      { k:'responsavel_id', label:'Responsável', type:'select', opts:optUsuarios() },
-      { k:'data_entrega', label:'Entrega', type:'date', value:hoje() }
-    ], d => grava('producao_conteudo', d)),
-    cap: () => form('Capacidade da semana', [
-      { k:'responsavel_id', label:'Pessoa', type:'select', req:true,
-        opts:cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome })) },
-      { k:'semana_inicio', label:'Semana (segunda-feira)', type:'date', value:seg() },
-      { k:'capacidade_itens', label:'Quantos itens dá conta', type:'number', req:true, value:5 }
-    ], async d => {
-      const { error } = await sb.from('capacidade_producao').upsert(d, { onConflict:'responsavel_id,semana_inicio' });
-      if (error) { toast(error.message, { tipo:'bad' }); return false; }
-      toast('Capacidade definida.'); return true;
-    }),
-    async mv(b) {
-      const patch = { status: b.dataset.s };
-      if (b.dataset.s === 'publicado') patch.publicado_em = hoje();
-      if (await grava('producao_conteudo', patch, b.dataset.id)) pinta();
-    },
-    del(b) { confirma('Excluir conteúdo', `"${esc(b.dataset.t)}" será removido.`,
-      () => apaga('producao_conteudo', b.dataset.id)); }
+        : '<p class="sm2">Sem time cadastrado ainda.</p>'}
+        <button class="btn ghost" data-def style="margin-top:14px">${ico('users',15)}Definir capacidade de alguém</button>`
+      }).mask.querySelector('[data-def]').onclick = () => form('Capacidade da semana', [
+        { k:'responsavel_id', label:'Pessoa', type:'select', req:true,
+          opts:cache.usuarios.filter(u => u.ativo).map(u => ({ v:u.id, t:u.nome })) },
+        { k:'semana_inicio', label:'Semana (segunda-feira)', type:'date', value:seg() },
+        { k:'capacidade_itens', label:'Quantos itens dá conta', type:'number', req:true, value:5 }
+      ], async d => {
+        const { error } = await sb.from('capacidade_producao').upsert(d, { onConflict:'responsavel_id,semana_inicio' });
+        if (error) { toast(error.message, { tipo:'bad' }); return false; }
+        toast('Capacidade definida.'); return true;
+      });
+    }
   }
 };
+
+/* ── arrastar e soltar ────────────────────────────────────────────
+   O truque clássico: durante o dragover o próprio cartão é movido no
+   DOM para a posição sob o mouse — o "fantasma" é o cartão real. No
+   dragend a posição vira número: a ordem fica no meio do caminho
+   entre os vizinhos, então mover um cartão nunca renumera os outros. */
+function prodDnD() {
+  const board = $('#trello'); if (!board) return;
+  let drag = null;
+  board.querySelectorAll('.pk').forEach(k => {
+    k.draggable = true;
+    k.ondragstart = e => { drag = k; prodArrastou = false; k.classList.add('drag');
+      e.dataTransfer.effectAllowed = 'move'; };
+    k.ondragend = async () => {
+      k.classList.remove('drag');
+      if (!drag) return;
+      drag = null;
+      const cont = k.closest('[data-lista]'); if (!cont) return;
+      prodArrastou = true;
+      const lid = cont.dataset.lista || null;
+      const sibs = [...cont.querySelectorAll('.pk')];
+      const i = sibs.indexOf(k);
+      const antes  = i > 0 ? +sibs[i - 1].dataset.o : null;
+      const depois = i < sibs.length - 1 ? +sibs[i + 1].dataset.o : null;
+      const ordem = antes != null && depois != null ? (antes + depois) / 2
+        : antes != null ? antes + 1 : depois != null ? depois - 1 : 1;
+      const patch = { lista_id: lid, ordem };
+      const l = (R.producao._listas || []).find(x => x.id === lid);
+      if (l?.status_equivalente) {
+        patch.status = l.status_equivalente;
+        if (l.status_equivalente === 'publicado') patch.publicado_em = hoje();
+      }
+      if (await grava('producao_conteudo', patch, k.dataset.card)) pinta();
+    };
+  });
+  board.querySelectorAll('[data-lista]').forEach(c => {
+    c.ondragover = e => {
+      e.preventDefault();
+      if (!drag) return;
+      const alvo = [...c.querySelectorAll('.pk:not(.drag)')].find(el =>
+        e.clientY < el.getBoundingClientRect().top + el.offsetHeight / 2);
+      if (alvo) c.insertBefore(drag, alvo); else c.appendChild(drag);
+    };
+    c.ondrop = e => e.preventDefault();
+  });
+}
+
+/* ── o cartão aberto ──────────────────────────────────────────────
+   Tudo salva na hora, como no Trello — sem botão "Salvar" geral.
+   Fechar repinta o quadro para os badges refletirem o que mudou. */
+async function abreCartaoProd(id) {
+  const [i] = await q('producao_conteudo', x => x.eq('id', id));
+  if (!i) return;
+  const listas = (R.producao._listas || []).filter(l => !l.arquivada);
+  const CORES = ['#f76602','#0ea5e9','#22c55e','#eab308','#ef4444','#8b5cf6','#64748b'];
+
+  const mask = document.createElement('div');
+  mask.className = 'mask';
+  document.body.appendChild(mask);
+  const fecha = () => { mask.remove(); document.removeEventListener('keydown', kd); pinta(); };
+  const kd = e => { if (e.key === 'Escape') fecha(); };
+  document.addEventListener('keydown', kd);
+  mask.onclick = e => { if (e.target === mask) fecha(); };
+
+  const salva = async (patch, redesenha = true) => {
+    if (await grava('producao_conteudo', patch, i.id)) {
+      Object.assign(i, patch);
+      if (redesenha) desenha();
+    }
+  };
+
+  function corpo() {
+    const chk = i.checklist || [], feitos = chk.filter(c => c.ok).length;
+    const pct = chk.length ? Math.round(100 * feitos / chk.length) : 0;
+    const membros = i.membros || [];
+    const coms = [...(i.comentarios || [])].reverse();
+    return `
+      ${i.capa ? `<div class="pc-capa" style="background:${esc(i.capa)}"></div>` : ''}
+      <div class="mh" style="align-items:flex-start">
+        <input class="pc-titulo" data-titulo value="${esc(i.titulo)}">
+        <button class="ib" data-x>${ico('x',16)}</button></div>
+      <div class="mb">
+
+      <div class="g2" style="margin-bottom:14px">
+        <div><label>Lista</label><select data-lista-sel>
+          ${listas.map(l => `<option value="${l.id}"${l.id === i.lista_id ? ' selected' : ''}>${esc(l.nome)}</option>`).join('')}
+        </select></div>
+        <div><label>Entrega</label><input type="date" data-entrega value="${esc(i.data_entrega || '')}"></div>
+      </div>
+      <div class="g2" style="margin-bottom:14px">
+        <div><label>Responsável</label><select data-resp>
+          ${optUsuarios().map(o => `<option value="${esc(o.v)}"${String(o.v) === String(i.responsavel_id ?? '') ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}
+        </select></div>
+        <div><label>Formato</label><input data-formato value="${esc(i.formato || '')}" placeholder="reel, carrossel, VSL…"></div>
+      </div>
+
+      <label>Capa</label>
+      <div class="pc-cores">
+        ${CORES.map(c => `<i data-capa="${c}" style="background:${c}" class="${i.capa === c ? 'on' : ''}"></i>`).join('')}
+        <button class="btn sm ghost" data-capa="">Sem capa</button>
+      </div>
+
+      <label style="margin-top:14px">Etiquetas</label>
+      <div class="pc-ets">
+        ${(i.etiquetas || []).map(t => `<span class="tag" style="color:${corTag(t)};background:${corTag(t)}22">
+          ${esc(t)}<b data-tira-et="${esc(t)}" title="Tirar">×</b></span>`).join('')}
+        <input data-add-et placeholder="+ etiqueta (Enter)" style="width:150px;font-size:12.5px">
+      </div>
+
+      <label style="margin-top:14px">Membros</label>
+      <div class="pc-membros">
+        ${cache.usuarios.filter(u => u.ativo).map(u => `
+          <span class="mb-chip ${membros.includes(u.id) ? 'on' : ''}" data-membro="${u.id}">
+            ${avatar(u, 22)}${esc(u.nome.split(' ')[0])}</span>`).join('')}
+      </div>
+
+      <label style="margin-top:14px">Descrição</label>
+      <textarea data-desc rows="3" placeholder="O que é este conteúdo, referências, roteiro…">${esc(i.descricao || '')}</textarea>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-top:16px">
+        <label style="margin:0">Checklist</label>
+        ${chk.length ? `<span class="sm2">${pct}%</span>
+          <div class="bar" style="flex:1;max-width:180px"><i class="${pct === 100 ? 'ok' : ''}" style="width:${pct}%"></i></div>` : ''}
+      </div>
+      <div class="pc-chk">
+        ${chk.map((c, n) => `<div class="item">
+          <button class="tick ${c.ok ? 'done' : ''}" data-chk="${n}">${ico('check',11)}</button>
+          <span class="${c.ok ? 'ok' : ''}">${esc(c.t)}</span>
+          <button class="ib" data-chk-del="${n}" title="Tirar item" style="width:24px;height:24px">${ico('x',12)}</button>
+        </div>`).join('')}
+        <input data-chk-add placeholder="+ item do checklist (Enter)">
+      </div>
+
+      <label style="margin-top:16px">Comentários</label>
+      <div class="pc-com">
+        <div class="nova"><textarea data-com-txt rows="2" placeholder="Escreva um comentário…"></textarea>
+          <button class="btn sm" data-com-add>Comentar</button></div>
+        ${coms.map((c, n) => {
+          const u = cache.usuarios.find(x => x.id === c.autor_id);
+          return `<div class="um">${avatar(u, 26)}
+            <div class="g"><div class="qm"><b>${esc(u?.nome || '—')}</b>
+              <span class="sm2">${c.em ? new Date(c.em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : ''}</span>
+              ${c.autor_id === eu?.id ? `<b data-com-del="${(i.comentarios || []).length - 1 - n}" title="Apagar" style="cursor:pointer;color:var(--dim)">×</b>` : ''}</div>
+              <div class="tx">${esc(c.texto)}</div></div></div>`;
+        }).join('')}
+      </div>
+      </div>
+      <div class="mf" style="justify-content:space-between">
+        <button class="btn ghost" data-arq>${ico('inbox',15)}Arquivar</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn ghost danger" data-del>${ico('trash',15)}Excluir</button>
+          <button class="btn" data-x>Fechar</button></div>
+      </div>`;
+  }
+
+  function liga() {
+    const $m = s => mask.querySelector(s), $$m = s => [...mask.querySelectorAll(s)];
+    $$m('[data-x]').forEach(b => b.onclick = fecha);
+    const tt = $m('[data-titulo]');
+    tt.onchange = () => { const v = tt.value.trim(); if (v) salva({ titulo:v }, false); };
+    $m('[data-lista-sel]').onchange = e => {
+      const l = listas.find(x => x.id === e.target.value);
+      const max = Math.max(0, ...(R.producao._itens || [])
+        .filter(c => c.lista_id === l.id).map(c => +c.ordem || 0));
+      const patch = { lista_id:l.id, ordem:max + 1 };
+      if (l?.status_equivalente) {
+        patch.status = l.status_equivalente;
+        if (l.status_equivalente === 'publicado') patch.publicado_em = hoje();
+      }
+      salva(patch);
+    };
+    $m('[data-entrega]').onchange = e => salva({ data_entrega: e.target.value || null }, false);
+    $m('[data-resp]').onchange = e => salva({ responsavel_id: e.target.value || null }, false);
+    $m('[data-formato]').onchange = e => salva({ formato: e.target.value.trim() || null }, false);
+    $m('[data-desc]').onchange = e => salva({ descricao: e.target.value.trim() || null }, false);
+    $$m('[data-capa]').forEach(b => b.onclick = () => salva({ capa: b.dataset.capa || null }));
+    $$m('[data-tira-et]').forEach(b => b.onclick = () =>
+      salva({ etiquetas: (i.etiquetas || []).filter(t => t !== b.dataset.tiraEt) }));
+    const et = $m('[data-add-et]');
+    et.onkeydown = e => {
+      if (e.key !== 'Enter') return;
+      const v = et.value.trim().toLowerCase(); if (!v) return;
+      salva({ etiquetas: [...new Set([...(i.etiquetas || []), v])] });
+    };
+    $$m('[data-membro]').forEach(b => b.onclick = () => {
+      const id2 = b.dataset.membro, tem = (i.membros || []).includes(id2);
+      salva({ membros: tem ? (i.membros || []).filter(x => x !== id2) : [...(i.membros || []), id2] });
+    });
+    $$m('[data-chk]').forEach(b => b.onclick = () => {
+      const chk = [...(i.checklist || [])];
+      chk[+b.dataset.chk] = { ...chk[+b.dataset.chk], ok: !chk[+b.dataset.chk].ok };
+      salva({ checklist: chk });
+    });
+    $$m('[data-chk-del]').forEach(b => b.onclick = () =>
+      salva({ checklist: (i.checklist || []).filter((_, n) => n !== +b.dataset.chkDel) }));
+    const ca = $m('[data-chk-add]');
+    ca.onkeydown = e => {
+      if (e.key !== 'Enter') return;
+      const v = ca.value.trim(); if (!v) return;
+      salva({ checklist: [...(i.checklist || []), { t:v, ok:false }] });
+    };
+    $m('[data-com-add]').onclick = () => {
+      const ta = $m('[data-com-txt]'), v = ta.value.trim(); if (!v) return;
+      salva({ comentarios: [...(i.comentarios || []),
+        { autor_id: eu?.id || null, texto: v, em: new Date().toISOString() }] });
+    };
+    $$m('[data-com-del]').forEach(b => b.onclick = () =>
+      salva({ comentarios: (i.comentarios || []).filter((_, n) => n !== +b.dataset.comDel) }));
+    $m('[data-arq]').onclick = () => confirma('Arquivar cartão',
+      `<p>"${esc(i.titulo)}" sai do quadro sem apagar nada.</p>`,
+      async () => { const ok = await grava('producao_conteudo', { arquivado:true }, i.id);
+        if (ok) fecha(); return ok; }, { perigo:false });
+    $m('[data-del]').onclick = () => confirma('Excluir cartão',
+      `<p>"${esc(i.titulo)}" some de vez, com checklist e comentários.</p>`,
+      async () => { const ok = await apaga('producao_conteudo', i.id); if (ok) fecha(); return ok; });
+  }
+
+  function desenha() {
+    mask.innerHTML = `<div class="modal pcard" style="max-width:660px">${corpo()}</div>`;
+    liga();
+  }
+  desenha();
+}
 
 /* Mesmo vocabulário do Dashboard Comercial. Duas fontes com nomes
    diferentes para a mesma coisa é como ter dois relógios: nunca se
@@ -2883,19 +3832,35 @@ R.rotinaSemanal = {
        que a janela padrão, a busca começa nela — senão o bloco viria
        vazio e pareceria que a semana não teve nada. */
     const de = f.semana && f.semana < janela ? f.semana : janela;
-    const [modelos, acoes] = await Promise.all([
+    const [modelos, acoes, pends] = await Promise.all([
       /* Inclusive as pausadas: elas não geram mais nada, mas são quem
          sabe dizer de qual frequência veio a tarefa antiga. */
       q('acoes', x => x.neq('recorrencia', 'nenhuma')),
-      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo'))
+      q('acoes', x => x.eq('recorrencia', 'nenhuma').not('prazo', 'is', null).gte('prazo', de).order('prazo')),
+      /* Pendências da semana: têm semana_de e não têm dia. Vivem na
+         faixa horizontal do topo, fora dos blocos. */
+      cache.temSemana
+        ? q('acoes', x => x.eq('recorrencia', 'nenhuma').not('semana_de', 'is', null).gte('semana_de', de).order('created_at'))
+        : Promise.resolve(null)
     ]);
-    return { modelos, acoes };
+    return { modelos, acoes, pends };
   },
-  render({ modelos, acoes }) {
+  render({ modelos, acoes, pends }) {
     const f = R.rotinaSemanal.filtro;
     if (f.quem === 'minha' && !eu) f.quem = 'todos';
     if (f.periodo === 'dia' && !f.data) f.data = hoje();
     const hojeDia = new Date().getDay();
+
+    /* "De quem": além de minhas/do time, quem tem liderados pode olhar
+       só a semana deles — é a visão de acompanhamento do líder. */
+    const liderados = cache.temAcesso && eu
+      ? cache.usuarios.filter(u => u.ativo && u.lider_id === eu.id) : [];
+    const idsLiderados = new Set(liderados.map(u => u.id));
+    if (f.quem === 'liderados' && !liderados.length) f.quem = 'minha';
+    const casaQuem = id =>
+        f.quem === 'minha'     ? (!eu || id === eu.id)
+      : f.quem === 'liderados' ? idsLiderados.has(id)
+      : true;
 
     // Veio de uma rotina recorrente, ou apareceu solta no dia?
     const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
@@ -2916,7 +3881,7 @@ R.rotinaSemanal = {
       : (f.rec === 'tudo' || f.rec === 'rotina') ? true
       : m.recorrencia === f.rec;
 
-    const meuModelo = m => (f.quem !== 'minha' || !eu || m.responsavel_id === eu.id) &&
+    const meuModelo = m => casaQuem(m.responsavel_id) &&
                            (!f.tag || (m.tags || []).includes(f.tag));
 
     // Só as ativas planejam a semana; as pausadas ficam para o histórico
@@ -2925,7 +3890,14 @@ R.rotinaSemanal = {
     const mensais  = ativas.filter(m => !diasDaRotina(m));
 
     const minhas = acoes.filter(a =>
-      (f.quem !== 'minha' || a.responsavel_id === eu?.id) &&
+      casaQuem(a.responsavel_id) &&
+      (!f.tag || (a.tags || []).includes(f.tag)) &&
+      casaRec(a) &&
+      a.status !== 'cancelada');
+
+    // Pendências da semana passam pelos mesmos filtros das tarefas
+    const pendsVivas = (pends || []).filter(a =>
+      casaQuem(a.responsavel_id) &&
       (!f.tag || (a.tags || []).includes(f.tag)) &&
       casaRec(a) &&
       a.status !== 'cancelada');
@@ -2971,6 +3943,9 @@ R.rotinaSemanal = {
             : 'passado'}</span>` : ''}
         ${dd('De quem', 'quem', [
           { v:'minha', t:'Minhas', i:'user' },
+          ...(liderados.length ? [{ v:'liderados', t:'Dos meus liderados', i:'users',
+            d: liderados.map(u => u.nome.split(' ')[0]).slice(0, 4).join(', ')
+               + (liderados.length > 4 ? '…' : '') }] : []),
           { v:'todos', t:'Do time', i:'users' }
         ], f.quem)}
         ${dd('Recorrência', 'rec', [
@@ -3005,7 +3980,25 @@ R.rotinaSemanal = {
           <div class="m">${a.hora ? hm(a.hora) + ' · ' : ''}${esc(nomeUser(a.responsavel_id))}${
             a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div>
           ${a.prazo < hoje() && !feito ? '<span class="pill bad" style="margin-top:5px">atrasada</span>' : ''}
-        </div></div>`;
+        </div>
+        <button class="del" data-act="excluir-tarefa" data-id="${a.id}"
+          data-t="${esc(a.titulo)}" title="Excluir">${ico('trash', 12)}</button></div>`;
+    };
+
+    /* Cartão da pendência de semana: mesma anatomia, deitado na faixa.
+       Não tem dia — por isso o metadado mostra a pessoa, não a hora. */
+    const cartaoPend = a => {
+      const feito = a.status === 'concluida';
+      return `<div class="k tarefa pend ${feito ? 'feito' : ''}"
+        data-act="editar-pendencia" data-id="${a.id}" title="Clique para editar">
+        <button class="tick pt ${feito ? 'done' : ''}" data-act="virar" data-id="${a.id}"
+          data-v="${feito ? 'aberta' : 'concluida'}"
+          title="${feito ? 'Desmarcar' : 'Marcar como feita'}">${ico('check', 12)}</button>
+        <div class="g"><div class="t">${esc(a.titulo)}</div>
+          <div class="m">${esc(nomeUser(a.responsavel_id))}${
+            a.canal_id ? ' · ' + esc(nomeCanal(a.canal_id)) : ''}</div></div>
+        <button class="del" data-act="excluir-tarefa" data-id="${a.id}"
+          data-t="${esc(a.titulo)}" title="Excluir">${ico('trash', 12)}</button></div>`;
     };
 
     /* ═══ VISÃO SEMANA — os sete blocos, com check ═══════════════ */
@@ -3064,6 +4057,31 @@ R.rotinaSemanal = {
               : `<button class="btn sm ghost" data-act="sem-passo" data-v="0">Esta semana</button>`}
             <button class="btn sm" data-act="gerar-esta-semana">${ico('zap',13)}Gerar a semana</button>
           </div></div></div>
+
+        ${(() => {
+          /* ── Pendências da semana: a faixa horizontal ─────────────
+             O que é DESTA semana mas não tem dia certo fica aqui em
+             cima, deitado; os blocos verticais embaixo seguem sendo o
+             dia a dia. Marcar um dia na pendência move o cartão para o
+             bloco — o caminho natural de planejar e depois agendar. */
+          if (!cache.temSemana) return `<div class="sm2" style="margin-bottom:14px">
+            Pendências da semana (tarefas sem dia certo) precisam do banco atualizado —
+            rode <b>CORRECAO-16.sql</b> uma vez.</div>`;
+          const daPend = pendsVivas.filter(a => a.semana_de === base);
+          const okPend = daPend.filter(a => a.status === 'concluida').length;
+          return `<div class="card pendsem"><div class="ch">
+            <h3>Pendências da semana</h3>
+            <span class="pill dim">sem dia certo</span>
+            <div class="push">
+              ${daPend.length ? `<span class="pill ${okPend === daPend.length ? 'ok' : 'dim'}">${okPend}/${daPend.length} feitas</span>` : ''}
+              <button class="btn sm" data-act="nova-pendencia">${ico('plus',13)}Pendência</button>
+            </div></div>
+            ${daPend.length ? `<div class="pends">${daPend.map(cartaoPend).join('')}</div>`
+              : `<div class="cb sm2" style="padding-top:0">Nada pendurado nesta semana.
+                 Pendência é o que precisa sair <b>até domingo</b>, mas ainda não tem dia marcado —
+                 quando ganhar um dia, o cartão desce para o bloco.</div>`}
+          </div>`;
+        })()}
 
         <div class="semana">${colunas}</div>
 
@@ -3347,6 +4365,11 @@ R.rotinaSemanal = {
     nova() { R.acoes.acoes.modelo(); },
     'nova-pontual'() { formPontual(); },
     'nova-no-dia'(b) { formPontual(b.dataset.d); },
+    'nova-pendencia'() { formPendencia(R.rotinaSemanal.filtro.semana || seg()); },
+    async 'editar-pendencia'(b) {
+      const [a] = await q('acoes', x => x.eq('id', b.dataset.id));
+      if (a) formPendencia(a.semana_de, a);
+    },
 
     /* ── gerar as ocorrências ────────────────────────────────── */
     async 'gerar-quando'(b) {
@@ -3422,9 +4445,19 @@ R.rotinaSemanal = {
         { k:'status', label:'Situação', type:'select', value:a.status, opts:[
           { v:'aberta', t:'Em aberto' }, { v:'em_andamento', t:'Em andamento' },
           { v:'concluida', t:'Concluída' }] },
-        { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila', value:a.urgente }
+        { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila', value:a.urgente },
+        ...(cache.temSemana && !a.acao_modelo_id ? [{ k:'_soltar', type:'checkbox', label:'Semana',
+          cap:'Tirar do dia — vira pendência da semana, sem dia certo' }] : [])
       ], d => {
         if (cache.temTags) { d.tags = leTags(d._tags); delete d._tags; }
+        if (d._soltar) {
+          // A âncora é a segunda-feira da semana do prazo que a tarefa tinha
+          const ref = new Date((d.prazo || hoje()) + 'T12:00:00');
+          const seg2 = new Date(ref.getTime() - ((ref.getDay() + 6) % 7) * 864e5)
+            .toISOString().slice(0, 10);
+          d.prazo = null; d.hora = null; d.semana_de = seg2;
+        }
+        delete d._soltar;
         return grava('acoes', d, a.id);
       });
     },
@@ -5657,17 +6690,22 @@ R.config = {
   async dados() { return {}; },
   pos() { if (abaCfg === 'acesso') listaConvites(); },
   render() {
+    /* Quem não é admin resolve aqui o que é DELE: perfil, senha (a aba
+       acesso vira só "trocar senha" para membro), aparência e atalhos.
+       O resto — time, identidade, dados, conexão — é administração. */
+    const soAdmin = new Set(['time', 'painel', 'identidade', 'dados', 'conexao']);
     const abas = [
       ['perfil',     'Perfil',            'user',  'Sua foto, nome e cargo'],
       ['time',       'Time e canais',     'users', 'Pessoas, cargos, setores e canais'],
       ['painel',     'Painel',            'chart', 'Quais números aparecem na Rotina semanal'],
-      ['acesso',     'Acesso e login',    'key',   'Convites e senha'],
+      ['acesso',     'Acesso e login',    'key',   ehAdmin() ? 'Convites e senha' : 'Trocar minha senha'],
       ['identidade', 'Identidade visual', 'star',  'Logo, cores e grafismo'],
       ['aparencia',  'Aparência',         'moon',  'Tema e densidade deste navegador'],
       ['dados',      'Dados',             'down',  'Exportar e limpar'],
       ['conexao',    'Conexão',           'db',    'Projeto Supabase'],
       ['atalhos',    'Atalhos',           'zap',   'Teclas do sistema']
-    ];
+    ].filter(([v]) => ehAdmin() || !soAdmin.has(v));
+    if (!abas.some(([v]) => v === abaCfg)) abaCfg = 'perfil';
     return `<div class="head"><div><h2>Configurações</h2>
       <div class="sub">Preferências ficam neste navegador. Time e canais ficam no banco.</div></div></div>
       <div style="margin-bottom:22px">${dd('Seção', 'aba',
@@ -5817,6 +6855,7 @@ R.config = {
       })));
     },
     async 'edit-user'(b) { const [r] = await q('usuarios', x => x.eq('id', b.dataset.id)); if (r) formUser(r); },
+    async 'acesso-user'(b) { const [r] = await q('usuarios', x => x.eq('id', b.dataset.id)); if (r) formAcesso(r); },
     async 'edit-canal'(b) { const [r] = await q('canais_venda', x => x.eq('id', b.dataset.id)); if (r) formCanal(r); },
 
     'dup-canal'(b) { duplicaCanal(b.dataset.id); },
@@ -5947,14 +6986,23 @@ function cfgCorpo() {
     return `<div class="card"><div class="ch"><h3>Time</h3><span class="pill dim">${us.length}</span>
       <div class="push"><button class="btn sm ghost" data-act="csv-user">${ico('down',13)}CSV</button>
       <button class="btn sm" data-act="novo-user">${ico('plus',13)}Pessoa</button></div></div>
-      ${us.length ? `<div class="t-scroll"><table><thead><tr><th>Nome</th><th>Cargo</th><th>Canal principal</th><th>Login</th><th>Estado</th><th></th></tr></thead>
+      ${us.length ? `<div class="t-scroll"><table><thead><tr><th>Nome</th><th>Cargo</th>${
+        cache.temAcesso ? '<th>Líder</th>' : ''}<th>Canal principal</th><th>Login</th>${
+        cache.temAcesso ? '<th>Acesso</th>' : ''}<th>Estado</th><th></th></tr></thead>
       <tbody>${us.map(u => `<tr>
         <td><div style="display:flex;align-items:center;gap:10px">
           ${avatar(u, 28)}<b>${esc(u.nome)}</b></div></td>
-        <td class="mut">${esc(u.cargo || '—')}</td><td class="mut">${esc(nomeCanal(u.canal_principal_id))}</td>
+        <td class="mut">${esc(u.cargo || '—')}</td>
+        ${cache.temAcesso ? `<td class="mut">${u.lider_id ? esc(nomeUser(u.lider_id)) : '—'}</td>` : ''}
+        <td class="mut">${esc(nomeCanal(u.canal_principal_id))}</td>
         <td>${u.auth_user_id ? '<span class="pill ok">ligado</span>' : '<span class="pill dim">sem login</span>'}</td>
+        ${cache.temAcesso ? `<td>${u.papel === 'admin' ? '<span class="pill ac">admin</span>'
+          : u.modulos == null ? '<span class="pill dim">tudo</span>'
+          : `<span class="pill info">${u.modulos.length} módulo(s)</span>`}</td>` : ''}
         <td><span class="pill ${u.ativo?'ok':'dim'}">${u.ativo?'ativo':'inativo'}</span></td>
-        <td class="act"><button class="btn sm ghost" data-act="edit-user" data-id="${u.id}">${ico('edit',13)}</button></td>
+        <td class="act">
+          ${cache.temAcesso && ehAdmin() ? `<button class="btn sm ghost" data-act="acesso-user" data-id="${u.id}" title="Acesso aos módulos">${ico('key',13)}</button>` : ''}
+          <button class="btn sm ghost" data-act="edit-user" data-id="${u.id}">${ico('edit',13)}</button></td>
       </tr>`).join('')}</tbody></table></div>`
       : vazio('users', 'Comece por você', 'Cadastre-se primeiro, depois o resto do time.', { act:'novo-user', label:'Adicionar pessoa' })}</div>
 
@@ -6074,6 +7122,13 @@ function cfgCorpo() {
   }
 
   if (abaCfg === 'acesso') {
+    const minhaSenha = `<div class="card"><div class="ch"><h3>Minha senha</h3></div><div class="cb">
+      <div class="sw" style="border:0"><div><div class="lb">Trocar a senha</div>
+        <div class="ds">Vale só para o seu login: ${esc(sessao?.user?.email || '')}</div></div>
+        <div class="ct"><button class="btn ghost" data-act="trocar-senha">${ico('key',15)}Trocar senha</button></div></div>
+    </div></div>`;
+    // Membro comum não administra convites — só a própria senha.
+    if (!ehAdmin()) return minhaSenha;
     const semLogin = cache.usuarios.filter(u => u.ativo && !u.auth_user_id);
     return `<div class="card"><div class="ch"><h3>Convites</h3>
         <span class="pill dim" id="ct-conv">—</span>
@@ -6243,8 +7298,59 @@ function formUser(row) {
     { k:'nome', label:'Nome', req:true, value:row?.nome },
     campoCargo(row),
     { k:'canal_principal_id', label:'Canal principal', type:'select', value:row?.canal_principal_id, opts:optCanais() },
+    ...(cache.temAcesso ? [{ k:'lider_id', label:'Líder direto', type:'select', value:row?.lider_id,
+      opts:optUsuarios('— sem líder —').filter(o => o.v !== row?.id),
+      hint:'Quem lidera esta pessoa. Liga o filtro "Dos meus liderados" na Rotina semanal.' }] : []),
     { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value:row ? row.ativo : true }
   ], async d => { const ok = await grava('usuarios', d, row?.id); if (ok) await recarregaBase(); return ok; });
+}
+
+/* ── acesso por módulo ────────────────────────────────────────────
+   O que cada pessoa enxerga. Papel admin ignora a lista — vê tudo e
+   configura o sistema. Lista vazia = marcar nada = a pessoa só abre
+   Início, Configurações e a Gestão Pessoal dela. */
+function formAcesso(u) {
+  const marcados = new Set(u.modulos || []);
+  const tudo = u.modulos == null;
+  const corpo = `
+    <div><label>Papel</label><select data-k="papel">
+      <option value="membro"${u.papel !== 'admin' ? ' selected' : ''}>Membro — usa o sistema</option>
+      <option value="admin"${u.papel === 'admin' ? ' selected' : ''}>Admin — vê tudo e configura</option>
+    </select><div class="hint">Admin ignora a lista abaixo.</div></div>
+    <div class="chk" style="margin:14px 0 4px">
+      <input type="checkbox" data-k="_tudo"${tudo ? ' checked' : ''} id="ac-tudo">
+      <label for="ac-tudo"><b>Todos os módulos</b> — sem restrição</label></div>
+    <div id="ac-lista" style="${tudo ? 'opacity:.45;pointer-events:none' : ''}">
+      ${CATALOGO_MODULOS.map(g => `
+        <div class="grp" style="margin:12px 0 6px">${esc(g.grupo)}</div>
+        ${g.itens.map(k => `<div class="chk" style="margin:3px 0">
+          <input type="checkbox" data-mod="${k}"${!tudo && marcados.has(k) ? ' checked' : ''} id="ac-${k}">
+          <label for="ac-${k}">${esc(R[k]?.label || k)}</label></div>`).join('')}`).join('')}
+    </div>
+    <div class="hint" style="margin-top:10px">Início, Configurações (perfil e aparência)
+      e a Gestão Pessoal são de todo mundo — não precisam de liberação.</div>`;
+  const m = modal({
+    titulo: `Acesso · ${u.nome}`, corpo, ok: 'Salvar acesso',
+    onOk: async mask => {
+      const papel = mask.querySelector('[data-k="papel"]').value;
+      const tudo2 = mask.querySelector('[data-k="_tudo"]').checked;
+      const modulos = tudo2 ? null
+        : [...mask.querySelectorAll('[data-mod]')].filter(c => c.checked).map(c => c.dataset.mod);
+      const ok = await grava('usuarios', { papel, modulos }, u.id);
+      if (!ok) return false;
+      await recarregaBase();
+      // Mexeu no próprio acesso: o menu precisa refletir na hora
+      if (eu?.id === u.id) { eu = cache.usuarios.find(x => x.id === u.id); montaShell(); }
+      else pinta();
+      toast('Acesso salvo.');
+      return true;
+    }
+  });
+  m.mask.querySelector('[data-k="_tudo"]').onchange = e => {
+    const l = m.mask.querySelector('#ac-lista');
+    l.style.opacity = e.target.checked ? '.45' : '';
+    l.style.pointerEvents = e.target.checked ? 'none' : '';
+  };
 }
 /* ── convites ─────────────────────────────────────────────────────
    A tabela pode não existir ainda (correção 04). Nesse caso a tela
@@ -6431,6 +7537,10 @@ async function excluiCanal(id, nome) {
 }
 
 function formCanal(row, dup) {
+  /* Os campos de ciclo de vida só aparecem se o banco já os tem
+     (sql/CORRECAO-15.sql). Sem o guard, o formulário mandaria coluna
+     inexistente e o insert quebraria inteiro num banco desatualizado. */
+  const ciclo = cache.canais.some(c => 'estagio' in c) || (row && 'estagio' in row);
   form(dup ? 'Duplicar canal' : row?.id ? 'Editar canal' : 'Novo canal', [
     { k:'nome', label:'Nome', req:true, value:row?.nome },
     { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'organico', opts:[
@@ -6439,7 +7549,23 @@ function formCanal(row, dup) {
     { k:'area', label:'Área', type:'select', value:row?.area || 'ambos', opts:[
       { v:'comercial', t:'Comercial' }, { v:'marketing', t:'Marketing' }, { v:'ambos', t:'Comercial e Marketing' }],
       hint:'Define em qual submenu este canal aparece.' },
-    { k:'responsavel_id', label:'Responsável', type:'select', value:row?.responsavel_id, opts:optUsuarios() },
+    { k:'responsavel_id', label:'Responsável', type:'select', value:row?.responsavel_id, opts:optUsuarios(),
+      hint:'O dono do canal. Canal sem dono é a causa mais comum de canal parado.' },
+    ...(ciclo ? [
+      { k:'estagio', label:'Estágio', type:'select', value:row?.estagio || 'ideia',
+        opts:ESTAGIOS.map(([v, t]) => ({ v, t })) },
+      { k:'data_abertura', label:'D1 — data de abertura', type:'date', value:row?.data_abertura,
+        hint:'Âncora dos prazos do plano. Mudar aqui não move o que já foi gerado.' },
+      { k:'publico', label:'Quem indica / de onde vem o lead', type:'textarea', value:row?.publico,
+        ph:'Base de ~7.000 clientes ativos', hint:'Com tamanho, não com adjetivo.' },
+      { k:'mecanica', label:'O que o canal promete', type:'textarea', value:row?.mecanica,
+        ph:'R$ 50 de desconto na fatura para os dois lados, por indicação convertida',
+        hint:'Uma frase que o indicador entende sem ler o regulamento.' },
+      { k:'cac_alvo', label:'CAC-alvo (R$)', type:'number', step:'0.01', value:row?.cac_alvo,
+        hint:'Teto de custo por venda. É a régua contra o CAC real da tela de Financeiro.' },
+      { k:'meta_30d', label:'Meta de vendas — 30 dias', type:'number', value:row?.meta_30d },
+      { k:'meta_90d', label:'Meta de vendas — 90 dias (por mês)', type:'number', value:row?.meta_90d }
+    ] : []),
     { k:'ativo', type:'checkbox', label:'Ativo', cap:'Ativo', value:row ? row.ativo : true }
   ], async d => { const ok = await grava('canais_venda', d, row?.id); if (ok) await recarregaBase(); return ok; });
 }
@@ -8025,7 +9151,7 @@ async function palette() {
   const acoesRapidas = [
     /* Separado por modo porque "Financeiro" existe dos dois lados —
        o do marketing e o seu. Sem o grupo, viram dois itens iguais. */
-    ...Object.entries(R).map(([k, r]) => ({
+    ...Object.entries(R).filter(([k]) => podeVer(k)).map(([k, r]) => ({
       g: modoDaRota(k) === 'pessoal' ? 'Gestão Pessoal' : 'Navegar',
       t: r.label, ic: r.icone, run: () => vai(k) })),
     { g:'Ações', t:'Nova ação', ic:'plus', sc:'N', run:() => formAcao() },
@@ -8198,6 +9324,7 @@ function menuConta(b) {
    ═══════════════════════════════════════════════════════════════════ */
 function vai(r, a = null) {
   if (!R[r]) return;
+  if (!podeVer(r)) return toast('Você não tem acesso a este módulo.', { tipo:'bad' });
   rota = r; area = a;
   location.hash = (a ? a + '/' : '') + r;
   if (a && !pref.abertos.includes(a)) { pref.abertos.push(a); savePref(); }
@@ -8221,16 +9348,20 @@ function elo(k, a) {
 
 function navHTML() {
   return (MODOS[pref.modo] || MODOS.empresa).nav.map(sec => {
-    if (sec.tipo === 'item')  return elo(sec.r, null);
-    if (sec.tipo === 'secao') return `<div class="grp">${sec.label}</div>` + sec.itens.map(k => elo(k, null)).join('');
+    if (sec.tipo === 'item') return podeVer(sec.r) ? elo(sec.r, null) : '';
+    // O menu mostra só os módulos que a pessoa pode abrir; grupo que
+    // ficou sem nenhum item some inteiro.
+    const itens = sec.itens.filter(podeVer);
+    if (!itens.length) return '';
+    if (sec.tipo === 'secao') return `<div class="grp">${sec.label}</div>` + itens.map(k => elo(k, null)).join('');
     // Grupos com `semArea` são só organização visual: não filtram nada.
     const a = sec.semArea ? null : sec.id;
-    const dentro = sec.semArea ? sec.itens.includes(rota) : area === sec.id;
+    const dentro = sec.semArea ? itens.includes(rota) : area === sec.id;
     const aberto = pref.abertos.includes(sec.id) || dentro;
     return `<button class="gt ${aberto ? 'aberto' : ''} ${dentro ? 'ativo' : ''}" data-grupo="${sec.id}">
         ${ico(sec.icone)}<b>${sec.label}</b>
         <span class="chev">${ico('chevron', 14)}</span></button>
-      <div class="sub ${aberto ? 'aberto' : ''}"><div>${sec.itens.map(k => elo(k, a)).join('')}</div></div>`;
+      <div class="sub ${aberto ? 'aberto' : ''}"><div>${itens.map(k => elo(k, a)).join('')}</div></div>`;
   }).join('');
 }
 
@@ -8269,7 +9400,7 @@ function montaShell() {
   if (pref.modo !== m) { pref.modo = m; savePref(); }
   const nav = navHTML();
 
-  $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}" id="app">
+  $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}${rota === 'inicio' ? ' semmenu' : ''}" id="app">
     <aside>
       <div class="brand"><img class="lg" src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
         <div class="mk">${esc(iniciais(visual.nome_sistema))}</div></div>
@@ -8404,7 +9535,7 @@ document.addEventListener('keydown', e => {
 function leHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   const [a, r] = h.includes('/') ? h.split('/') : [null, h];
-  if (!R[r]) return null;
+  if (!R[r] || !podeVer(r)) return null;   // link colado não fura o acesso
   return { rota: r, area: (a && AREAS[a]) ? a : null };
 }
 addEventListener('hashchange', () => {
