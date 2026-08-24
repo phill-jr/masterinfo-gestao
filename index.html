@@ -2461,7 +2461,8 @@ function canalFicha(s) {
     ['engajamento', 'Engajamento','refresh', `${canalCache.camps.length} campanha(s) · ${canalCache.rots.length} rotina(s)`],
     ['regras',      'Regras',     'lock',    c.regras ? 'definidas' : 'a definir'],
     ['fluxo',       'Fluxograma', 'link',    etapasFluxo.length ? `${etapasFluxo.length} etapa(s)` : 'a desenhar'],
-    ['plano',       'Plano',      'check',   totPlano ? `${okPlano}/${totPlano} · ${pctPlano}%` : 'sem plano']
+    ['plano',       'Plano',      'check',   totPlano ? `${okPlano}/${totPlano} · ${pctPlano}%` : 'sem plano'],
+    ['doc',         'Documento',  'copy',    c.doc_html ? 'anexado' : 'sem arquivo']
   ];
   const abas = `<div class="ctabs">${SECOES.map(([k, t, icone, info]) => `
     <button class="${canalSecao === k ? 'on' : ''}" data-act="secao" data-v="${k}">
@@ -2533,6 +2534,27 @@ function canalFicha(s) {
             'Traga os passos do modelo padrão ou escreva os desta operação. Um bloco vazio não é um bloco cumprido.',
             { act:'aplicar-bloco', label:'Trazer do modelo' })}</div>`}</div>`;
 
+  /* O documento é o caminho preferido do Philipe para configurar o
+     canal: ele anexa um HTML (gerado fora, ex. pelo Claude) e vai só
+     trocando o arquivo. Se o HTML trouxer o bloco
+     <script type="application/json" id="canal-config">, os campos do
+     canal são preenchidos a partir dele no momento do anexo. */
+  const secDoc = canalSecao !== 'doc' ? '' :
+    (!('doc_html' in c)
+      ? avisoSql('Falta a coluna <b>doc_html</b> em canais_venda.', 'sql/CORRECAO-19.sql')
+      : c.doc_html ? `
+    <div class="card"><div class="ch"><h3>Documento do canal</h3>
+      <div class="push">
+        <button class="btn sm ghost" data-act="doc-aba">${ico('out',13)}Nova aba</button>
+        <button class="btn sm ghost" data-act="doc-subir">${ico('copy',13)}Trocar arquivo</button>
+        <button class="btn sm ghost" data-act="doc-remover">${ico('trash',13)}Remover</button></div></div>
+      <iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        srcdoc="${esc(c.doc_html)}"></iframe></div>`
+      : `<div class="card">${vazio('copy', 'Nenhum documento anexado',
+          'Anexe o HTML do canal (playbook, regras, plano). Se o arquivo tiver o bloco canal-config, ' +
+          'os campos da ficha são preenchidos automaticamente a partir dele.',
+          { act:'doc-subir', label:'Anexar arquivo HTML' })}</div>`);
+
   return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
     <div class="head">
       <div><h2>${esc(s.nome)}</h2>
@@ -2546,7 +2568,7 @@ function canalFicha(s) {
 
     ${wizard}
     ${abas}
-    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}`;
+    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}${secDoc}`;
 }
 
 R.canais = {
@@ -2652,6 +2674,60 @@ R.canais = {
     'editar-campanha'(b) {
       const c = canalCache.camps.find(x => x.id === b.dataset.id);
       if (c) formCampanha(c);
+    },
+
+    /* ── documento HTML do canal ─────────────────────────────────
+       O arquivo é a fonte: anexou, a ficha obedece. O bloco opcional
+       <script type="application/json" id="canal-config"> preenche os
+       campos estruturados — só os desta lista, para um arquivo não
+       poder trocar nome, estágio ou dono por acidente. */
+    'doc-subir'() {
+      const i = document.createElement('input');
+      i.type = 'file'; i.accept = '.html,.htm,text/html';
+      i.onchange = () => {
+        const f = i.files[0]; if (!f) return;
+        if (f.size > 4 * 1024 * 1024) {
+          return toast('Arquivo acima de 4 MB. Provavelmente tem imagem em base64 — reduza antes.', { tipo:'bad' });
+        }
+        const fr = new FileReader();
+        fr.onerror = () => toast('Não deu para ler o arquivo.', { tipo:'bad' });
+        fr.onload = async () => {
+          const bruto = String(fr.result);
+          const patch = { doc_html: bruto };
+          let preenchidos = 0;
+          const m = bruto.match(/<script[^>]*id=["']canal-config["'][^>]*>([\s\S]*?)<\/script>/i);
+          if (m) {
+            try {
+              const cfg = JSON.parse(m[1]);
+              const TEXTO = ['publico', 'mecanica', 'regras', 'fluxograma', 'notas'];
+              const NUMERO = ['meta_30d', 'meta_90d', 'cac_alvo'];
+              TEXTO.forEach(k => { if (typeof cfg[k] === 'string' && cfg[k].trim()) { patch[k] = cfg[k]; preenchidos++; } });
+              NUMERO.forEach(k => { if (cfg[k] != null && !isNaN(+cfg[k])) { patch[k] = +cfg[k]; preenchidos++; } });
+              if (/^\d{4}-\d{2}-\d{2}$/.test(cfg.data_abertura || '')) { patch.data_abertura = cfg.data_abertura; preenchidos++; }
+            } catch { toast('O bloco canal-config existe mas não é JSON válido — anexei só o documento.', { tipo:'info' }); }
+          }
+          const ok = await grava('canais_venda', patch, canalSel);
+          if (!ok) return;
+          await recarregaBase();
+          toast(preenchidos ? `Documento anexado e ${preenchidos} campo(s) preenchido(s) a partir dele.`
+                            : 'Documento anexado.');
+          pinta();
+        };
+        fr.readAsText(f, 'utf-8');
+      };
+      i.click();
+    },
+    'doc-aba'() {
+      const c = canalCache.canal || {}; if (!c.doc_html) return;
+      const url = URL.createObjectURL(new Blob([c.doc_html], { type: 'text/html' }));
+      open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    },
+    'doc-remover'() {
+      confirma('Remover documento', 'O arquivo anexado sai do canal. Os campos preenchidos a partir dele ficam como estão.',
+        async () => {
+          if (await grava('canais_venda', { doc_html: null }, canalSel)) { toast('Documento removido.'); pinta(); }
+        });
     },
     'editar-rotina'(b) { R.rotinaSemanal.acoes['editar-rotina'](b); },
 
