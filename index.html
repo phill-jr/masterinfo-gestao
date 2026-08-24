@@ -2343,7 +2343,9 @@ function canalFicha(s) {
         bb && +bb.atrasados ? ` · ${bb.atrasados} atrasado(s)` : ''}</div></button>`;
   };
 
-  const identidade = `<div class="card"><div class="cb ficha">
+  const identidade = `<div class="card"><div class="ch"><h3>O que é este canal</h3>
+    <div class="push"><button class="btn sm" data-act="editar-oquee">${ico('edit',13)}Editar</button></div></div>
+    <div class="cb ficha">
     <div><div class="fl">Dono</div><div class="fv">${esc(s.dono || '— defina —')}</div></div>
     <div><div class="fl">D1</div><div class="fv">${s.data_abertura ? dt(s.data_abertura) : '— sem data —'}</div></div>
     <div><div class="fl">Meta 30 / 90 dias</div>
@@ -2375,7 +2377,8 @@ function canalFicha(s) {
           <div class="m">${dt(c.data_inicio)} — ${c.data_fim ? dt(c.data_fim) : 'sem fim'}${
             c.objetivo ? ' · ' + esc(c.objetivo) : ''}</div></div>
         <span class="pill ${c.status === 'ativa' ? 'ok' : c.status === 'planejada' ? 'info'
-          : c.status === 'pausada' ? 'warn' : 'dim'}">${esc(c.status)}</span></div>`).join('')
+          : c.status === 'pausada' ? 'warn' : 'dim'}">${esc(c.status)}</span>
+        <button class="ib" data-act="editar-campanha" data-id="${c.id}" title="Editar">${ico('edit', 15)}</button></div>`).join('')
       : `<div class="cb">${vazio('zap', 'Nenhuma campanha neste canal',
           'Campanha é o pico. Sem pelo menos duas por ciclo, o canal vive só do lançamento.',
           { act:'nova-campanha', label:'Nova campanha' })}</div>`}</div>
@@ -2386,7 +2389,8 @@ function canalFicha(s) {
       ${canalCache.rots.length ? canalCache.rots.map(r => `<div class="row rotina">
         <div class="g"><div class="t">${esc(r.titulo)}</div>
           <div class="m">${esc(r.recorrencia)} · ${esc(r.responsavel_id ? nomeUser(r.responsavel_id) : 'sem dono')}</div></div>
-        <span class="pill ${r.status === 'aberta' ? 'ok' : 'dim'}">${esc(r.status)}</span></div>`).join('')
+        <span class="pill ${r.status === 'aberta' ? 'ok' : 'dim'}">${esc(r.status)}</span>
+        <button class="ib" data-act="editar-rotina" data-id="${r.id}" title="Editar">${ico('edit', 15)}</button></div>`).join('')
       : `<div class="cb">${vazio('refresh', 'Nenhuma rotina neste canal',
           'Campanha morre no dia do fim. Rotina é o que mantém o canal vivo entre uma e outra — ranking, lembrete, cobrança do SLA.',
           { act:'nova-rotina', label:'Criar rotina' })}</div>`}</div>`;
@@ -2430,12 +2434,13 @@ function canalFicha(s) {
   </div>`;
 
   const secOquee = canalSecao !== 'oquee' ? '' : identidade + (c.notas ? `
-    <div class="card"><div class="ch"><h3>Notas</h3></div>
+    <div class="card"><div class="ch"><h3>Notas</h3>
+      <div class="push"><button class="btn sm ghost" data-act="editar-oquee">${ico('edit',13)}Editar</button></div></div>
       <div class="cb" style="white-space:pre-wrap;font-size:13.5px;line-height:1.65">${esc(c.notas)}</div></div>` : '');
 
   const secMeta = canalSecao !== 'meta' ? '' : `
     <div class="card"><div class="ch"><h3>Meta do canal</h3>
-      <div class="push"><button class="btn sm ghost" data-act="editar-canal">${ico('edit',13)}Editar</button></div></div>
+      <div class="push"><button class="btn sm" data-act="editar-meta">${ico('edit',13)}Editar</button></div></div>
       <div class="cb ficha">
         <div><div class="fl">Meta 30 dias</div><div class="fv">${s.meta_30d ?? '—'} vendas</div></div>
         <div><div class="fl">Meta 90 dias</div><div class="fv">${s.meta_90d ?? '—'} vendas</div></div>
@@ -2537,6 +2542,39 @@ R.canais = {
     voltar() { canalSel = null; pinta(); },
     aba(b)   { canalAba = b.dataset.v; pinta(); },
     secao(b) { canalSecao = b.dataset.v; pinta(); },
+
+    /* Cada aba edita só o que é dela: formulário curto, sem rolar o
+       formulário inteiro do canal atrás de um campo. */
+    'editar-oquee'() {
+      const c = canalCache.canal || {};
+      form('O que é este canal', [
+        { k:'publico', label:'Quem indica / de onde vem o lead', type:'textarea', value:c.publico,
+          ph:'Base de ~7.000 clientes ativos', hint:'Com tamanho, não com adjetivo.' },
+        { k:'mecanica', label:'O que o canal promete', type:'textarea', value:c.mecanica,
+          ph:'R$ 50 de desconto na fatura para os dois lados, por indicação convertida',
+          hint:'Uma frase que o indicador entende sem ler o regulamento.' },
+        { k:'responsavel_id', label:'Dono do canal', type:'select', value:c.responsavel_id, opts:optUsuarios() },
+        { k:'notas', label:'Notas', type:'textarea', value:c.notas,
+          hint:'Histórico, decisões e aprendizados que não cabem nos campos.' }
+      ], async d => { const ok = await grava('canais_venda', d, canalSel); if (ok) await recarregaBase(); return ok; },
+      'Salvar');
+    },
+    'editar-meta'() {
+      const c = canalCache.canal || {};
+      form('Meta do canal', [
+        { k:'meta_30d', label:'Meta de vendas — 30 dias', type:'number', value:c.meta_30d },
+        { k:'meta_90d', label:'Meta de vendas — 90 dias (por mês)', type:'number', value:c.meta_90d },
+        { k:'cac_alvo', label:'CAC-alvo (R$)', type:'number', step:'0.01', value:c.cac_alvo,
+          hint:'Teto de custo por venda. É a régua contra o CAC real da tela de Financeiro.' },
+        { k:'data_abertura', label:'D1 — data de abertura', type:'date', value:c.data_abertura,
+          hint:'Âncora dos prazos do plano. Mudar aqui não move o que já foi gerado.' }
+      ], d => grava('canais_venda', d, canalSel), 'Salvar meta');
+    },
+    'editar-campanha'(b) {
+      const c = canalCache.camps.find(x => x.id === b.dataset.id);
+      if (c) formCampanha(c);
+    },
+    'editar-rotina'(b) { R.rotinaSemanal.acoes['editar-rotina'](b); },
 
     'editar-regras'() {
       const c = canalCache.canal || {};
