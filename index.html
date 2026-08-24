@@ -919,6 +919,20 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .ctabs .bt svg{color:var(--ac)}
 .ctabs .inf{font-size:11.5px;color:var(--dim)}
 @media(max-width:900px){.ctabs button{min-width:calc(50% - 8px)}}
+/* passos de configuração do canal */
+.cfgsteps{display:flex;gap:8px;flex-wrap:wrap}
+.cfgsteps button{flex:1;min-width:150px;display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-lg);cursor:pointer;
+  color:var(--txt);text-align:left;transition:border-color .15s}
+.cfgsteps button:hover{border-color:var(--ac)}
+.cfgsteps button.ok{border-color:var(--ok)}
+.cfgsteps .num{width:26px;height:26px;border-radius:50%;background:var(--ac-bg);color:var(--ac);
+  display:grid;place-items:center;font-weight:700;font-size:12.5px;flex:none}
+.cfgsteps button.ok .num{background:var(--ok);color:#fff}
+.cfgsteps b{display:block;font-size:12.5px}
+.cfgsteps i{font-style:normal;font-size:11px;color:var(--dim)}
+.cfgsteps button.ok i{color:var(--ok)}
+@media(max-width:900px){.cfgsteps button{min-width:calc(50% - 8px)}}
 /* fluxograma: caixas e setas na vertical */
 .fluxo{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
 .fluxo .passo{display:flex;align-items:center;gap:11px;background:var(--surface2);
@@ -2235,18 +2249,36 @@ const blocoDe = (id, b) => canalCache.blocos.find(x => x.canal_id === id && x.bl
 const somaBloco = (id, campo) => canalCache.blocos
   .filter(x => x.canal_id === id).reduce((n, x) => n + (+x[campo] || 0), 0);
 
+/* Configuração do canal em 5 passos — as mesmas seções da ficha.
+   "Configurado" é ter os cinco: sem isso o canal existe no quadro
+   mas ninguém sabe o que ele é, quanto deve vender nem como opera.
+   Lê do cache.canais (linha crua) porque a view de saúde não traz
+   regras nem fluxograma. */
+function passosConfig(id) {
+  const c = cache.canais.find(x => x.id === id) || {};
+  return [
+    { n:1, t:'O que é',    feito: !!(c.publico && c.mecanica),  act:'editar-oquee' },
+    { n:2, t:'Meta',       feito: c.meta_30d != null,           act:'editar-meta' },
+    { n:3, t:'Regras',     feito: !!c.regras,                   act:'editar-regras' },
+    { n:4, t:'Fluxograma', feito: !!c.fluxograma,               act:'editar-fluxo' },
+    { n:5, t:'Plano',      feito: somaBloco(id, 'itens') > 0,   act:'secao', v:'plano' }
+  ];
+}
+
 function cartaoCanal(s) {
   const tot = somaBloco(s.id, 'itens'), ok = somaBloco(s.id, 'feitos');
   const atrasados = somaBloco(s.id, 'atrasados');
   const pct = tot ? Math.round(100 * ok / tot) : 0;
+  const cfg = passosConfig(s.id).filter(p => p.feito).length;
   return `<div class="cnl" data-act="abrir" data-id="${s.id}">
     <div class="cn">${esc(s.nome)}</div>
     <div class="cm">${esc(s.dono || 'sem dono')}${
       s.data_abertura ? ' · D1 ' + dt(s.data_abertura) : ''}</div>
     <div class="bar"><i class="${pct === 100 ? 'ok' : ''}" style="width:${pct}%"></i></div>
     <div class="cf">
-      ${tot ? `<span class="pill dim">${ok}/${tot} do plano</span>`
-            : '<span class="pill warn">sem plano</span>'}
+      ${cfg === 5 ? '<span class="pill ok">configurado</span>'
+                  : `<span class="pill warn">sem configuração · ${cfg}/5</span>`}
+      ${tot ? `<span class="pill dim">${ok}/${tot} do plano</span>` : ''}
       ${atrasados ? `<span class="pill bad">${atrasados} atrasado${atrasados > 1 ? 's' : ''}</span>` : ''}
       ${s.estagio === 'operacao' || s.estagio === 'escala'
         ? (+s.rotinas ? `<span class="pill ok">${s.rotinas} rotina${+s.rotinas > 1 ? 's' : ''}</span>`
@@ -2433,6 +2465,21 @@ function canalFicha(s) {
       <span class="bt">${ico(icone, 15)}${t}</span><span class="inf">${esc(info)}</span></button>`).join('')}
   </div>`;
 
+  /* Canal sem os 5 passos abre com o guia de configuração no topo:
+     cada passo é um botão que abre direto o formulário da seção.
+     Fechou os cinco, o guia some sozinho. */
+  const passos = passosConfig(s.id);
+  const feitosCfg = passos.filter(p => p.feito).length;
+  const wizard = feitosCfg === 5 ? '' : `
+    <div class="card"><div class="ch"><h3>Configuração do canal</h3>
+      <span class="pill warn">${feitosCfg}/5</span>
+      <div class="push"><span class="sm2">Complete os cinco passos — clique em cada um para preencher.</span></div></div>
+      <div class="cb cfgsteps">${passos.map(p => `
+        <button class="${p.feito ? 'ok' : ''}" data-act="${p.act}"${p.v ? ` data-v="${p.v}"` : ''}>
+          <span class="num">${p.feito ? ico('check', 12) : p.n}</span>
+          <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : 'preencher'}</i></div>
+        </button>`).join('')}</div></div>`;
+
   const secOquee = canalSecao !== 'oquee' ? '' : identidade + (c.notas ? `
     <div class="card"><div class="ch"><h3>Notas</h3>
       <div class="push"><button class="btn sm ghost" data-act="editar-oquee">${ico('edit',13)}Editar</button></div></div>
@@ -2494,6 +2541,7 @@ function canalFicha(s) {
         <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button>
         <button class="btn" data-act="aplicar">${ico('plus',15)}Aplicar plano</button></div></div>
 
+    ${wizard}
     ${abas}
     ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}`;
 }
@@ -2568,7 +2616,8 @@ R.canais = {
           hint:'Teto de custo por venda. É a régua contra o CAC real da tela de Financeiro.' },
         { k:'data_abertura', label:'D1 — data de abertura', type:'date', value:c.data_abertura,
           hint:'Âncora dos prazos do plano. Mudar aqui não move o que já foi gerado.' }
-      ], d => grava('canais_venda', d, canalSel), 'Salvar meta');
+      ], async d => { const ok = await grava('canais_venda', d, canalSel); if (ok) await recarregaBase(); return ok; },
+      'Salvar meta');
     },
     'editar-campanha'(b) {
       const c = canalCache.camps.find(x => x.id === b.dataset.id);
@@ -2582,7 +2631,8 @@ R.canais = {
         { k:'regras', label:'As regras do jogo', type:'textarea', value:c.regras,
           ph:'Comissão: R$50 de desconto pros dois lados\nQuem pode indicar: qualquer cliente ativo\nSLA: contato em até 24h úteis\nDesclassifica: CPF já cadastrado…',
           hint:'Regra que não está escrita vira discussão caso a caso.' }
-      ], d => grava('canais_venda', d, canalSel), 'Salvar regras');
+      ], async d => { const ok = await grava('canais_venda', d, canalSel); if (ok) await recarregaBase(); return ok; },
+      'Salvar regras');
     },
     'editar-fluxo'() {
       const c = canalCache.canal || {};
@@ -2590,7 +2640,8 @@ R.canais = {
         { k:'fluxograma', label:'Uma etapa por linha', type:'textarea', value:c.fluxograma,
           ph:'Indicador manda o contato no WhatsApp\nComercial liga em até 24h\nProposta apresentada\nVenda no Bitrix (funil 0)\nAtivação no IXC\nBonificação aplicada nas duas faturas',
           hint:'A tela desenha as caixas e as setas na ordem das linhas.' }
-      ], d => grava('canais_venda', d, canalSel), 'Salvar fluxo');
+      ], async d => { const ok = await grava('canais_venda', d, canalSel); if (ok) await recarregaBase(); return ok; },
+      'Salvar fluxo');
     },
 
     novo() { formCanal({ area: area || 'ambos' }); },
