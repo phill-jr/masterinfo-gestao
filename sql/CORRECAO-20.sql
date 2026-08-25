@@ -43,7 +43,10 @@ as $$
 declare
   vinculando boolean;
 begin
-  if eh_admin() then return coalesce(new, old); end if;
+  /* Sem JWT (auth.uid() nulo) a chamada é do service role ou do SQL
+     Editor — confiáveis, já passam por cima da RLS. O anon nunca
+     chega aqui: a RLS barra antes. A trava é para MEMBRO logado. */
+  if auth.uid() is null or eh_admin() then return coalesce(new, old); end if;
 
   if tg_op = 'DELETE' then
     raise exception 'Excluir pessoa é ação de admin.';
