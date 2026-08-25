@@ -1904,6 +1904,14 @@ R.inicio = {
    apareceu agora e não faz parte da rotina — por isso vem separada.
    Quando nasce de um bloco da semana, já chega com o dia daquele
    bloco: quem clicou em "quinta" não deveria ter que digitar a data. */
+/* Quando a visão Semana está filtrada numa pessoa (admin olhando a
+   semana de alguém), a tarefa nova já nasce no nome dela. */
+function respDoFiltro() {
+  const quem = R.rotinaSemanal?.filtro?.quem;
+  return rota === 'rotinaSemanal' && quem && !['minha', 'liderados', 'todos'].includes(quem)
+    ? quem : eu?.id;
+}
+
 function formPontual(dia) {
   form('Nova tarefa pontual', [
     { k:'titulo', label:'O que precisa ser feito', req:true, ph:'Ex.: Ligar para o cliente da proposta 42' },
@@ -1911,7 +1919,7 @@ function formPontual(dia) {
     { k:'prazo', label:'Para quando', type:'date', value:dia || hoje() },
     ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
       hint:'Opcional para a tarefa. Obrigatório se for para a agenda.' }] : []),
-    { k:'responsavel_id', label:'Responsável', type:'select', value:eu?.id, opts:optUsuarios() },
+    { k:'responsavel_id', label:'Responsável', type:'select', value:respDoFiltro(), opts:optUsuarios() },
     ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', opts:optSetores() }] : []),
     { k:'canal_id', label:'Canal', type:'select', opts:optCanais() },
     ...(cache.temTags ? [{ k:'_tags', label:'Tags', ph:'comercial, urgente' }] : []),
@@ -1967,7 +1975,7 @@ function formPendencia(segunda, row) {
       hint:`Vazio, fica pendurada na faixa da semana (${dt(segunda)} a ${dt(fim)}). ` +
            'Com um dia, vira tarefa do bloco daquele dia.' },
     { k:'responsavel_id', label:'Responsável', type:'select',
-      value:row?.responsavel_id ?? eu?.id, opts:optUsuarios() },
+      value:row?.responsavel_id ?? respDoFiltro(), opts:optUsuarios() },
     ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores() }] : []),
     { k:'canal_id', label:'Canal', type:'select', value:row?.canal_id, opts:optCanais() },
     ...(cache.temTags ? [{ k:'_tags', label:'Tags', value:(row?.tags || []).join(', '),
@@ -4099,10 +4107,16 @@ R.rotinaSemanal = {
       ? cache.usuarios.filter(u => u.ativo && u.lider_id === eu.id) : [];
     const idsLiderados = new Set(liderados.map(u => u.id));
     if (f.quem === 'liderados' && !liderados.length) f.quem = 'minha';
+    /* Além de minha/liderados/todos, f.quem pode ser o id de uma
+       pessoa (opção do admin). Filtro persistido apontando para quem
+       saiu do time volta para "minhas" em vez de mostrar o vazio. */
+    if (!['minha', 'liderados', 'todos'].includes(f.quem)
+        && !cache.usuarios.some(u => u.id === f.quem && u.ativo)) f.quem = 'minha';
     const casaQuem = id =>
         f.quem === 'minha'     ? (!eu || id === eu.id)
       : f.quem === 'liderados' ? idsLiderados.has(id)
-      : true;
+      : f.quem === 'todos'     ? true
+      : id === f.quem;
 
     // Veio de uma rotina recorrente, ou apareceu solta no dia?
     const ehRotina = a => !!a.acao_modelo_id || a.origem === 'recorrencia';
@@ -4188,7 +4202,11 @@ R.rotinaSemanal = {
           ...(liderados.length ? [{ v:'liderados', t:'Dos meus liderados', i:'users',
             d: liderados.map(u => u.nome.split(' ')[0]).slice(0, 4).join(', ')
                + (liderados.length > 4 ? '…' : '') }] : []),
-          { v:'todos', t:'Do time', i:'users' }
+          { v:'todos', t:'Do time', i:'users' },
+          /* Admin enxerga e alimenta a semana de qualquer pessoa: as
+             tarefas criadas com o filtro ativo já nascem no nome dela. */
+          ...(ehAdmin() ? cache.usuarios.filter(u => u.ativo && u.id !== eu?.id)
+            .map(u => ({ v:u.id, t:u.nome, i:'user' })) : [])
         ], f.quem)}
         ${dd('Recorrência', 'rec', [
           { v:'tudo',       t:'Rotina e pontual', i:'grid' },
@@ -6410,7 +6428,8 @@ R.anotacoes = {
     };
 
     return `<div class="head"><div><h2>Anotações</h2>
-        <div class="sub">O que você observa e esquece: sobre o time, ideias, decisões de reunião.</div></div>
+        <div class="sub">Pessoais: só você vê o que escreve aqui — nem o admin lê as suas.
+          Anotação sobre alguém continua aparecendo para você na hora do feedback.</div></div>
         <div class="push"><button class="btn ghost" data-act="csv">${ico('down',15)}Exportar</button></div></div>
 
       <div class="captura" id="captura">
