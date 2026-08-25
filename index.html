@@ -9702,8 +9702,30 @@ function esqueleto() {
 }
 
 let pintando = 0;
+/* ── filtros persistentes (pedido de 25/08) ──────────────────────
+   Cada tela guarda seus filtros em R.<rota>.filtro. Isso morria no
+   F5; agora todo pinta() salva o conjunto no localStorage e o boot
+   restaura. A restauração só copia chaves que o filtro padrão da
+   tela ainda tem — filtro de versão antiga não injeta chave morta. */
+const FILTROS_KEY = 'mi_filtros';
+function restauraFiltros() {
+  let salvo = {};
+  try { salvo = JSON.parse(localStorage.getItem(FILTROS_KEY) || '{}'); } catch {}
+  Object.entries(salvo).forEach(([rota2, f]) => {
+    const alvo = R[rota2]?.filtro;
+    if (!alvo || typeof f !== 'object' || !f) return;
+    Object.keys(alvo).forEach(k => { if (k in f) alvo[k] = f[k]; });
+  });
+}
+function salvaFiltros() {
+  const tudo = {};
+  Object.entries(R).forEach(([k, r]) => { if (r.filtro) tudo[k] = r.filtro; });
+  try { localStorage.setItem(FILTROS_KEY, JSON.stringify(tudo)); } catch {}
+}
+
 async function pinta() {
   const meu = ++pintando;
+  salvaFiltros();
   const view = $('#view'); if (!view) return;
   const r = R[rota];
   $('#ttl').innerHTML = area
@@ -9957,6 +9979,7 @@ async function iniciar() {
 
   await recarregaBase();
   eu = cache.usuarios.find(u => u.auth_user_id === sessao.user.id) || null;
+  restauraFiltros();
   const h = leHash();
   if (h) { rota = h.rota; area = h.area; }
   montaShell();
