@@ -2321,6 +2321,7 @@ function canalPipeline(cs) {
       <div class="sub">${area ? `Os canais que ${AREAS[area]} opera` : 'Todos os canais'}
         — onde cada um está no ciclo de vida, e o que falta para avançar.</div></div>
       <div class="push">
+        <button class="btn ghost" data-act="doc-modelo">${ico('down',15)}Arquivo padrão</button>
         <button class="btn ghost" data-act="csv">${ico('down',15)}CSV</button>
         <button class="btn" data-act="novo">${ico('plus',15)}Novo canal</button></div></div>
 
@@ -2479,20 +2480,45 @@ function canalFicha(s) {
       <span class="bt">${ico(icone, 15)}${t}</span><span class="inf">${esc(info)}</span></button>`).join('')}
   </div>`;
 
-  /* Canal sem os 5 passos abre com o guia de configuração no topo:
-     cada passo é um botão que abre direto o formulário da seção.
-     Fechou os cinco, o guia some sozinho. */
+  /* Canal sem os 5 passos abre no MODO CONFIGURAÇÃO: só o guia de
+     passos + anexar arquivo + baixar o arquivo padrão em branco.
+     Nada de abas nem seções duplicando embaixo (pedido de 25/08) —
+     elas aparecem quando os cinco passos fecham. No modo configuração
+     o passo Plano traz o plano do modelo direto, já que a aba Plano
+     não está na tela. */
   const passos = passosConfig(s.id);
   const feitosCfg = passos.filter(p => p.feito).length;
-  const wizard = feitosCfg === 5 ? '' : `
-    <div class="card"><div class="ch"><h3>Configuração do canal</h3>
-      <span class="pill warn">${feitosCfg}/5</span>
-      <div class="push"><span class="sm2">Complete os cinco passos — clique em cada um para preencher.</span></div></div>
-      <div class="cb cfgsteps">${passos.map(p => `
-        <button class="${p.feito ? 'ok' : ''}" data-act="${p.act}"${p.v ? ` data-v="${p.v}"` : ''}>
-          <span class="num">${p.feito ? ico('check', 12) : p.n}</span>
-          <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : 'preencher'}</i></div>
-        </button>`).join('')}</div></div>`;
+  if (feitosCfg < 5) {
+    return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
+      <div class="head">
+        <div><h2>${esc(s.nome)}</h2>
+          <div class="sub">${esc((s.tipo || '').replace('_',' '))} · ${esc(NOME_ESTAGIO[s.estagio])}${
+            s.dono ? ' · ' + esc(s.dono) : ''}</div></div>
+        <div class="push">
+          ${dd('Estágio', 'estagio', ESTAGIOS.map(([v, t, d]) => ({ v, t, d })), s.estagio)}
+          <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button></div></div>
+
+      <div class="card"><div class="ch"><h3>Configuração do canal</h3>
+        <span class="pill warn">${feitosCfg}/5</span>
+        <div class="push">
+          <button class="btn sm ghost" data-act="doc-modelo">${ico('down',13)}Baixar arquivo padrão</button>
+          <button class="btn sm" data-act="doc-subir">${ico('copy',13)}Anexar arquivo</button></div></div>
+        <div class="cb cfgsteps">${passos.map(p => `
+          <button class="${p.feito ? 'ok' : ''}" data-act="${p.t === 'Plano' ? 'aplicar' : p.act}">
+            <span class="num">${p.feito ? ico('check', 12) : p.n}</span>
+            <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : p.t === 'Plano' ? 'trazer do modelo' : 'preencher'}</i></div>
+          </button>`).join('')}</div>
+        <div class="cb sm2" style="padding-top:0">O caminho rápido: <b>baixe o arquivo padrão</b>, preencha
+          e <b>anexe de volta</b> — os passos se completam sozinhos. Ou clique em cada passo e preencha na mão.
+          Fechando os cinco, a ficha completa do canal abre no lugar deste guia.</div></div>
+
+      ${c.doc_html ? `<div class="card"><div class="ch"><h3>Documento anexado</h3>
+        <div class="push">
+          <button class="btn sm ghost" data-act="doc-aba">${ico('out',13)}Nova aba</button>
+          <button class="btn sm ghost" data-act="doc-subir">${ico('copy',13)}Trocar arquivo</button></div></div>
+        <iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          srcdoc="${esc(c.doc_html)}"></iframe></div>` : ''}`;
+  }
 
   const secOquee = canalSecao !== 'oquee' ? '' : identidade + (c.notas ? `
     <div class="card"><div class="ch"><h3>Notas</h3>
@@ -2576,7 +2602,6 @@ function canalFicha(s) {
         <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button>
         <button class="btn" data-act="aplicar">${ico('plus',15)}Aplicar plano</button></div></div>
 
-    ${wizard}
     ${abas}
     ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}${secDoc}`;
 }
@@ -2738,6 +2763,79 @@ R.canais = {
         async () => {
           if (await grava('canais_venda', { doc_html: null }, canalSel)) { toast('Documento removido.'); pinta(); }
         });
+    },
+    /* Arquivo padrão em branco: baixa um HTML com o bloco canal-config
+       vazio, só para preencher e anexar de volta. Gerado aqui mesmo
+       para nunca depender de rede nem sair de sincronia com o parser. */
+    'doc-modelo'() {
+      const s = canalSel && canalCache.saude.find(x => x.id === canalSel);
+      const nome = s?.nome || 'Canal';
+      const tpl = [
+        '<!doctype html>',
+        '<html lang="pt-BR">',
+        '<head>',
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width,initial-scale=1">',
+        '<title>' + nome + ' — Documento do canal</title>',
+        '',
+        '<!-- ==========================================================',
+        '     PREENCHA este bloco e anexe o arquivo no canal: a ficha',
+        '     do sistema se preenche sozinha. Campos aceitos: publico,',
+        '     mecanica, regras, fluxograma, notas, meta_30d, meta_90d,',
+        '     cac_alvo, data_abertura (AAAA-MM-DD).',
+        '     ========================================================== -->',
+        '<script type="application/json" id="canal-config">',
+        '{',
+        '  "publico": "",',
+        '  "mecanica": "",',
+        '  "meta_30d": null,',
+        '  "meta_90d": null,',
+        '  "cac_alvo": null,',
+        '  "data_abertura": "",',
+        '  "regras": "",',
+        '  "fluxograma": "",',
+        '  "notas": ""',
+        '}',
+        '<\/script>',
+        '',
+        '<style>',
+        '  :root{--laranja:#F76602;--fundo:#0f1115;--card:#171a21;--linha:#262b36;--texto:#e8eaf0;--dim:#8b93a5}',
+        '  *{margin:0;padding:0;box-sizing:border-box}',
+        '  body{background:var(--fundo);color:var(--texto);font:15px/1.65 system-ui,Segoe UI,sans-serif;padding:40px 20px}',
+        '  main{max-width:860px;margin:0 auto}',
+        '  h1{font-size:30px;line-height:1.2;margin-bottom:6px}',
+        '  h1 span{color:var(--laranja)}',
+        '  .sub{color:var(--dim);margin-bottom:34px}',
+        '  h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--laranja);margin:34px 0 12px}',
+        '  .card{background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:20px 22px;margin-bottom:12px}',
+        '  .dica{color:var(--dim);font-style:italic}',
+        '</style>',
+        '</head>',
+        '<body>',
+        '<main>',
+        '  <h1>' + nome + ' <span>— Documento do canal</span></h1>',
+        '  <p class="sub">Troque cada bloco pelo conteúdo real do canal. O bloco canal-config no topo do arquivo é o que preenche a ficha do sistema.</p>',
+        '  <h2>O que é</h2>',
+        '  <div class="card"><p class="dica">Quem indica / de onde vem o lead, e o que o canal promete.</p></div>',
+        '  <h2>Meta</h2>',
+        '  <div class="card"><p class="dica">Meta 30 dias, meta 90 dias e CAC-alvo.</p></div>',
+        '  <h2>Regras do jogo</h2>',
+        '  <div class="card"><p class="dica">Comissão, quem participa, SLA, o que desclassifica.</p></div>',
+        '  <h2>Fluxo — da indicação à ativação</h2>',
+        '  <div class="card"><p class="dica">Uma etapa por linha, na ordem em que acontecem.</p></div>',
+        '  <h2>Notas</h2>',
+        '  <div class="card"><p class="dica">Histórico, decisões e aprendizados.</p></div>',
+        '</main>',
+        '</body>',
+        '</html>'
+      ].join('\n');
+      const arquivo = nome.toLowerCase().normalize('NFD').replace(/[undefined-undefined]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'canal';
+      const url = URL.createObjectURL(new Blob([tpl], { type: 'text/html' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `canal-${arquivo}.html`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      toast('Arquivo padrão baixado. Preencha e anexe de volta no canal.');
     },
     'editar-rotina'(b) { R.rotinaSemanal.acoes['editar-rotina'](b); },
 
