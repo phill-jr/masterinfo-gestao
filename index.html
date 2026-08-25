@@ -2255,8 +2255,10 @@ const BLOCOS = [
 const NOME_BLOCO = Object.fromEntries(BLOCOS.map(([v, t]) => [v, t]));
 
 let canalSel = null, canalAba = 'estrutura', canalSecao = 'oquee';
+let canalPop = null;         // POP aberto dentro da aba POPs
 let canalArrastou = false;   // suprime o clique que sobra depois do arrasto
-const canalCache = { saude: [], blocos: [], itens: [], camps: [], rots: [], kpi: [], canal: {} };
+const canalCache = { saude: [], blocos: [], itens: [], camps: [], rots: [], kpi: [], canal: {},
+                     agenda: [], prazos: [], time: null, pops: null, popAberto: null };
 
 const blocoDe = (id, b) => canalCache.blocos.find(x => x.canal_id === id && x.bloco === b);
 const somaBloco = (id, campo) => canalCache.blocos
@@ -2462,18 +2464,46 @@ function canalFicha(s) {
       : `<div class="cb">${vazio('chart', 'Sem número lançado',
           'Enquanto investimento, leads, vendas e receita não forem lançados no mês, o veredito do canal é opinião.')}</div>`}</div>`;
 
-  /* ── as seis abas ────────────────────────────────────────────── */
+  /* O guia de configuração vive em dois lugares: é a tela inteira
+     enquanto os 5 passos não fecham, e vira a aba Configuração depois
+     — porque "onde eu mexo na configuração?" precisa ter resposta
+     mesmo com o canal configurado (pedido de 25/08). */
+  const passos = passosConfig(s.id);
+  const feitosCfg = passos.filter(p => p.feito).length;
+  const cardConfig = `<div class="card"><div class="ch"><h3>Configuração do canal</h3>
+    <span class="pill ${feitosCfg === 5 ? 'ok' : 'warn'}">${feitosCfg}/5</span>
+    <div class="push">
+      <button class="btn sm ghost" data-act="doc-modelo">${ico('down',13)}Baixar arquivo padrão</button>
+      <button class="btn sm" data-act="doc-subir">${ico('copy',13)}Anexar arquivo</button></div></div>
+    <div class="cb cfgsteps">${passos.map(p => `
+      <button class="${p.feito ? 'ok' : ''}" data-act="${p.t === 'Plano' ? 'aplicar' : p.act}">
+        <span class="num">${p.feito ? ico('check', 12) : p.n}</span>
+        <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : p.t === 'Plano' ? 'trazer do modelo' : 'preencher'}</i></div>
+      </button>`).join('')}</div>
+    <div class="cb sm2" style="padding-top:0">O caminho rápido: <b>baixe o arquivo padrão (.md)</b>, preencha
+      e <b>anexe de volta</b> — os passos se completam sozinhos. Junto com ele dá para anexar a
+      <b>apresentação do canal em HTML</b>, que fica guardada na aba Documento. Ou clique em cada passo
+      e preencha na mão.</div></div>`;
+
+  /* ── as abas ─────────────────────────────────────────────────── */
   const totPlano = somaBloco(s.id, 'itens'), okPlano = somaBloco(s.id, 'feitos');
   const pctPlano = totPlano ? Math.round(100 * okPlano / totPlano) : 0;
   const etapasFluxo = (c.fluxograma || '').split('\n').map(x => x.trim()).filter(Boolean);
+  const nTime = (canalCache.time?.length || 0) + (c.responsavel_id ? 1 : 0);
   const SECOES = [
     ['oquee',       'O que é',    'book',    s.publico || s.mecanica ? 'definido' : 'a definir'],
     ['meta',        'Meta',       'chart',   s.meta_30d != null ? `${s.meta_30d} em 30d` : 'a definir'],
     ['engajamento', 'Engajamento','refresh', `${canalCache.camps.length} campanha(s) · ${canalCache.rots.length} rotina(s)`],
+    ['agenda',      'Agenda',     'cal',     canalCache.agenda.length || canalCache.prazos.length
+                                               ? `${canalCache.agenda.length} com hora · ${canalCache.prazos.length} prazo(s)` : 'nada marcado'],
+    ['time',        'Time',       'users',   canalCache.time === null ? 'rodar o SQL' : nTime ? `${nTime} pessoa(s)` : 'sem time'],
+    ['pops',        'POPs',       'copy',    canalCache.pops === null ? 'rodar o SQL'
+                                               : canalCache.pops.length ? `${canalCache.pops.length} anexado(s)` : 'nenhum'],
     ['regras',      'Regras',     'lock',    c.regras ? 'definidas' : 'a definir'],
     ['fluxo',       'Fluxograma', 'link',    etapasFluxo.length ? `${etapasFluxo.length} etapa(s)` : 'a desenhar'],
     ['plano',       'Plano',      'check',   totPlano ? `${okPlano}/${totPlano} · ${pctPlano}%` : 'sem plano'],
-    ['doc',         'Documento',  'copy',    c.doc_html ? 'anexado' : 'sem arquivo']
+    ['doc',         'Documento',  'copy',    c.doc_html ? 'anexado' : 'sem arquivo'],
+    ['config',      'Configuração','settings', `${feitosCfg}/5`]
   ];
   const abas = `<div class="ctabs">${SECOES.map(([k, t, icone, info]) => `
     <button class="${canalSecao === k ? 'on' : ''}" data-act="secao" data-v="${k}">
@@ -2486,8 +2516,6 @@ function canalFicha(s) {
      elas aparecem quando os cinco passos fecham. No modo configuração
      o passo Plano traz o plano do modelo direto, já que a aba Plano
      não está na tela. */
-  const passos = passosConfig(s.id);
-  const feitosCfg = passos.filter(p => p.feito).length;
   if (feitosCfg < 5) {
     return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
       <div class="head">
@@ -2498,20 +2526,7 @@ function canalFicha(s) {
           ${dd('Estágio', 'estagio', ESTAGIOS.map(([v, t, d]) => ({ v, t, d })), s.estagio)}
           <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button></div></div>
 
-      <div class="card"><div class="ch"><h3>Configuração do canal</h3>
-        <span class="pill warn">${feitosCfg}/5</span>
-        <div class="push">
-          <button class="btn sm ghost" data-act="doc-modelo">${ico('down',13)}Baixar arquivo padrão</button>
-          <button class="btn sm" data-act="doc-subir">${ico('copy',13)}Anexar arquivo</button></div></div>
-        <div class="cb cfgsteps">${passos.map(p => `
-          <button class="${p.feito ? 'ok' : ''}" data-act="${p.t === 'Plano' ? 'aplicar' : p.act}">
-            <span class="num">${p.feito ? ico('check', 12) : p.n}</span>
-            <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : p.t === 'Plano' ? 'trazer do modelo' : 'preencher'}</i></div>
-          </button>`).join('')}</div>
-        <div class="cb sm2" style="padding-top:0">O caminho rápido: <b>baixe o arquivo padrão (.md)</b>, preencha
-          e <b>anexe de volta</b> — os passos se completam sozinhos. Junto com ele dá para anexar a
-          <b>apresentação do canal em HTML</b>, que fica guardada na aba Documento. Ou clique em cada passo
-          e preencha na mão. Fechando os cinco, a ficha completa do canal abre no lugar deste guia.</div></div>
+      ${cardConfig}
 
       ${c.doc_html ? `<div class="card"><div class="ch"><h3>Documento anexado</h3>
         <div class="push">
@@ -2591,6 +2606,101 @@ function canalFicha(s) {
           'de uma vez. O HTML fica guardado aqui; o .md preenche os campos da ficha automaticamente.',
           { act:'doc-subir', label:'Anexar arquivo' })}</div>`);
 
+  /* A agenda do canal em duas alturas: o que tem HORA (agendamentos)
+     e o que tem PRAZO (ações abertas). As rotinas não entram — modelo
+     não é compromisso; elas continuam na aba Engajamento. */
+  const secAgenda = canalSecao !== 'agenda' ? '' : `
+    <div class="card"><div class="ch"><h3>Compromissos do canal</h3>
+      <span class="pill dim">${canalCache.agenda.length}</span>
+      <div class="push"><button class="btn sm" data-act="agendar-canal">${ico('plus',13)}Agendar ação</button></div></div>
+      ${canalCache.agenda.length ? canalCache.agenda.map(a => `<div class="row">
+        <div style="width:110px;flex:none"><b>${dt(a.data_hora.slice(0, 10))}</b>
+          <div class="m">${hora(a.data_hora)} · ${a.duracao_min}min</div></div>
+        <div class="g"><div class="t">${esc(a.acoes?.titulo || 'Ação removida')}
+            ${a.data_hora.slice(0, 10) === hoje() ? '<span class="pill ac">hoje</span>' : ''}</div>
+          <div class="m">${esc(a.acoes?.responsavel_id ? nomeUser(a.acoes.responsavel_id) : 'sem dono')}${
+            a.observacao ? ' · ' + esc(a.observacao) : ''}</div></div>
+        <button class="ib" data-act="agenda-del" data-id="${a.id}" title="Remover">${ico('trash',15)}</button></div>`).join('')
+      : `<div class="cb">${vazio('cal', 'Nada com hora marcada',
+          'Agende o que tem hora neste canal — reunião, ranking, apuração de campanha. O compromisso também aparece na Agenda da semana.',
+          { act:'agendar-canal', label:'Agendar ação' })}</div>`}</div>
+
+    <div class="card"><div class="ch"><h3>Prazos em aberto</h3>
+      <span class="pill dim">${canalCache.prazos.length}</span></div>
+      ${canalCache.prazos.length ? canalCache.prazos.map(a => `<div class="row">
+        <div class="g"><div class="t">${esc(a.titulo)}</div>
+          <div class="m">${esc(a.responsavel_id ? nomeUser(a.responsavel_id) : 'sem dono')}${
+            a.bloco ? ' · ' + esc(NOME_BLOCO[a.bloco] || a.bloco) : ''}</div></div>
+        <span class="pill ${a.prazo < hoje() ? 'bad' : 'dim'}">${a.prazo < hoje() ? 'atrasada · ' : ''}${dt(a.prazo)}</span></div>`).join('')
+      : `<div class="cb"><p class="sm2">Nenhuma ação deste canal com prazo em aberto.
+          As rotinas recorrentes continuam na aba Engajamento.</p></div>`}</div>`;
+
+  /* O dono vem de canais_venda (responsavel_id); o resto do time é
+     canal_time — com a função que a pessoa exerce NESTE canal, que
+     não é o cargo dela no cadastro. */
+  const dono = cache.usuarios.find(u => u.id === c.responsavel_id);
+  const cargoDe = u => !u ? '' : (cache.temCargos && u.cargo_id ? nomeCargo(u.cargo_id) : u.cargo || '');
+  const secTime = canalSecao !== 'time' ? '' :
+    (canalCache.time === null
+      ? avisoSql('Faltam as tabelas <b>canal_time</b> e <b>canal_pops</b> — o time e os POPs anexados ao canal.',
+                 'sql/CORRECAO-22.sql')
+      : `<div class="card"><div class="ch"><h3>Time do canal</h3>
+          <span class="pill dim">${nTime}</span>
+          <div class="push"><button class="btn sm" data-act="time-add">${ico('plus',13)}Adicionar pessoa</button></div></div>
+          ${dono ? `<div class="row">${avatar(dono, 30)}
+            <div class="g"><div class="t">${esc(dono.nome)}</div>
+              <div class="m">${esc(cargoDe(dono) || 'sem cargo')}</div></div>
+            <span class="pill ac">dono do canal</span>
+            <button class="ib" data-act="editar-oquee" title="Trocar o dono">${ico('edit',15)}</button></div>` : ''}
+          ${(canalCache.time || []).map(m => {
+            const u = cache.usuarios.find(x => x.id === m.usuario_id);
+            return `<div class="row">${avatar(u, 30)}
+              <div class="g"><div class="t">${esc(u?.nome || '—')}</div>
+                <div class="m">${esc(m.funcao || cargoDe(u) || 'sem função definida')}</div></div>
+              <button class="ib" data-act="time-editar" data-id="${m.id}" title="Editar função">${ico('edit',15)}</button>
+              <button class="ib" data-act="time-del" data-id="${m.id}" data-n="${esc(u?.nome || '')}"
+                title="Tirar do canal">${ico('trash',15)}</button></div>`; }).join('')}
+          ${!dono && !(canalCache.time || []).length ? `<div class="cb">${vazio('users', 'Canal sem time',
+            'Defina o dono em "O que é" e anexe aqui quem mais opera o canal, com a função de cada um.',
+            { act:'time-add', label:'Adicionar pessoa' })}</div>` : ''}</div>`);
+
+  /* POP anexado é ponteiro para a biblioteca (onb_treinamentos), não
+     cópia — mesmo princípio das aulas das trilhas: o POP-06 atualizado
+     lá atualiza em todo canal que o usa. */
+  const secPops = canalSecao !== 'pops' ? '' :
+    (canalCache.pops === null
+      ? avisoSql('Faltam as tabelas <b>canal_time</b> e <b>canal_pops</b> — o time e os POPs anexados ao canal.',
+                 'sql/CORRECAO-22.sql')
+      : canalPop && canalCache.popAberto
+      ? `<div class="volta" data-act="pop-voltar">${ico('arrowL',14)}POPs do canal</div>
+        <div class="card"><div class="ch"><h3>${esc(canalCache.popAberto.titulo)}</h3>
+          <div class="push">${canalCache.popAberto.tipo === 'html'
+            ? `<button class="btn sm ghost" data-act="pop-aba">${ico('out',13)}Nova aba</button>` : ''}</div></div>
+          ${canalCache.popAberto.tipo === 'html' && canalCache.popAberto.conteudo_html
+            ? `<iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                 srcdoc="${esc(canalCache.popAberto.conteudo_html)}"></iframe>`
+            : `<div class="cb"><a class="btn" href="${esc(canalCache.popAberto.url || '#')}" target="_blank"
+                 rel="noopener">${ico('link',15)}Abrir o material</a></div>`}</div>`
+      : `<div class="card"><div class="ch"><h3>POPs do canal</h3>
+          <span class="pill dim">${canalCache.pops.length}</span>
+          <div class="push">
+            <button class="btn sm ghost" data-act="pop-biblioteca">${ico('book',13)}Ir à biblioteca</button>
+            <button class="btn sm" data-act="pop-add">${ico('plus',13)}Anexar POP</button></div></div>
+          ${canalCache.pops.length ? canalCache.pops.map(p => { const t = p.onb_treinamentos || {};
+            return `<div class="row"><div class="g">
+              <div class="t">${esc(t.titulo || 'POP removido da biblioteca')}</div>
+              <div class="m">${[t.descricao, t.duracao_min ? onbDur(t.duracao_min) + ' de leitura' : '']
+                .filter(Boolean).map(esc).join(' · ')}</div></div>
+              <button class="btn sm ghost" data-act="pop-abrir" data-id="${p.treinamento_id}">${ico('play',13)}Abrir</button>
+              <button class="ib" data-act="pop-del" data-id="${p.id}" data-n="${esc(t.titulo || '')}"
+                title="Desanexar">${ico('trash',15)}</button></div>`; }).join('')
+          : `<div class="cb">${vazio('copy', 'Nenhum POP anexado',
+              'Anexe da biblioteca os POPs que regem este canal — cadastro, abordagem, bonificação. ' +
+              'É ponteiro, não cópia: o POP atualizado na biblioteca atualiza aqui também.',
+              { act:'pop-add', label:'Anexar POP' })}</div>`}</div>`);
+
+  const secConfig = canalSecao !== 'config' ? '' : cardConfig;
+
   return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
     <div class="head">
       <div><h2>${esc(s.nome)}</h2>
@@ -2603,7 +2713,7 @@ function canalFicha(s) {
         <button class="btn" data-act="aplicar">${ico('plus',15)}Aplicar plano</button></div></div>
 
     ${abas}
-    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}${secDoc}`;
+    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secAgenda}${secTime}${secPops}${secRegras}${secFluxo}${secPlano}${secDoc}${secConfig}`;
 }
 
 /* Lê o arquivo .md de configuração do canal: linhas "campo: valor"
@@ -2670,18 +2780,39 @@ R.canais = {
     if (canalSel && !canalCache.saude.some(s => s.id === canalSel)) canalSel = null;
 
     if (canalSel) {
-      const [itens, camps, rots, kpi, canalRow] = await Promise.all([
+      const [itens, camps, rots, kpi, canalRow, agenda, prazos, time, pops] = await Promise.all([
         q('acoes', x => x.eq('canal_id', canalSel).eq('recorrencia', 'nenhuma')
                          .not('bloco', 'is', null).order('prazo', { nullsFirst: false })),
         q('campanhas', x => x.eq('canal_id', canalSel).order('data_inicio', { ascending: false })),
         q('acoes', x => x.eq('canal_id', canalSel).neq('recorrencia', 'nenhuma').order('titulo')),
         qOpcional('v_financeiro_kpi', x => x.eq('canal_id', canalSel).order('periodo', { ascending: false }).limit(6)),
         // A linha crua do canal: regras, fluxograma e notas não passam pela view de saúde
-        q('canais_venda', x => x.eq('id', canalSel))
+        q('canais_venda', x => x.eq('id', canalSel)),
+        // Agenda do canal: compromissos de hoje em diante, com a ação junto
+        sb.from('agendamentos').select('*, acoes(titulo, status, responsavel_id)')
+          .eq('canal_id', canalSel).gte('data_hora', hoje()).order('data_hora').limit(60)
+          .then(r => r.data || []),
+        q('acoes', x => x.eq('canal_id', canalSel).eq('recorrencia', 'nenhuma')
+                         .in('status', ['aberta', 'em_andamento'])
+                         .not('prazo', 'is', null).order('prazo').limit(30)),
+        // Time e POPs do canal (correção 22): null = tabela ainda não existe
+        qOpcional('canal_time', x => x.eq('canal_id', canalSel).order('created_at')),
+        sb.from('canal_pops')
+          .select('*, onb_treinamentos(titulo, descricao, tipo, duracao_min, url)')
+          .eq('canal_id', canalSel).order('created_at')
+          .then(r => r.error ? null : (r.data || []))
       ]);
       canalCache.itens = itens; canalCache.camps = camps;
       canalCache.rots = rots;   canalCache.kpi = kpi || [];
       canalCache.canal = canalRow[0] || {};
+      canalCache.agenda = agenda; canalCache.prazos = prazos;
+      canalCache.time = time;     canalCache.pops = pops;
+      canalCache.popAberto = null;
+      if (canalPop) {
+        const [t] = await q('onb_treinamentos', x => x.eq('id', canalPop));
+        canalCache.popAberto = t || null;
+        if (!t) canalPop = null;
+      }
     }
     return { semBanco: false };
   },
@@ -2722,11 +2853,89 @@ R.canais = {
   acoes: {
     abrir(b) {
       if (canalArrastou) { canalArrastou = false; return; }
-      canalSel = b.dataset.id; canalAba = 'estrutura'; canalSecao = 'oquee'; pinta();
+      canalSel = b.dataset.id; canalAba = 'estrutura'; canalSecao = 'oquee'; canalPop = null; pinta();
     },
-    voltar() { canalSel = null; pinta(); },
+    voltar() { canalSel = null; canalPop = null; pinta(); },
     aba(b)   { canalAba = b.dataset.v; pinta(); },
-    secao(b) { canalSecao = b.dataset.v; pinta(); },
+    secao(b) { canalSecao = b.dataset.v; canalPop = null; pinta(); },
+
+    /* ── agenda do canal ─────────────────────────────────────────
+       O compromisso é um agendamento normal (aparece também na Agenda
+       da semana), só que já preso a este canal. A área fica vazia de
+       propósito: a view v_agenda_semana cai na área do canal. */
+    async 'agendar-canal'() {
+      const abertas = await q('acoes', x => x.eq('canal_id', canalSel)
+        .in('status', ['aberta', 'em_andamento']).eq('recorrencia', 'nenhuma').order('titulo'));
+      if (!abertas.length)
+        return toast('Crie uma ação do canal antes — o compromisso marca a hora de uma ação.', { tipo:'info' });
+      form('Agendar ação do canal', [
+        { k:'acao_id', label:'Ação', type:'select', req:true, opts:abertas.map(a => ({ v:a.id, t:a.titulo })) },
+        { k:'data_hora', label:'Data e hora', type:'datetime-local', req:true },
+        { k:'duracao_min', label:'Duração (minutos)', type:'number', value:30 },
+        { k:'observacao', label:'Observação', type:'textarea' }
+      ], d => { d.data_hora = new Date(d.data_hora).toISOString();
+                return grava('agendamentos', { ...d, canal_id: canalSel }); }, 'Agendar');
+    },
+    async 'agenda-del'(b) {
+      if (await apaga('agendamentos', b.dataset.id)) { toast('Compromisso removido.'); pinta(); }
+    },
+
+    /* ── time do canal ─────────────────────────────────────────── */
+    'time-add'() {
+      const c = canalCache.canal || {};
+      const ja = new Set([...(canalCache.time || []).map(m => m.usuario_id), c.responsavel_id].filter(Boolean));
+      const livres = cache.usuarios.filter(u => u.ativo && !ja.has(u.id));
+      if (!livres.length) return toast('Todo mundo do cadastro já está neste canal.', { tipo:'info' });
+      form('Adicionar ao time do canal', [
+        { k:'usuario_id', label:'Pessoa', type:'select', req:true, opts:livres.map(u => ({ v:u.id, t:u.nome })) },
+        { k:'funcao', label:'Função neste canal', ph:'Ex.: atende os leads, roda o ranking semanal',
+          hint:'Cargo é do cadastro; aqui é o papel da pessoa NESTE canal.' }
+      ], d => grava('canal_time', { ...d, canal_id: canalSel }), 'Adicionar');
+    },
+    'time-editar'(b) {
+      const m = (canalCache.time || []).find(x => x.id === b.dataset.id); if (!m) return;
+      form('Função no canal', [
+        { k:'funcao', label:'Função neste canal', value:m.funcao,
+          ph:'Ex.: atende os leads, roda o ranking semanal' }
+      ], d => grava('canal_time', d, m.id));
+    },
+    'time-del'(b) {
+      confirma('Tirar do canal',
+        `<p><b>${esc(b.dataset.n)}</b> sai do time deste canal. A pessoa continua no cadastro
+          e nos outros canais em que estiver.</p>`,
+        () => apaga('canal_time', b.dataset.id));
+    },
+
+    /* ── POPs do canal ─────────────────────────────────────────── */
+    async 'pop-add'() {
+      const { data } = await sb.from('onb_treinamentos')
+        .select('id, titulo').eq('ativo', true).order('titulo');
+      const todos = data || [];
+      if (!todos.length)
+        return toast('A biblioteca está vazia — suba os POPs em Onboarding → Treinamentos primeiro.', { tipo:'info' });
+      const ja = new Set((canalCache.pops || []).map(p => p.treinamento_id));
+      const livres = todos.filter(t => !ja.has(t.id));
+      if (!livres.length) return toast('Todos os documentos da biblioteca já estão anexados aqui.', { tipo:'info' });
+      form('Anexar POP ao canal', [
+        { k:'treinamento_id', label:'Documento da biblioteca', type:'select', req:true,
+          opts:livres.map(t => ({ v:t.id, t:t.titulo })),
+          hint:'É ponteiro, não cópia: o POP atualizado na biblioteca atualiza aqui também.' }
+      ], d => grava('canal_pops', { ...d, canal_id: canalSel }), 'Anexar');
+    },
+    'pop-abrir'(b)  { canalPop = b.dataset.id; pinta(); },
+    'pop-voltar'()  { canalPop = null; pinta(); },
+    'pop-aba'() {
+      const t = canalCache.popAberto; if (!t?.conteudo_html) return;
+      const url = URL.createObjectURL(new Blob([t.conteudo_html], { type: 'text/html' }));
+      open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    },
+    'pop-del'(b) {
+      confirma('Desanexar POP',
+        `<p><b>${esc(b.dataset.n)}</b> sai deste canal. O documento continua na biblioteca.</p>`,
+        () => apaga('canal_pops', b.dataset.id));
+    },
+    'pop-biblioteca'() { treinSel = null; vai('treinamentos'); },
 
     /* Cada aba edita só o que é dela: formulário curto, sem rolar o
        formulário inteiro do canal atrás de um campo. */
