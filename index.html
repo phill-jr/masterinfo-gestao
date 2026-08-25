@@ -5931,8 +5931,11 @@ function formProva(row, trilhaId, moduloId) {
 async function onbEditorQuestoes(provaId) {
   const [p] = await q('onb_provas', x => x.eq('id', provaId));
   const qs  = await q('onb_questoes', x => x.eq('prova_id', provaId).order('ordem'));
+  /* A view _gabarito é a única porta da coluna `correta` (correção 20):
+     na tabela ela não sai mais pela API. Só admin recebe linhas aqui —
+     e só admin chega neste editor. */
   const as  = qs.length
-    ? await q('onb_alternativas', x => x.in('questao_id', qs.map(x2 => x2.id)).order('ordem')) : [];
+    ? await q('onb_alternativas_gabarito', x => x.in('questao_id', qs.map(x2 => x2.id)).order('ordem')) : [];
 
   const corpo = `<div style="display:grid;gap:10px">
     ${qs.length ? qs.map((qq, i) => {
@@ -5963,7 +5966,7 @@ async function onbEditorQuestoes(provaId) {
 }
 
 async function formQuestao(row, provaId, ordem) {
-  const alt = row ? await q('onb_alternativas', x => x.eq('questao_id', row.id).order('ordem')) : [];
+  const alt = row ? await q('onb_alternativas_gabarito', x => x.eq('questao_id', row.id).order('ordem')) : [];
   const vf  = row?.tipo === 'vf';
   const cert = alt.findIndex(a => a.correta);
 
