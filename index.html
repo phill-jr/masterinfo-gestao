@@ -1632,15 +1632,15 @@ const R = {};
 const NAV_EMPRESA = [
   { tipo:'item',  r:'inicio' },
   { tipo:'grupo', id:'comercial', label:'Comercial', icone:'money',
-    itens:['canais', 'agenda'] },
+    itens:['canais', 'agenda', 'dicionario'] },
   { tipo:'grupo', id:'marketing', label:'Marketing', icone:'target',
     itens:['campanhas', 'agenda', 'producao'] },
   { tipo:'grupo', id:'onboarding', label:'Onboarding', icone:'book', semArea:true,
     itens:['onbTrilhas', 'onbMinha', 'onbAcompanhar', 'treinamentos'] },
   { tipo:'grupo', id:'desenvolvimento', label:'Desenvolvimento', icone:'star', semArea:true,
     itens:['pdi', 'feedbacks'] },
-  { tipo:'secao', label:'Vendedores', itens:['dicionario'] },
-  { tipo:'secao', label:'Gestão', itens:['horarios', 'rotinaSemanal', 'anotacoes', 'time', 'config'] }
+  { tipo:'grupo', id:'gestao', label:'Gestão', icone:'cog', semArea:true,
+    itens:['horarios', 'rotinaSemanal', 'anotacoes', 'time', 'config'] }
 ];
 /* Telas fora do menu (ações, metas, bitrix, financeiro do mkt, rotinas
    do time) continuam existindo por rota direta e pelo Ctrl+K — saíram
@@ -1695,10 +1695,9 @@ function podeVer(r) {
    grupos do menu (ações, campanhas…) é UM módulo só — liberar libera
    nas duas áreas. */
 const CATALOGO_MODULOS = [
-  { grupo:'Comercial e Marketing', itens:['canais','agenda','campanhas','producao'] },
+  { grupo:'Comercial e Marketing', itens:['canais','agenda','dicionario','campanhas','producao'] },
   { grupo:'Onboarding', itens:['onbTrilhas','onbMinha','onbAcompanhar','treinamentos'] },
   { grupo:'Desenvolvimento', itens:['pdi','feedbacks'] },
-  { grupo:'Vendedores', itens:['dicionario'] },
   { grupo:'Gestão', itens:['horarios','rotinaSemanal','anotacoes','time'] }
 ];
 
