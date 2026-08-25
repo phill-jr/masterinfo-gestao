@@ -2583,7 +2583,7 @@ function canalFicha(s) {
           <div class="m">${esc(a.responsavel_id ? nomeUser(a.responsavel_id) : 'sem dono')}</div></div>
         <span class="pill ${a.prazo < hoje() ? 'bad' : 'dim'}">${a.prazo < hoje() ? 'atrasada · ' : ''}${dt(a.prazo)}</span></div>`).join('')
       : `<div class="cb"><p class="sm2">Nenhuma ação deste canal com prazo em aberto.
-          As rotinas recorrentes continuam na aba Engajamento.</p></div>`}</div>`;
+          O que se repete fica nas Rotinas do canal, ali em cima.</p></div>`}</div>`;
 
   /* O dono vem de canais_venda (responsavel_id); o resto do time é
      canal_time — com a função que a pessoa exerce NESTE canal, que
