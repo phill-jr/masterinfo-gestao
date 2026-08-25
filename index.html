@@ -2240,33 +2240,17 @@ const ESTAGIOS = [
 ];
 const NOME_ESTAGIO = Object.fromEntries(ESTAGIOS.map(([v, t]) => [v, t]));
 
-const BLOCOS = [
-  ['estrutura', '1 · Estrutura',
-   'Dono, regra, oferta que fecha a conta, materiais e rastreio.'],
-  ['ativacao',  '2 · Ativação',
-   'Acontece uma vez: primeira leva, D1 e quem recebe o lead treinado.'],
-  ['motor',     '3 · Campanhas e rotina',
-   'O que repete. Campanha tem fim; rotina é o que segura o canal entre elas.'],
-  ['medicao',   '4 · Medição',
-   'Funil chegando sozinho, CAC e ROI do canal com número real.'],
-  ['escala',    '5 · Escala',
-   'Reativar quem parou, reconhecer os melhores, documentar, abrir o próximo.']
-];
-const NOME_BLOCO = Object.fromEntries(BLOCOS.map(([v, t]) => [v, t]));
-
-let canalSel = null, canalAba = 'estrutura', canalSecao = 'oquee';
+let canalSel = null, canalSecao = 'oquee';
 let canalPop = null;         // POP aberto dentro da aba POPs
 let canalArrastou = false;   // suprime o clique que sobra depois do arrasto
-const canalCache = { saude: [], blocos: [], itens: [], camps: [], rots: [], kpi: [], canal: {},
+const canalCache = { saude: [], camps: [], rots: [], kpi: [], canal: {},
                      agenda: [], prazos: [], time: null, pops: null, popAberto: null };
 
-const blocoDe = (id, b) => canalCache.blocos.find(x => x.canal_id === id && x.bloco === b);
-const somaBloco = (id, campo) => canalCache.blocos
-  .filter(x => x.canal_id === id).reduce((n, x) => n + (+x[campo] || 0), 0);
-
-/* Configuração do canal em 5 passos — as mesmas seções da ficha.
-   "Configurado" é ter os cinco: sem isso o canal existe no quadro
+/* Configuração do canal em 4 passos — as mesmas seções da ficha.
+   "Configurado" é ter os quatro: sem isso o canal existe no quadro
    mas ninguém sabe o que ele é, quanto deve vender nem como opera.
+   O plano de abertura (5 blocos do método) foi removido em 25/08 a
+   pedido do Philipe — o canal se configura pelos arquivos anexados.
    Lê do cache.canais (linha crua) porque a view de saúde não traz
    regras nem fluxograma. */
 function passosConfig(id) {
@@ -2275,26 +2259,21 @@ function passosConfig(id) {
     { n:1, t:'O que é',    feito: !!(c.publico && c.mecanica),  act:'editar-oquee' },
     { n:2, t:'Meta',       feito: c.meta_30d != null,           act:'editar-meta' },
     { n:3, t:'Regras',     feito: !!c.regras,                   act:'editar-regras' },
-    { n:4, t:'Fluxograma', feito: !!c.fluxograma,               act:'editar-fluxo' },
-    { n:5, t:'Plano',      feito: somaBloco(id, 'itens') > 0,   act:'secao', v:'plano' }
+    { n:4, t:'Fluxograma', feito: !!c.fluxograma,               act:'editar-fluxo' }
   ];
 }
 
 function cartaoCanal(s) {
-  const tot = somaBloco(s.id, 'itens'), ok = somaBloco(s.id, 'feitos');
-  const atrasados = somaBloco(s.id, 'atrasados');
-  const pct = tot ? Math.round(100 * ok / tot) : 0;
   const cfg = passosConfig(s.id).filter(p => p.feito).length;
+  const pct = Math.round(100 * cfg / 4);
   return `<div class="cnl" data-act="abrir" data-id="${s.id}">
     <div class="cn">${esc(s.nome)}</div>
     <div class="cm">${esc(s.dono || 'sem dono')}${
       s.data_abertura ? ' · D1 ' + dt(s.data_abertura) : ''}</div>
     <div class="bar"><i class="${pct === 100 ? 'ok' : ''}" style="width:${pct}%"></i></div>
     <div class="cf">
-      ${cfg === 5 ? '<span class="pill ok">configurado</span>'
-                  : `<span class="pill warn">sem configuração · ${cfg}/5</span>`}
-      ${tot ? `<span class="pill dim">${ok}/${tot} do plano</span>` : ''}
-      ${atrasados ? `<span class="pill bad">${atrasados} atrasado${atrasados > 1 ? 's' : ''}</span>` : ''}
+      ${cfg === 4 ? '<span class="pill ok">configurado</span>'
+                  : `<span class="pill warn">sem configuração · ${cfg}/4</span>`}
       ${s.estagio === 'operacao' || s.estagio === 'escala'
         ? (+s.rotinas ? `<span class="pill ok">${s.rotinas} rotina${+s.rotinas > 1 ? 's' : ''}</span>`
                       : '<span class="pill warn">sem rotina</span>') : ''}
@@ -2307,7 +2286,8 @@ function cartaoCanal(s) {
 function canalPipeline(cs) {
   const ativos = cs.filter(c => c.estagio !== 'encerrado');
   const abrindo = cs.filter(c => c.estagio === 'estruturacao' || c.estagio === 'ideia').length;
-  const atrasados = cs.reduce((n, c) => n + (+c.plano_atrasados || 0), 0);
+  const semConfig = cs.filter(c => c.estagio !== 'encerrado'
+    && passosConfig(c.id).some(p => !p.feito)).length;
   const semMotor = cs.filter(c =>
     (c.estagio === 'operacao' || c.estagio === 'escala') && (!+c.rotinas || !+c.campanhas_ativas)).length;
 
@@ -2332,10 +2312,10 @@ function canalPipeline(cs) {
       <div class="tile"><div class="ic">${ico('target',18)}</div><div class="n">${ativos.length}</div>
         <div class="l">Canais vivos</div><div class="h">${cs.length - ativos.length} encerrado(s)</div></div>
       <div class="tile"><div class="ic">${ico('zap',18)}</div><div class="n">${abrindo}</div>
-        <div class="l">Em abertura</div><div class="h">ainda não passaram do bloco 1</div></div>
-      <div class="tile ${atrasados ? 'bad' : ''}"><div class="ic">${ico('alert',18)}</div>
-        <div class="n">${atrasados}</div><div class="l">Passos atrasados</div>
-        <div class="h">somando todos os canais</div></div>
+        <div class="l">Em abertura</div><div class="h">em ideia ou estruturação</div></div>
+      <div class="tile ${semConfig ? 'warn' : ''}"><div class="ic">${ico('alert',18)}</div>
+        <div class="n">${semConfig}</div><div class="l">Sem configuração</div>
+        <div class="h">faltando algum dos 4 passos</div></div>
       <div class="tile ${semMotor ? 'warn' : ''}"><div class="ic">${ico('refresh',18)}</div>
         <div class="n">${semMotor}</div><div class="l">Operando sem motor</div>
         <div class="h">sem rotina ou sem campanha</div></div>
@@ -2352,44 +2332,16 @@ function canalPipeline(cs) {
         { act:'novo', label:'Adicionar canal' })}</div>`}`;
 }
 
-function linhaItem(a) {
-  const feito = a.status === 'concluida';
-  const atrasada = !feito && a.prazo && a.prazo < hoje();
-  return `<div class="row ${feito ? 'off' : ''}">
-    <button class="tick ${feito ? 'done' : ''}" data-act="marcar" data-id="${a.id}"
-      title="${feito ? 'Reabrir' : 'Marcar como pronto'}">${ico('check', 12)}</button>
-    <div class="g"><div class="t" style="white-space:normal">${esc(a.titulo)}</div>
-      <div class="m">${a.criterio ? esc(a.criterio) : 'Sem critério de pronto definido.'}
-        ${a.prova ? ` · <b style="color:var(--ok)">prova:</b> ${esc(a.prova)}` : ''}</div></div>
-    <span class="pill ${feito ? 'ok' : atrasada ? 'bad' : 'dim'}">${
-      feito ? 'pronto' : a.prazo ? dt(a.prazo) : 'sem prazo'}</span>
-    <span class="pill dim">${esc(a.responsavel_id ? nomeUser(a.responsavel_id) : 'sem dono')}</span>
-    <button class="ib" data-act="editar-item" data-id="${a.id}" title="Editar">${ico('edit', 15)}</button>
-  </div>`;
-}
-
 /* A ficha do canal é uma tela de abas: o que é, meta, engajamento,
-   regras, fluxograma e plano de abertura. Cada aba mostra no próprio
-   botão o estado da seção ("a definir", "3 etapas", "12/20") — o
-   panorama do hub orbital sem o custo dele: a órbita era bonita mas
-   os quadrados ficavam minúsculos e o conteúdo começava abaixo da
-   dobra (removida em 24/08 a pedido do Philipe). */
+   agenda, time, POPs, regras, fluxograma, documento e configuração.
+   Cada aba mostra no próprio botão o estado da seção ("a definir",
+   "3 etapas") — o panorama do hub orbital sem o custo dele: a órbita
+   era bonita mas os quadrados ficavam minúsculos e o conteúdo
+   começava abaixo da dobra (removida em 24/08 a pedido do Philipe).
+   O plano de abertura saiu em 25/08 (CORRECAO-23), também a pedido
+   dele: o canal se configura pelos arquivos anexados. */
 function canalFicha(s) {
   const c = canalCache.canal || {};
-  const itens = canalCache.itens.filter(a => a.bloco === canalAba);
-  const b = blocoDe(s.id, canalAba);
-  const [, tituloBloco, descBloco] = BLOCOS.find(x => x[0] === canalAba);
-
-  const botaoBloco = ([v, t, d]) => {
-    const bb = blocoDe(s.id, v);
-    const tot = bb ? +bb.itens : 0, ok = bb ? +bb.feitos : 0;
-    const pct = tot ? Math.round(100 * ok / tot) : 0;
-    return `<button class="${v === canalAba ? 'on' : ''}" data-act="aba" data-v="${v}">
-      <div class="bt">${esc(t)}</div><div class="bs">${esc(d)}</div>
-      <div class="bar"><i class="${pct === 100 ? 'ok' : ''}" style="width:${pct}%"></i></div>
-      <div class="sm2" style="margin-top:5px">${tot ? `${ok}/${tot}` : 'sem itens'}${
-        bb && +bb.atrasados ? ` · ${bb.atrasados} atrasado(s)` : ''}</div></button>`;
-  };
 
   const identidade = `<div class="card"><div class="ch"><h3>O que é este canal</h3>
     <div class="push"><button class="btn sm" data-act="editar-oquee">${ico('edit',13)}Editar</button></div></div>
@@ -2471,52 +2423,48 @@ function canalFicha(s) {
   const passos = passosConfig(s.id);
   const feitosCfg = passos.filter(p => p.feito).length;
   const cardConfig = `<div class="card"><div class="ch"><h3>Configuração do canal</h3>
-    <span class="pill ${feitosCfg === 5 ? 'ok' : 'warn'}">${feitosCfg}/5</span>
+    <span class="pill ${feitosCfg === 4 ? 'ok' : 'warn'}">${feitosCfg}/4</span>
     <div class="push">
-      <button class="btn sm ghost" data-act="doc-modelo">${ico('down',13)}Baixar arquivo padrão</button>
-      <button class="btn sm" data-act="doc-subir">${ico('copy',13)}Anexar arquivo</button></div></div>
+      <button class="btn sm ghost" data-act="doc-modelo">${ico('down',13)}Baixar modelo (.md)</button>
+      <button class="btn sm ghost" data-act="doc-apres">${ico('copy',13)}Anexar apresentação</button>
+      <button class="btn sm" data-act="doc-config">${ico('copy',13)}Anexar configuração (.md)</button></div></div>
     <div class="cb cfgsteps">${passos.map(p => `
-      <button class="${p.feito ? 'ok' : ''}" data-act="${p.t === 'Plano' ? 'aplicar' : p.act}">
+      <button class="${p.feito ? 'ok' : ''}" data-act="${p.act}">
         <span class="num">${p.feito ? ico('check', 12) : p.n}</span>
-        <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : p.t === 'Plano' ? 'trazer do modelo' : 'preencher'}</i></div>
+        <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : 'preencher'}</i></div>
       </button>`).join('')}</div>
-    <div class="cb sm2" style="padding-top:0">O caminho rápido: <b>baixe o arquivo padrão (.md)</b>, preencha
-      e <b>anexe de volta</b> — os passos se completam sozinhos. Junto com ele dá para anexar a
-      <b>apresentação do canal em HTML</b>, que fica guardada na aba Documento. Ou clique em cada passo
-      e preencha na mão.</div></div>`;
+    <div class="cb sm2" style="padding-top:0">O caminho rápido: <b>baixe o modelo (.md)</b>, preencha e
+      <b>anexe em Anexar configuração</b> — os passos se completam sozinhos. A <b>apresentação (HTML)</b>
+      tem o seu próprio botão e fica guardada na aba Documento. Ou clique em cada passo e preencha na mão.</div></div>`;
 
   /* ── as abas ─────────────────────────────────────────────────── */
-  const totPlano = somaBloco(s.id, 'itens'), okPlano = somaBloco(s.id, 'feitos');
-  const pctPlano = totPlano ? Math.round(100 * okPlano / totPlano) : 0;
   const etapasFluxo = (c.fluxograma || '').split('\n').map(x => x.trim()).filter(Boolean);
   const nTime = (canalCache.time?.length || 0) + (c.responsavel_id ? 1 : 0);
   const SECOES = [
     ['oquee',       'O que é',    'book',    s.publico || s.mecanica ? 'definido' : 'a definir'],
     ['meta',        'Meta',       'chart',   s.meta_30d != null ? `${s.meta_30d} em 30d` : 'a definir'],
     ['engajamento', 'Engajamento','refresh', `${canalCache.camps.length} campanha(s) · ${canalCache.rots.length} rotina(s)`],
-    ['agenda',      'Agenda',     'cal',     canalCache.agenda.length || canalCache.prazos.length
-                                               ? `${canalCache.agenda.length} com hora · ${canalCache.prazos.length} prazo(s)` : 'nada marcado'],
+    ['agenda',      'Agenda',     'cal',     canalCache.rots.length || canalCache.agenda.length
+                                               ? `${canalCache.rots.length} rotina(s) · ${canalCache.agenda.length} com hora` : 'a montar'],
     ['time',        'Time',       'users',   canalCache.time === null ? 'rodar o SQL' : nTime ? `${nTime} pessoa(s)` : 'sem time'],
     ['pops',        'POPs',       'copy',    canalCache.pops === null ? 'rodar o SQL'
                                                : canalCache.pops.length ? `${canalCache.pops.length} anexado(s)` : 'nenhum'],
     ['regras',      'Regras',     'lock',    c.regras ? 'definidas' : 'a definir'],
     ['fluxo',       'Fluxograma', 'link',    etapasFluxo.length ? `${etapasFluxo.length} etapa(s)` : 'a desenhar'],
-    ['plano',       'Plano',      'check',   totPlano ? `${okPlano}/${totPlano} · ${pctPlano}%` : 'sem plano'],
     ['doc',         'Documento',  'copy',    c.doc_html ? 'anexado' : 'sem arquivo'],
-    ['config',      'Configuração','settings', `${feitosCfg}/5`]
+    ['config',      'Configuração','settings', `${feitosCfg}/4`]
   ];
   const abas = `<div class="ctabs">${SECOES.map(([k, t, icone, info]) => `
     <button class="${canalSecao === k ? 'on' : ''}" data-act="secao" data-v="${k}">
       <span class="bt">${ico(icone, 15)}${t}</span><span class="inf">${esc(info)}</span></button>`).join('')}
   </div>`;
 
-  /* Canal sem os 5 passos abre no MODO CONFIGURAÇÃO: só o guia de
-     passos + anexar arquivo + baixar o arquivo padrão em branco.
-     Nada de abas nem seções duplicando embaixo (pedido de 25/08) —
-     elas aparecem quando os cinco passos fecham. No modo configuração
-     o passo Plano traz o plano do modelo direto, já que a aba Plano
-     não está na tela. */
-  if (feitosCfg < 5) {
+  /* Canal sem os 4 passos abre no MODO CONFIGURAÇÃO: só o guia de
+     passos + os dois anexos (apresentação HTML e configuração .md)
+     + baixar o modelo em branco. Nada de abas nem seções duplicando
+     embaixo (pedido de 25/08) — elas aparecem quando os quatro
+     passos fecham. */
+  if (feitosCfg < 4) {
     return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
       <div class="head">
         <div><h2>${esc(s.nome)}</h2>
@@ -2528,10 +2476,10 @@ function canalFicha(s) {
 
       ${cardConfig}
 
-      ${c.doc_html ? `<div class="card"><div class="ch"><h3>Documento anexado</h3>
+      ${c.doc_html ? `<div class="card"><div class="ch"><h3>Apresentação anexada</h3>
         <div class="push">
           <button class="btn sm ghost" data-act="doc-aba">${ico('out',13)}Nova aba</button>
-          <button class="btn sm ghost" data-act="doc-subir">${ico('copy',13)}Trocar arquivo</button></div></div>
+          <button class="btn sm ghost" data-act="doc-apres">${ico('copy',13)}Trocar arquivo</button></div></div>
         <iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
           srcdoc="${esc(c.doc_html)}"></iframe></div>` : ''}`;
   }
@@ -2572,44 +2520,47 @@ function canalFicha(s) {
             'Escreva uma etapa por linha — "Indicador manda o contato", "Comercial liga em até 24h"… — e o desenho aparece aqui.',
             { act:'editar-fluxo', label:'Desenhar o fluxo' })}</div>`}</div>`;
 
-  const secPlano = canalSecao !== 'plano' ? '' : gate + `
-    <div class="bnav">${BLOCOS.map(botaoBloco).join('')}</div>
-
-    <div class="card"><div class="ch"><h3>${esc(tituloBloco)}</h3>
-      <span class="pill dim">${b ? `${b.feitos}/${b.itens}` : '0'}</span>
-      <div class="push">
-        <button class="btn sm ghost" data-act="aplicar-bloco">${ico('copy',13)}Trazer do modelo</button>
-        <button class="btn sm" data-act="novo-item">${ico('plus',13)}Novo passo</button></div></div>
-      <div class="cb" style="padding-bottom:0"><p class="sm2">${esc(descBloco)}</p></div>
-      ${itens.length ? `<div style="margin-top:12px">${itens.map(linhaItem).join('')}</div>`
-        : `<div class="cb">${vazio('check', 'Bloco vazio',
-            'Traga os passos do modelo padrão ou escreva os desta operação. Um bloco vazio não é um bloco cumprido.',
-            { act:'aplicar-bloco', label:'Trazer do modelo' })}</div>`}</div>`;
-
   /* O documento é o caminho preferido do Philipe para configurar o
-     canal: ele anexa a apresentação em HTML (gerada fora, ex. pelo
-     Claude) e um .md de configuração que preenche a ficha — ver
-     'doc-subir'. O HTML com bloco canal-config antigo também vale. */
+     canal: a APRESENTAÇÃO em HTML (gerada fora, ex. pelo Claude)
+     fica guardada aqui; a CONFIGURAÇÃO em .md preenche a ficha e
+     tem o botão dela na aba Configuração. */
   const secDoc = canalSecao !== 'doc' ? '' :
     (!('doc_html' in c)
       ? avisoSql('Falta a coluna <b>doc_html</b> em canais_venda.', 'sql/CORRECAO-19.sql')
       : c.doc_html ? `
-    <div class="card"><div class="ch"><h3>Documento do canal</h3>
+    <div class="card"><div class="ch"><h3>Apresentação do canal</h3>
       <div class="push">
         <button class="btn sm ghost" data-act="doc-aba">${ico('out',13)}Nova aba</button>
-        <button class="btn sm ghost" data-act="doc-subir">${ico('copy',13)}Trocar arquivo</button>
+        <button class="btn sm ghost" data-act="doc-apres">${ico('copy',13)}Trocar arquivo</button>
         <button class="btn sm ghost" data-act="doc-remover">${ico('trash',13)}Remover</button></div></div>
       <iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
         srcdoc="${esc(c.doc_html)}"></iframe></div>`
-      : `<div class="card">${vazio('copy', 'Nenhum documento anexado',
-          'Anexe a apresentação do canal (HTML) e/ou o arquivo de configuração (.md) — pode ser os dois ' +
-          'de uma vez. O HTML fica guardado aqui; o .md preenche os campos da ficha automaticamente.',
-          { act:'doc-subir', label:'Anexar arquivo' })}</div>`);
+      : `<div class="card">${vazio('copy', 'Nenhuma apresentação anexada',
+          'Anexe aqui a apresentação do canal (HTML) — ela fica guardada e é exibida nesta aba. ' +
+          'O arquivo de configuração (.md) tem o botão dele na aba Configuração.',
+          { act:'doc-apres', label:'Anexar apresentação' })}</div>`);
 
-  /* A agenda do canal em duas alturas: o que tem HORA (agendamentos)
-     e o que tem PRAZO (ações abertas). As rotinas não entram — modelo
-     não é compromisso; elas continuam na aba Engajamento. */
+  /* A agenda do canal em três alturas: as ROTINAS (o que se repete —
+     é aqui que elas nascem, já presas ao canal e com a tag dele), o
+     que tem HORA (agendamentos) e o que tem PRAZO (ações abertas).
+     A rotina criada aqui não pergunta o canal: ela É do canal, e a
+     tag com o nome dele é o que a distingue das rotinas dos outros
+     na Rotina semanal e no check do dia (pedido de 25/08). */
   const secAgenda = canalSecao !== 'agenda' ? '' : `
+    <div class="card"><div class="ch"><h3>Rotinas do canal</h3>
+      <span class="pill dim">${canalCache.rots.length}</span>
+      <div class="push"><button class="btn sm" data-act="nova-rotina">${ico('plus',13)}Nova rotina</button></div></div>
+      ${canalCache.rots.length ? canalCache.rots.map(r => `<div class="row rotina">
+        <div class="g"><div class="t">${esc(r.titulo)}</div>
+          <div class="m">${esc(r.recorrencia)}${r.hora ? ' · ' + r.hora.slice(0, 5) : ''} · ${
+            esc(r.responsavel_id ? nomeUser(r.responsavel_id) : 'sem dono')}</div>
+          ${chipsTags(r.tags)}</div>
+        <span class="pill ${r.status === 'aberta' ? 'ok' : 'dim'}">${r.status === 'aberta' ? 'ativa' : 'pausada'}</span>
+        <button class="ib" data-act="editar-rotina" data-id="${r.id}" title="Editar">${ico('edit', 15)}</button></div>`).join('')
+      : `<div class="cb">${vazio('refresh', 'Nenhuma rotina neste canal',
+          'A agenda do canal são as tarefas que se repetem: ranking, cobrança do SLA, conferência dos leads. Criadas aqui, elas já nascem do canal — com a tag dele — e entram na Rotina semanal do responsável.',
+          { act:'nova-rotina', label:'Criar rotina' })}</div>`}</div>
+
     <div class="card"><div class="ch"><h3>Compromissos do canal</h3>
       <span class="pill dim">${canalCache.agenda.length}</span>
       <div class="push"><button class="btn sm" data-act="agendar-canal">${ico('plus',13)}Agendar ação</button></div></div>
@@ -2629,8 +2580,7 @@ function canalFicha(s) {
       <span class="pill dim">${canalCache.prazos.length}</span></div>
       ${canalCache.prazos.length ? canalCache.prazos.map(a => `<div class="row">
         <div class="g"><div class="t">${esc(a.titulo)}</div>
-          <div class="m">${esc(a.responsavel_id ? nomeUser(a.responsavel_id) : 'sem dono')}${
-            a.bloco ? ' · ' + esc(NOME_BLOCO[a.bloco] || a.bloco) : ''}</div></div>
+          <div class="m">${esc(a.responsavel_id ? nomeUser(a.responsavel_id) : 'sem dono')}</div></div>
         <span class="pill ${a.prazo < hoje() ? 'bad' : 'dim'}">${a.prazo < hoje() ? 'atrasada · ' : ''}${dt(a.prazo)}</span></div>`).join('')
       : `<div class="cb"><p class="sm2">Nenhuma ação deste canal com prazo em aberto.
           As rotinas recorrentes continuam na aba Engajamento.</p></div>`}</div>`;
@@ -2699,21 +2649,21 @@ function canalFicha(s) {
               'É ponteiro, não cópia: o POP atualizado na biblioteca atualiza aqui também.',
               { act:'pop-add', label:'Anexar POP' })}</div>`}</div>`);
 
-  const secConfig = canalSecao !== 'config' ? '' : cardConfig;
+  /* A Configuração também carrega o gate do estágio: é onde se olha
+     "o que falta" — e o botão Avançar mora junto da régua. */
+  const secConfig = canalSecao !== 'config' ? '' : gate + cardConfig;
 
   return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
     <div class="head">
       <div><h2>${esc(s.nome)}</h2>
         <div class="sub">${esc((s.tipo || '').replace('_',' '))} · ${esc(NOME_ESTAGIO[s.estagio])}${
-          s.dono ? ' · ' + esc(s.dono) : ''}${
-          totPlano ? ` · ${pctPlano}% do plano` : ''}</div></div>
+          s.dono ? ' · ' + esc(s.dono) : ''}</div></div>
       <div class="push">
         ${dd('Estágio', 'estagio', ESTAGIOS.map(([v, t, d]) => ({ v, t, d })), s.estagio)}
-        <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button>
-        <button class="btn" data-act="aplicar">${ico('plus',15)}Aplicar plano</button></div></div>
+        <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button></div></div>
 
     ${abas}
-    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secAgenda}${secTime}${secPops}${secRegras}${secFluxo}${secPlano}${secDoc}${secConfig}`;
+    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secAgenda}${secTime}${secPops}${secRegras}${secFluxo}${secDoc}${secConfig}`;
 }
 
 /* Lê o arquivo .md de configuração do canal: linhas "campo: valor"
@@ -2775,14 +2725,11 @@ R.canais = {
     const permitidos = canaisDaArea();
     const ids = permitidos ? new Set(permitidos.map(c => c.id)) : null;
     canalCache.saude  = ids ? saude.filter(s => ids.has(s.id)) : saude;
-    canalCache.blocos = (await qOpcional('v_canal_bloco')) || [];
 
     if (canalSel && !canalCache.saude.some(s => s.id === canalSel)) canalSel = null;
 
     if (canalSel) {
-      const [itens, camps, rots, kpi, canalRow, agenda, prazos, time, pops] = await Promise.all([
-        q('acoes', x => x.eq('canal_id', canalSel).eq('recorrencia', 'nenhuma')
-                         .not('bloco', 'is', null).order('prazo', { nullsFirst: false })),
+      const [camps, rots, kpi, canalRow, agenda, prazos, time, pops] = await Promise.all([
         q('campanhas', x => x.eq('canal_id', canalSel).order('data_inicio', { ascending: false })),
         q('acoes', x => x.eq('canal_id', canalSel).neq('recorrencia', 'nenhuma').order('titulo')),
         qOpcional('v_financeiro_kpi', x => x.eq('canal_id', canalSel).order('periodo', { ascending: false }).limit(6)),
@@ -2802,7 +2749,7 @@ R.canais = {
           .eq('canal_id', canalSel).order('created_at')
           .then(r => r.error ? null : (r.data || []))
       ]);
-      canalCache.itens = itens; canalCache.camps = camps;
+      canalCache.camps = camps;
       canalCache.rots = rots;   canalCache.kpi = kpi || [];
       canalCache.canal = canalRow[0] || {};
       canalCache.agenda = agenda; canalCache.prazos = prazos;
@@ -2853,10 +2800,9 @@ R.canais = {
   acoes: {
     abrir(b) {
       if (canalArrastou) { canalArrastou = false; return; }
-      canalSel = b.dataset.id; canalAba = 'estrutura'; canalSecao = 'oquee'; canalPop = null; pinta();
+      canalSel = b.dataset.id; canalSecao = 'oquee'; canalPop = null; pinta();
     },
     voltar() { canalSel = null; canalPop = null; pinta(); },
-    aba(b)   { canalAba = b.dataset.v; pinta(); },
     secao(b) { canalSecao = b.dataset.v; canalPop = null; pinta(); },
 
     /* ── agenda do canal ─────────────────────────────────────────
@@ -2971,16 +2917,19 @@ R.canais = {
     },
 
     /* ── arquivos do canal ───────────────────────────────────────
-       Dois papéis, um botão: o HTML é a APRESENTAÇÃO (fica guardada
-       e aparece na aba Documento); o .md é a CONFIGURAÇÃO (preenche
-       os campos da ficha e não precisa ficar guardado — os campos
-       são o registro). Dá para anexar os dois de uma vez. O HTML
-       com bloco canal-config antigo continua funcionando. Em todos
-       os casos só os campos da lista de aplicaConfig entram, para um
-       arquivo não poder trocar nome, estágio ou dono por acidente. */
-    'doc-subir'() {
+       Dois papéis, dois botões (pedido de 25/08): o HTML é a
+       APRESENTAÇÃO (fica guardada e aparece na aba Documento); o .md
+       é a CONFIGURAÇÃO (preenche os campos da ficha e não precisa
+       ficar guardado — os campos são o registro). O HTML com bloco
+       canal-config antigo continua funcionando. Em todos os casos só
+       os campos da lista de aplicaConfig entram, para um arquivo não
+       poder trocar nome, estágio ou dono por acidente. */
+    'doc-apres'()  { R.canais.acoes['doc-subir']('.html,.htm,text/html'); },
+    'doc-config'() { R.canais.acoes['doc-subir']('.md,text/markdown'); },
+    'doc-subir'(accept) {
       const i = document.createElement('input');
-      i.type = 'file'; i.accept = '.html,.htm,.md,text/html,text/markdown';
+      i.type = 'file';
+      i.accept = typeof accept === 'string' ? accept : '.html,.htm,.md,text/html,text/markdown';
       i.multiple = true;
       i.onchange = async () => {
         const arquivos = [...i.files]; if (!arquivos.length) return;
@@ -3129,57 +3078,46 @@ R.canais = {
         () => R.canais.acoes.estagio({ dataset: { v: prox[0] } }), { perigo:false });
     },
 
-    async aplicar()       { await aplicaPlano(null); },
-    async 'aplicar-bloco'() { await aplicaPlano(canalAba); },
-
-    'novo-item'() {
-      const s = canalCache.saude.find(x => x.id === canalSel);
-      form(`Novo passo · ${NOME_BLOCO[canalAba]}`, [
-        { k:'titulo', label:'O que precisa existir', req:true,
-          ph:'Ex.: Definir quem lança o desconto no IXC' },
-        { k:'criterio', label:'Critério de pronto', type:'textarea',
-          ph:'O que demonstra que ficou pronto — não "já mexi nisso".',
-          hint:'Só marca quem consegue demonstrar funcionando.' },
-        { k:'responsavel_id', label:'Responsável', type:'select', opts:optUsuarios(),
-          value: s?.responsavel_id },
-        { k:'prazo', label:'Prazo', type:'date' }
-      ], d => grava('acoes', { ...d, tipo:'campanha', origem:'manual',
-                               canal_id: canalSel, bloco: canalAba }));
-    },
-    async 'editar-item'(b) {
-      const a = canalCache.itens.find(x => x.id === b.dataset.id); if (!a) return;
-      form('Editar passo', [
-        { k:'titulo', label:'O que precisa existir', req:true, value:a.titulo },
-        { k:'criterio', label:'Critério de pronto', type:'textarea', value:a.criterio },
-        { k:'prova', label:'Prova', value:a.prova, ph:'link, print, número',
-          hint:'Onde está a demonstração de que ficou pronto.' },
-        { k:'responsavel_id', label:'Responsável', type:'select', opts:optUsuarios(), value:a.responsavel_id },
-        { k:'prazo', label:'Prazo', type:'date', value:a.prazo },
-        { k:'urgente', type:'checkbox', label:'Urgente', cap:'Urgente — fura a fila do dia', value:a.urgente }
-      ], d => grava('acoes', d, a.id));
-    },
-
-    /* Concluir pede a prova antes. É fricção de propósito: sem ela o
-       critério de pronto vira enfeite e o checklist volta a ser
-       "acho que está feito". Dá para pular — mas conscientemente. */
-    async marcar(b) {
-      const a = canalCache.itens.find(x => x.id === b.dataset.id); if (!a) return;
-      if (a.status === 'concluida') {
-        if (await grava('acoes', { status:'aberta' }, a.id)) { toast('Passo reaberto.'); pinta(); }
-        return;
-      }
-      form('Marcar como pronto', [
-        { k:'prova', label:'Prova', value:a.prova, ph:'link, print, número…',
-          hint: a.criterio || 'O que demonstra que este passo ficou pronto.' }
-      ], async d => {
-        const ok = await grava('acoes', { prova:d.prova, status:'concluida' }, a.id);
-        if (ok) toast('Passo concluído.');
-        return ok;
-      }, 'Concluir');
-    },
-
     'nova-campanha'() { formCampanha({ canal_id: canalSel }); },
-    'nova-rotina'()   { R.acoes.acoes.modelo(); },
+    /* A rotina criada dentro do canal nasce presa a ele: sem seletor
+       de canal, e com a TAG do canal posta sozinha — é a tag que
+       separa estas tarefas das rotinas do resto do time na Rotina
+       semanal e no check do dia (pedido de 25/08). A ocorrência
+       gerada por gerar_acoes_do_dia herda canal_id e tags do modelo,
+       então a marca acompanha a tarefa. Editar continua no formulário
+       completo da Rotina semanal. */
+    'nova-rotina'() {
+      const s = canalCache.saude.find(x => x.id === canalSel); if (!s) return;
+      const tagCanal = s.nome.toLowerCase();
+      form(`Nova rotina · ${s.nome}`, [
+        { k:'titulo', label:'Título', req:true, ph:'Ex.: Rodar o ranking dos indicadores' },
+        { k:'descricao', label:'Descrição', type:'textarea' },
+        { k:'responsavel_id', label:'Responsável', type:'select', opts:optUsuarios(),
+          value:s.responsavel_id },
+        { k:'recorrencia', label:'Com que frequência', type:'select', value:'semanal', opts:[
+          { v:'diaria', t:'Todo dia' }, { v:'dias_uteis', t:'Dias úteis (seg–sex)' },
+          { v:'semanal', t:'Semanal' }, { v:'quinzenal', t:'Quinzenal' }, { v:'mensal', t:'Mensal' }] },
+        { k:'_dias', label:'Dias da semana', value:'1',
+          hint:'Só para "Semanal". 0=dom, 1=seg … 6=sáb, separados por vírgula.' },
+        { k:'recorrencia_dia_mes', label:'Dia do mês', type:'number',
+          hint:'Só para "Mensal". 1 a 31 — ajusta sozinho em mês curto.' },
+        { k:'recorrencia_inicio', label:'Início da contagem', type:'date', value:hoje(),
+          hint:'Só para "Quinzenal". Repete a cada 14 dias a partir daqui.' },
+        ...(cache.temHora ? [{ k:'hora', label:'Horário', type:'time',
+          hint:'Opcional. Ordena o dia na tela Rotina semanal.' }] : []),
+        ...(cache.temTags ? [{ k:'_tags', label:'Tags', value:tagCanal,
+          hint:`A tag "${tagCanal}" marca a rotina como deste canal — acrescente outras separando por vírgula.` }] : [])
+      ], d => {
+        if (cache.temTags) { d.tags = [...new Set([tagCanal, ...leTags(d._tags)])]; }
+        delete d._tags;
+        const dias = d._dias; delete d._dias;
+        d.recorrencia_dias = d.recorrencia === 'semanal'
+          ? String(dias || '').split(',').map(x => parseInt(x, 10)).filter(n => n >= 0 && n <= 6) : null;
+        if (d.recorrencia !== 'mensal')    d.recorrencia_dia_mes = null;
+        if (d.recorrencia !== 'quinzenal') d.recorrencia_inicio = null;
+        return grava('acoes', { ...d, tipo:'rotina', canal_id: canalSel });
+      }, 'Criar rotina');
+    },
     'ir-financeiro'() { vai('financeiro', area); }
   }
 };
@@ -3196,17 +3134,6 @@ async function mudaEstagio(id, v) {
       > ESTAGIOS.findIndex(e => e[0] === s.estagio)) {
     toast(`Avançou com o gate em aberto: ${s.gate.toLowerCase()}.`, { tipo:'info' });
   } else toast('Estágio atualizado.');
-  pinta();
-}
-
-/* Chamada única para os dois botões: o de cima traz o plano inteiro,
-   o do card traz só o bloco aberto. */
-async function aplicaPlano(bloco) {
-  const { data, error } = await sb.rpc('canal_aplicar_plano',
-    { p_canal: canalSel, p_bloco: bloco });
-  if (error) return toast(error.message, { tipo:'bad' });
-  toast(data ? `${data} passo(s) trazido(s) do modelo.` : 'O modelo já estava aplicado por aqui.',
-        { tipo: data ? 'ok' : 'info' });
   pinta();
 }
 
