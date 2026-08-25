@@ -2508,9 +2508,10 @@ function canalFicha(s) {
             <span class="num">${p.feito ? ico('check', 12) : p.n}</span>
             <div><b>Passo ${p.n} · ${p.t}</b><i>${p.feito ? 'feito' : p.t === 'Plano' ? 'trazer do modelo' : 'preencher'}</i></div>
           </button>`).join('')}</div>
-        <div class="cb sm2" style="padding-top:0">O caminho rápido: <b>baixe o arquivo padrão</b>, preencha
-          e <b>anexe de volta</b> — os passos se completam sozinhos. Ou clique em cada passo e preencha na mão.
-          Fechando os cinco, a ficha completa do canal abre no lugar deste guia.</div></div>
+        <div class="cb sm2" style="padding-top:0">O caminho rápido: <b>baixe o arquivo padrão (.md)</b>, preencha
+          e <b>anexe de volta</b> — os passos se completam sozinhos. Junto com ele dá para anexar a
+          <b>apresentação do canal em HTML</b>, que fica guardada na aba Documento. Ou clique em cada passo
+          e preencha na mão. Fechando os cinco, a ficha completa do canal abre no lugar deste guia.</div></div>
 
       ${c.doc_html ? `<div class="card"><div class="ch"><h3>Documento anexado</h3>
         <div class="push">
@@ -2571,10 +2572,9 @@ function canalFicha(s) {
             { act:'aplicar-bloco', label:'Trazer do modelo' })}</div>`}</div>`;
 
   /* O documento é o caminho preferido do Philipe para configurar o
-     canal: ele anexa um HTML (gerado fora, ex. pelo Claude) e vai só
-     trocando o arquivo. Se o HTML trouxer o bloco
-     <script type="application/json" id="canal-config">, os campos do
-     canal são preenchidos a partir dele no momento do anexo. */
+     canal: ele anexa a apresentação em HTML (gerada fora, ex. pelo
+     Claude) e um .md de configuração que preenche a ficha — ver
+     'doc-subir'. O HTML com bloco canal-config antigo também vale. */
   const secDoc = canalSecao !== 'doc' ? '' :
     (!('doc_html' in c)
       ? avisoSql('Falta a coluna <b>doc_html</b> em canais_venda.', 'sql/CORRECAO-19.sql')
@@ -2587,9 +2587,9 @@ function canalFicha(s) {
       <iframe class="quadro" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
         srcdoc="${esc(c.doc_html)}"></iframe></div>`
       : `<div class="card">${vazio('copy', 'Nenhum documento anexado',
-          'Anexe o HTML do canal (playbook, regras, plano). Se o arquivo tiver o bloco canal-config, ' +
-          'os campos da ficha são preenchidos automaticamente a partir dele.',
-          { act:'doc-subir', label:'Anexar arquivo HTML' })}</div>`);
+          'Anexe a apresentação do canal (HTML) e/ou o arquivo de configuração (.md) — pode ser os dois ' +
+          'de uma vez. O HTML fica guardado aqui; o .md preenche os campos da ficha automaticamente.',
+          { act:'doc-subir', label:'Anexar arquivo' })}</div>`);
 
   return `<div class="volta" data-act="voltar">${ico('arrowL',14)}Todos os canais</div>
     <div class="head">
@@ -2604,6 +2604,56 @@ function canalFicha(s) {
 
     ${abas}
     ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secRegras}${secFluxo}${secPlano}${secDoc}`;
+}
+
+/* Lê o arquivo .md de configuração do canal: linhas "campo: valor"
+   para números e data, seções "## Título" para os textos. Títulos
+   aceitos com ou sem acento; comentários <!-- --> são descartados,
+   então o modelo pode trazer dicas que não viram conteúdo. */
+function configDoMd(md) {
+  const cfg = {};
+  md = md.replace(/<!--[\s\S]*?-->/g, '');
+  const chave = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const MAPA = { publico:'publico', 'quem indica':'publico',
+                 mecanica:'mecanica', promessa:'mecanica', 'o que promete':'mecanica',
+                 regras:'regras', 'regras do jogo':'regras',
+                 fluxo:'fluxograma', fluxograma:'fluxograma',
+                 notas:'notas', nota:'notas' };
+  md.replace(/^[ \t]*(meta_30d|meta_90d|cac_alvo|data_abertura)[ \t]*:[ \t]*(\S.*)$/gim,
+    (tudo, k, v) => { cfg[k.toLowerCase()] = v.trim(); return tudo; });
+  const partes = md.split(/^##[ \t]+(.+)$/m);   // [antes, título, corpo, título, corpo…]
+  for (let n = 1; n < partes.length; n += 2) {
+    const campo = MAPA[chave(partes[n])];
+    if (!campo) continue;
+    let corpo = partes[n + 1]
+      .split('\n').filter(l => !/^[ \t]*(meta_30d|meta_90d|cac_alvo|data_abertura)[ \t]*:/i.test(l))
+      .join('\n').trim();
+    if (campo === 'fluxograma') corpo = corpo.split('\n')
+      .map(l => l.replace(/^[ \t]*(?:[-*]|\d+[.)])[ \t]*/, '').trim()).filter(Boolean).join('\n');
+    if (corpo) cfg[campo] = corpo;
+  }
+  return cfg;
+}
+
+/* Aplica uma configuração (vinda do .md ou do bloco canal-config em
+   JSON) sobre o patch. Só os campos desta lista entram; números
+   aceitam formato brasileiro ("R$ 1.091,67"). Devolve quantos
+   campos foram preenchidos. */
+function aplicaConfig(cfg, patch) {
+  let n = 0;
+  ['publico', 'mecanica', 'regras', 'fluxograma', 'notas'].forEach(k => {
+    if (typeof cfg[k] === 'string' && cfg[k].trim()) { patch[k] = cfg[k].trim(); n++; }
+  });
+  ['meta_30d', 'meta_90d', 'cac_alvo'].forEach(k => {
+    if (cfg[k] == null || String(cfg[k]).trim() === '') return;
+    let s = String(cfg[k]).replace(/[^\d.,-]/g, '');
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+    if (s !== '' && !isNaN(+s)) { patch[k] = +s; n++; }
+  });
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(cfg.data_abertura || '').trim())) {
+    patch.data_abertura = String(cfg.data_abertura).trim(); n++;
+  }
+  return n;
 }
 
 R.canais = {
@@ -2711,44 +2761,50 @@ R.canais = {
       if (c) formCampanha(c);
     },
 
-    /* ── documento HTML do canal ─────────────────────────────────
-       O arquivo é a fonte: anexou, a ficha obedece. O bloco opcional
-       <script type="application/json" id="canal-config"> preenche os
-       campos estruturados — só os desta lista, para um arquivo não
-       poder trocar nome, estágio ou dono por acidente. */
+    /* ── arquivos do canal ───────────────────────────────────────
+       Dois papéis, um botão: o HTML é a APRESENTAÇÃO (fica guardada
+       e aparece na aba Documento); o .md é a CONFIGURAÇÃO (preenche
+       os campos da ficha e não precisa ficar guardado — os campos
+       são o registro). Dá para anexar os dois de uma vez. O HTML
+       com bloco canal-config antigo continua funcionando. Em todos
+       os casos só os campos da lista de aplicaConfig entram, para um
+       arquivo não poder trocar nome, estágio ou dono por acidente. */
     'doc-subir'() {
       const i = document.createElement('input');
-      i.type = 'file'; i.accept = '.html,.htm,text/html';
-      i.onchange = () => {
-        const f = i.files[0]; if (!f) return;
-        if (f.size > 4 * 1024 * 1024) {
-          return toast('Arquivo acima de 4 MB. Provavelmente tem imagem em base64 — reduza antes.', { tipo:'bad' });
-        }
-        const fr = new FileReader();
-        fr.onerror = () => toast('Não deu para ler o arquivo.', { tipo:'bad' });
-        fr.onload = async () => {
-          const bruto = String(fr.result);
-          const patch = { doc_html: bruto };
-          let preenchidos = 0;
-          const m = bruto.match(/<script[^>]*id=["']canal-config["'][^>]*>([\s\S]*?)<\/script>/i);
-          if (m) {
-            try {
-              const cfg = JSON.parse(m[1]);
-              const TEXTO = ['publico', 'mecanica', 'regras', 'fluxograma', 'notas'];
-              const NUMERO = ['meta_30d', 'meta_90d', 'cac_alvo'];
-              TEXTO.forEach(k => { if (typeof cfg[k] === 'string' && cfg[k].trim()) { patch[k] = cfg[k]; preenchidos++; } });
-              NUMERO.forEach(k => { if (cfg[k] != null && !isNaN(+cfg[k])) { patch[k] = +cfg[k]; preenchidos++; } });
-              if (/^\d{4}-\d{2}-\d{2}$/.test(cfg.data_abertura || '')) { patch.data_abertura = cfg.data_abertura; preenchidos++; }
-            } catch { toast('O bloco canal-config existe mas não é JSON válido — anexei só o documento.', { tipo:'info' }); }
+      i.type = 'file'; i.accept = '.html,.htm,.md,text/html,text/markdown';
+      i.multiple = true;
+      i.onchange = async () => {
+        const arquivos = [...i.files]; if (!arquivos.length) return;
+        const patch = {};
+        let preenchidos = 0, temDoc = false;
+        for (const f of arquivos) {
+          if (f.size > 4 * 1024 * 1024) {
+            toast(`${f.name}: acima de 4 MB. Provavelmente tem imagem em base64 — reduza antes.`, { tipo:'bad' });
+            continue;
           }
-          const ok = await grava('canais_venda', patch, canalSel);
-          if (!ok) return;
-          await recarregaBase();
-          toast(preenchidos ? `Documento anexado e ${preenchidos} campo(s) preenchido(s) a partir dele.`
-                            : 'Documento anexado.');
-          pinta();
-        };
-        fr.readAsText(f, 'utf-8');
+          const bruto = await f.text().catch(() => null);
+          if (bruto == null) { toast(`Não deu para ler ${f.name}.`, { tipo:'bad' }); continue; }
+          if (/\.md$/i.test(f.name)) {
+            const n = aplicaConfig(configDoMd(bruto), patch);
+            if (!n) toast(`${f.name}: nenhum campo reconhecido — confira os títulos das seções.`, { tipo:'info' });
+            preenchidos += n;
+          } else {
+            patch.doc_html = bruto; temDoc = true;
+            const m = bruto.match(/<script[^>]*id=["']canal-config["'][^>]*>([\s\S]*?)<\/script>/i);
+            if (m) {
+              try { preenchidos += aplicaConfig(JSON.parse(m[1]), patch); }
+              catch { toast('O bloco canal-config existe mas não é JSON válido — anexei só o documento.', { tipo:'info' }); }
+            }
+          }
+        }
+        if (!Object.keys(patch).length) return;
+        const ok = await grava('canais_venda', patch, canalSel);
+        if (!ok) return;
+        await recarregaBase();
+        toast([temDoc ? 'Apresentação anexada' : '',
+               preenchidos ? `${preenchidos} campo(s) preenchido(s)` : '']
+              .filter(Boolean).join(' e ') + '.');
+        pinta();
       };
       i.click();
     },
@@ -2764,78 +2820,59 @@ R.canais = {
           if (await grava('canais_venda', { doc_html: null }, canalSel)) { toast('Documento removido.'); pinta(); }
         });
     },
-    /* Arquivo padrão em branco: baixa um HTML com o bloco canal-config
-       vazio, só para preencher e anexar de volta. Gerado aqui mesmo
-       para nunca depender de rede nem sair de sincronia com o parser. */
+    /* Arquivo padrão em branco: baixa o .md de configuração para
+       preencher e anexar de volta. Gerado aqui mesmo para nunca
+       depender de rede nem sair de sincronia com o parser. As dicas
+       vão em comentários <!-- --> porque configDoMd os descarta —
+       o que o Philipe não trocar não vira conteúdo por engano. */
     'doc-modelo'() {
       const s = canalSel && canalCache.saude.find(x => x.id === canalSel);
       const nome = s?.nome || 'Canal';
       const tpl = [
-        '<!doctype html>',
-        '<html lang="pt-BR">',
-        '<head>',
-        '<meta charset="utf-8">',
-        '<meta name="viewport" content="width=device-width,initial-scale=1">',
-        '<title>' + nome + ' — Documento do canal</title>',
+        '# ' + nome + ' — Configuração do canal',
         '',
-        '<!-- ==========================================================',
-        '     PREENCHA este bloco e anexe o arquivo no canal: a ficha',
-        '     do sistema se preenche sozinha. Campos aceitos: publico,',
-        '     mecanica, regras, fluxograma, notas, meta_30d, meta_90d,',
-        '     cac_alvo, data_abertura (AAAA-MM-DD).',
-        '     ========================================================== -->',
-        '<script type="application/json" id="canal-config">',
-        '{',
-        '  "publico": "",',
-        '  "mecanica": "",',
-        '  "meta_30d": null,',
-        '  "meta_90d": null,',
-        '  "cac_alvo": null,',
-        '  "data_abertura": "",',
-        '  "regras": "",',
-        '  "fluxograma": "",',
-        '  "notas": ""',
-        '}',
-        '<\/script>',
+        '<!-- Preencha e anexe este arquivo no canal: a ficha do sistema',
+        '     se preenche sozinha. Os números ficam nas linhas abaixo',
+        '     (só o valor, depois dos dois-pontos); os textos, cada um',
+        '     na sua seção. O que ficar em branco não é alterado, e as',
+        '     dicas entre <' + '!-- --> são ignoradas pelo sistema. -->',
         '',
-        '<style>',
-        '  :root{--laranja:#F76602;--fundo:#0f1115;--card:#171a21;--linha:#262b36;--texto:#e8eaf0;--dim:#8b93a5}',
-        '  *{margin:0;padding:0;box-sizing:border-box}',
-        '  body{background:var(--fundo);color:var(--texto);font:15px/1.65 system-ui,Segoe UI,sans-serif;padding:40px 20px}',
-        '  main{max-width:860px;margin:0 auto}',
-        '  h1{font-size:30px;line-height:1.2;margin-bottom:6px}',
-        '  h1 span{color:var(--laranja)}',
-        '  .sub{color:var(--dim);margin-bottom:34px}',
-        '  h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--laranja);margin:34px 0 12px}',
-        '  .card{background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:20px 22px;margin-bottom:12px}',
-        '  .dica{color:var(--dim);font-style:italic}',
-        '</style>',
-        '</head>',
-        '<body>',
-        '<main>',
-        '  <h1>' + nome + ' <span>— Documento do canal</span></h1>',
-        '  <p class="sub">Troque cada bloco pelo conteúdo real do canal. O bloco canal-config no topo do arquivo é o que preenche a ficha do sistema.</p>',
-        '  <h2>O que é</h2>',
-        '  <div class="card"><p class="dica">Quem indica / de onde vem o lead, e o que o canal promete.</p></div>',
-        '  <h2>Meta</h2>',
-        '  <div class="card"><p class="dica">Meta 30 dias, meta 90 dias e CAC-alvo.</p></div>',
-        '  <h2>Regras do jogo</h2>',
-        '  <div class="card"><p class="dica">Comissão, quem participa, SLA, o que desclassifica.</p></div>',
-        '  <h2>Fluxo — da indicação à ativação</h2>',
-        '  <div class="card"><p class="dica">Uma etapa por linha, na ordem em que acontecem.</p></div>',
-        '  <h2>Notas</h2>',
-        '  <div class="card"><p class="dica">Histórico, decisões e aprendizados.</p></div>',
-        '</main>',
-        '</body>',
-        '</html>'
+        'meta_30d: ',
+        'meta_90d: ',
+        'cac_alvo: ',
+        'data_abertura: ',
+        '',
+        '<!-- data_abertura no formato AAAA-MM-DD -->',
+        '',
+        '## Público',
+        '',
+        '<!-- Quem indica / de onde vem o lead. Com tamanho, não com adjetivo. -->',
+        '',
+        '## Mecânica',
+        '',
+        '<!-- O que o canal promete, numa frase que o indicador entende',
+        '     sem ler o regulamento. -->',
+        '',
+        '## Regras',
+        '',
+        '<!-- Comissão, quem participa, SLA de contato, o que desclassifica. -->',
+        '',
+        '## Fluxograma',
+        '',
+        '<!-- Uma etapa por linha, na ordem em que acontecem. -->',
+        '',
+        '## Notas',
+        '',
+        '<!-- Histórico, decisões e aprendizados. -->',
+        ''
       ].join('\n');
-      const arquivo = nome.toLowerCase().normalize('NFD').replace(/[undefined-undefined]/g, '')
+      const arquivo = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'canal';
-      const url = URL.createObjectURL(new Blob([tpl], { type: 'text/html' }));
+      const url = URL.createObjectURL(new Blob([tpl], { type: 'text/markdown' }));
       const a = document.createElement('a');
-      a.href = url; a.download = `canal-${arquivo}.html`; a.click();
+      a.href = url; a.download = `canal-${arquivo}.md`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-      toast('Arquivo padrão baixado. Preencha e anexe de volta no canal.');
+      toast('Arquivo padrão (.md) baixado. Preencha e anexe de volta no canal.');
     },
     'editar-rotina'(b) { R.rotinaSemanal.acoes['editar-rotina'](b); },
 
