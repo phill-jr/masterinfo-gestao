@@ -2243,7 +2243,7 @@ const NOME_ESTAGIO = Object.fromEntries(ESTAGIOS.map(([v, t]) => [v, t]));
 let canalSel = null, canalSecao = 'oquee';
 let canalPop = null;         // POP aberto dentro da aba POPs
 let canalArrastou = false;   // suprime o clique que sobra depois do arrasto
-const canalCache = { saude: [], camps: [], rots: [], kpi: [], canal: {},
+const canalCache = { saude: [], rots: [], kpi: [], canal: {},
                      agenda: [], prazos: [], time: null, pops: null, popAberto: null };
 
 /* Configuração do canal em 4 passos — as mesmas seções da ficha.
@@ -2277,7 +2277,6 @@ function cartaoCanal(s) {
       ${s.estagio === 'operacao' || s.estagio === 'escala'
         ? (+s.rotinas ? `<span class="pill ok">${s.rotinas} rotina${+s.rotinas > 1 ? 's' : ''}</span>`
                       : '<span class="pill warn">sem rotina</span>') : ''}
-      ${+s.campanhas_ativas ? `<span class="pill info">${s.campanhas_ativas} no ar</span>` : ''}
       ${s.gate_ok && s.estagio !== 'escala' && s.estagio !== 'encerrado'
         ? '<span class="pill ok">gate cumprido</span>' : ''}
     </div></div>`;
@@ -2289,7 +2288,7 @@ function canalPipeline(cs) {
   const semConfig = cs.filter(c => c.estagio !== 'encerrado'
     && passosConfig(c.id).some(p => !p.feito)).length;
   const semMotor = cs.filter(c =>
-    (c.estagio === 'operacao' || c.estagio === 'escala') && (!+c.rotinas || !+c.campanhas_ativas)).length;
+    (c.estagio === 'operacao' || c.estagio === 'escala') && !+c.rotinas).length;
 
   const coluna = ([v, t, d]) => {
     const meus = cs.filter(c => c.estagio === v);
@@ -2317,8 +2316,8 @@ function canalPipeline(cs) {
         <div class="n">${semConfig}</div><div class="l">Sem configuração</div>
         <div class="h">faltando algum dos 4 passos</div></div>
       <div class="tile ${semMotor ? 'warn' : ''}"><div class="ic">${ico('refresh',18)}</div>
-        <div class="n">${semMotor}</div><div class="l">Operando sem motor</div>
-        <div class="h">sem rotina ou sem campanha</div></div>
+        <div class="n">${semMotor}</div><div class="l">Operando sem rotina</div>
+        <div class="h">canal vivo sem rotina viva</div></div>
     </div>
 
     <div class="pipe">${ESTAGIOS.map(coluna).join('')}</div>
@@ -2326,9 +2325,9 @@ function canalPipeline(cs) {
     <div class="card"><div class="cb"><p class="sm2">
       Canal que fica parado numa coluna não é canal devagar — é canal sem dono ou sem gate cumprido.
       Clique nele para ver o que trava. Lançar e parar de comunicar é o jeito mais comum de matar um canal:
-      é por isso que <b>campanha e rotina moram no mesmo bloco</b>.</p></div></div>`
+      é por isso que o gate de operação cobra <b>rotina viva</b>. As campanhas são do setor, na tela Campanhas.</p></div></div>`
     : `<div class="card">${vazio('target', 'Nenhum canal cadastrado',
-        'Cadastre os canais que você opera de verdade: é o que faz meta, campanha e rotina terem de onde vir.',
+        'Cadastre os canais que você opera de verdade: é o que faz meta, rotina e agenda terem de onde vir.',
         { act:'novo', label:'Adicionar canal' })}</div>`}`;
 }
 
@@ -2368,33 +2367,10 @@ function canalFicha(s) {
 
   /* Engajamento é campanha E rotina lado a lado: sem isso, "lançar e
      parar de comunicar" não aparece na tela. */
-  const motor = canalSecao !== 'engajamento' ? '' : `
-    <div class="card"><div class="ch"><h3>Campanhas do canal</h3>
-      <span class="pill dim">${canalCache.camps.length}</span>
-      <div class="push"><button class="btn sm ghost" data-act="nova-campanha">${ico('plus',13)}Nova</button></div></div>
-      ${canalCache.camps.length ? canalCache.camps.map(c => `<div class="row">
-        <div class="g"><div class="t">${esc(c.nome)}</div>
-          <div class="m">${dt(c.data_inicio)} — ${c.data_fim ? dt(c.data_fim) : 'sem fim'}${
-            c.objetivo ? ' · ' + esc(c.objetivo) : ''}</div></div>
-        <span class="pill ${c.status === 'ativa' ? 'ok' : c.status === 'planejada' ? 'info'
-          : c.status === 'pausada' ? 'warn' : 'dim'}">${esc(c.status)}</span>
-        <button class="ib" data-act="editar-campanha" data-id="${c.id}" title="Editar">${ico('edit', 15)}</button></div>`).join('')
-      : `<div class="cb">${vazio('zap', 'Nenhuma campanha neste canal',
-          'Campanha é o pico. Sem pelo menos duas por ciclo, o canal vive só do lançamento.',
-          { act:'nova-campanha', label:'Nova campanha' })}</div>`}</div>
-
-    <div class="card"><div class="ch"><h3>Rotina do canal</h3>
-      <span class="pill dim">${canalCache.rots.length}</span>
-      <div class="push"><button class="btn sm ghost" data-act="nova-rotina">${ico('plus',13)}Nova rotina</button></div></div>
-      ${canalCache.rots.length ? canalCache.rots.map(r => `<div class="row rotina">
-        <div class="g"><div class="t">${esc(r.titulo)}</div>
-          <div class="m">${esc(r.recorrencia)} · ${esc(r.responsavel_id ? nomeUser(r.responsavel_id) : 'sem dono')}</div></div>
-        <span class="pill ${r.status === 'aberta' ? 'ok' : 'dim'}">${esc(r.status)}</span>
-        <button class="ib" data-act="editar-rotina" data-id="${r.id}" title="Editar">${ico('edit', 15)}</button></div>`).join('')
-      : `<div class="cb">${vazio('refresh', 'Nenhuma rotina neste canal',
-          'Campanha morre no dia do fim. Rotina é o que mantém o canal vivo entre uma e outra — ranking, lembrete, cobrança do SLA.',
-          { act:'nova-rotina', label:'Criar rotina' })}</div>`}</div>`;
-
+  /* A aba Engajamento morreu em 25/08: campanha virou coisa do SETOR
+     (CORRECAO-24, tela Campanhas) e a rotina do canal mora na aba
+     Agenda. O motor do canal agora é a rotina viva — é ela que o gate
+     de operação cobra. */
   const medicao = canalSecao !== 'meta' ? '' : `
     <div class="card"><div class="ch"><h3>Custo e retorno</h3>
       <div class="push"><button class="btn sm ghost" data-act="ir-financeiro">${ico('money',13)}Lançar mês</button></div></div>
@@ -2443,7 +2419,6 @@ function canalFicha(s) {
   const SECOES = [
     ['oquee',       'O que é',    'book',    s.publico || s.mecanica ? 'definido' : 'a definir'],
     ['meta',        'Meta',       'chart',   s.meta_30d != null ? `${s.meta_30d} em 30d` : 'a definir'],
-    ['engajamento', 'Engajamento','refresh', `${canalCache.camps.length} campanha(s) · ${canalCache.rots.length} rotina(s)`],
     ['agenda',      'Agenda',     'cal',     canalCache.rots.length || canalCache.agenda.length
                                                ? `${canalCache.rots.length} rotina(s) · ${canalCache.agenda.length} com hora` : 'a montar'],
     ['time',        'Time',       'users',   canalCache.time === null ? 'rodar o SQL' : nTime ? `${nTime} pessoa(s)` : 'sem time'],
@@ -2663,7 +2638,7 @@ function canalFicha(s) {
         <button class="btn ghost" data-act="editar-canal">${ico('edit',15)}Editar canal</button></div></div>
 
     ${abas}
-    ${secOquee}${secMeta}${canalSecao === 'engajamento' ? motor : ''}${secAgenda}${secTime}${secPops}${secRegras}${secFluxo}${secDoc}${secConfig}`;
+    ${secOquee}${secMeta}${secAgenda}${secTime}${secPops}${secRegras}${secFluxo}${secDoc}${secConfig}`;
 }
 
 /* Lê o arquivo .md de configuração do canal: linhas "campo: valor"
@@ -2729,8 +2704,7 @@ R.canais = {
     if (canalSel && !canalCache.saude.some(s => s.id === canalSel)) canalSel = null;
 
     if (canalSel) {
-      const [camps, rots, kpi, canalRow, agenda, prazos, time, pops] = await Promise.all([
-        q('campanhas', x => x.eq('canal_id', canalSel).order('data_inicio', { ascending: false })),
+      const [rots, kpi, canalRow, agenda, prazos, time, pops] = await Promise.all([
         q('acoes', x => x.eq('canal_id', canalSel).neq('recorrencia', 'nenhuma').order('titulo')),
         qOpcional('v_financeiro_kpi', x => x.eq('canal_id', canalSel).order('periodo', { ascending: false }).limit(6)),
         // A linha crua do canal: regras, fluxograma e notas não passam pela view de saúde
@@ -2749,7 +2723,6 @@ R.canais = {
           .eq('canal_id', canalSel).order('created_at')
           .then(r => r.error ? null : (r.data || []))
       ]);
-      canalCache.camps = camps;
       canalCache.rots = rots;   canalCache.kpi = kpi || [];
       canalCache.canal = canalRow[0] || {};
       canalCache.agenda = agenda; canalCache.prazos = prazos;
@@ -2911,11 +2884,6 @@ R.canais = {
       ], async d => { const ok = await grava('canais_venda', d, canalSel); if (ok) await recarregaBase(); return ok; },
       'Salvar meta');
     },
-    'editar-campanha'(b) {
-      const c = canalCache.camps.find(x => x.id === b.dataset.id);
-      if (c) formCampanha(c);
-    },
-
     /* ── arquivos do canal ───────────────────────────────────────
        Dois papéis, dois botões (pedido de 25/08): o HTML é a
        APRESENTAÇÃO (fica guardada e aparece na aba Documento); o .md
@@ -3078,7 +3046,6 @@ R.canais = {
         () => R.canais.acoes.estagio({ dataset: { v: prox[0] } }), { perigo:false });
     },
 
-    'nova-campanha'() { formCampanha({ canal_id: canalSel }); },
     /* A rotina criada dentro do canal nasce presa a ele: sem seletor
        de canal, e com a TAG do canal posta sozinha — é a tag que
        separa estas tarefas das rotinas do resto do time na Rotina
@@ -3138,18 +3105,32 @@ async function mudaEstagio(id, v) {
 }
 
 /* ───────────────────────── CAMPANHAS ───────────────────────── */
+/* Campanha é do SETOR, não do canal (pedido de 25/08): "campanha do
+   setor Comercial". O canal fica com rotina e agenda; a campanha é o
+   pico que o setor inteiro empurra. A coluna canal_id continua no
+   banco por histórico, mas a tela não a escreve mais. */
 R.campanhas = {
   label: 'Campanhas', curto: 'Campanhas', icone: 'target', titulo: 'Campanhas',
-  async dados() { return { cs: porCanalId(await q('campanhas', x => x.order('data_inicio', { ascending: false }))) }; },
+  filtro: { setor: '' },
+  async dados() { return { cs: await q('campanhas', x => x.order('data_inicio', { ascending: false })) }; },
   render({ cs }) {
     const cor = { ativa:'ok', planejada:'info', pausada:'warn', encerrada:'dim' };
+    const f = R.campanhas.filtro;
+    if (f.setor && !cache.setores.some(s => s.id === f.setor)) f.setor = '';
+    const vis = f.setor ? cs.filter(c => c.setor_id === f.setor) : cs;
+    // Legado: campanha antiga só com canal mostra o canal, entre parênteses
+    const dona = c => c.setor_id ? nomeSetor(c.setor_id)
+      : c.canal_id ? `(${nomeCanal(c.canal_id)})` : '—';
     return `<div class="head"><div><h2>Campanhas</h2>
-        <div class="sub">O que está no ar agora, e o que já saiu.</div></div>
-        <div class="push"><button class="btn" data-act="nova">${ico('plus',15)}Nova campanha</button></div></div>
-      <div class="card">${cs.length ? `<div class="t-scroll"><table><thead><tr>
-        <th>Campanha</th><th>Canal</th><th>Objetivo</th><th>Período</th><th class="num">Previsto</th><th>Status</th><th></th>
-      </tr></thead><tbody>${cs.map(c => `<tr>
-        <td><b>${esc(c.nome)}</b></td><td>${esc(nomeCanal(c.canal_id))}</td>
+        <div class="sub">Uma campanha por setor — o que o Comercial ou o Marketing está empurrando agora.</div></div>
+        <div class="push">
+          ${cache.temSetores ? dd('Setor', 'filtro', [{ v:'', t:'Todos os setores' },
+            ...cache.setores.filter(s => s.ativo).map(s => ({ v:s.id, t:s.nome }))], f.setor) : ''}
+          <button class="btn" data-act="nova">${ico('plus',15)}Nova campanha</button></div></div>
+      <div class="card">${vis.length ? `<div class="t-scroll"><table><thead><tr>
+        <th>Campanha</th><th>Setor</th><th>Objetivo</th><th>Período</th><th class="num">Previsto</th><th>Status</th><th></th>
+      </tr></thead><tbody>${vis.map(c => `<tr>
+        <td><b>${esc(c.nome)}</b></td><td>${esc(dona(c))}</td>
         <td class="mut" style="max-width:280px">${esc(c.objetivo || '—')}</td>
         <td class="mut">${dt(c.data_inicio)} → ${dt(c.data_fim)}</td>
         <td class="num">${brl(c.investimento_previsto)}</td>
@@ -3157,10 +3138,12 @@ R.campanhas = {
         <td class="act"><button class="btn sm ghost" data-act="editar" data-id="${c.id}">${ico('edit',13)}</button>
           <button class="btn sm ghost" data-act="excluir" data-id="${c.id}" data-t="${esc(c.nome)}">${ico('trash',13)}</button></td>
       </tr>`).join('')}</tbody></table></div>`
-      : vazio('target', 'Nenhuma campanha', 'Cadastre o que está no ar para amarrar as rotinas diárias a um objetivo.',
+      : vazio('target', f.setor ? 'Nenhuma campanha deste setor' : 'Nenhuma campanha',
+          'Cadastre o que o setor está empurrando — é o que amarra as rotinas diárias a um objetivo.',
           { act:'nova', label:'Nova campanha' })}</div>`;
   },
   acoes: {
+    filtro(b) { R.campanhas.filtro.setor = b.dataset.v; pinta(); },
     nova: () => formCampanha(),
     async editar(b) { const [r] = await q('campanhas', x => x.eq('id', b.dataset.id)); if (r) formCampanha(r); },
     excluir(b) { confirma('Excluir campanha', `"${esc(b.dataset.t)}" será removida.`, () => apaga('campanhas', b.dataset.id)); }
@@ -3168,8 +3151,9 @@ R.campanhas = {
 };
 function formCampanha(row) {
   form(row?.id ? 'Editar campanha' : 'Nova campanha', [
-    { k:'nome', label:'Nome', req:true, value:row?.nome },
-    { k:'canal_id', label:'Canal', type:'select', value:row?.canal_id, opts:optCanais() },
+    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Campanha de indicação — setembro' },
+    ...(cache.temSetores ? [{ k:'setor_id', label:'Setor', type:'select', value:row?.setor_id, opts:optSetores(),
+      hint:'A campanha é do setor, não do canal — ex.: campanha do Comercial.' }] : []),
     { k:'objetivo', label:'Objetivo', type:'textarea', value:row?.objetivo, ph:'O que essa campanha precisa entregar?' },
     { k:'status', label:'Status', type:'select', value:row?.status || 'planejada', opts:[
       { v:'planejada', t:'Planejada' }, { v:'ativa', t:'Ativa' },
