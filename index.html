@@ -883,6 +883,8 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .semana .k.feito{opacity:.55}
 .semana .k.feito .t{text-decoration:line-through;color:var(--dim)}
 .semana .k.prev{border-style:dashed;background:transparent;opacity:.75}
+.semana .k.drag,.pendsem .k.drag{opacity:.45}
+.semana .col.sobre,.pendsem.sobre{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-bg)}
 .semana .col .btn.bl{width:100%;justify-content:center;margin-top:5px}
 /* Excluir mora no cartão, mas só aparece quando o mouse chega nele —
    sete colunas de lixeiras acesas viram ruído. */
@@ -2014,6 +2016,7 @@ function formAcao(row) {
 }
 
 /* ───────────────────────── AÇÕES ───────────────────────── */
+let semArrastou = false;   // clique residual do arrasto não abre o editor
 const DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
 const INICIAL_DIA = ['D','S','T','Q','Q','S','S'];
 // A semana começa na segunda, como a pessoa pensa a rotina de trabalho
@@ -4283,7 +4286,7 @@ R.rotinaSemanal = {
         const ok = lst.filter(a => a.status === 'concluida').length;
         const dow = new Date(d + 'T12:00:00').getDay();
         const prev = lst.length ? [] : prevBloco(d);
-        return `<div class="col ${d === hoje() ? 'hoje' : ''} ${dow === 0 || dow === 6 ? 'fds' : ''}">
+        return `<div class="col ${d === hoje() ? 'hoje' : ''} ${dow === 0 || dow === 6 ? 'fds' : ''}" data-dia="${d}">
           <h4 data-act="abrir-dia" data-d="${d}" style="cursor:pointer" title="Abrir este dia">
             ${NOME_DIA[dow].slice(0, 3)} ${dt(d)}
             ${d === hoje() ? '<span class="agora">hoje</span>' : ''}
@@ -4594,6 +4597,48 @@ R.rotinaSemanal = {
           ${m.hora ? `<span class="pill dim">${hm(m.hora)}</span>` : ''}</div>`).join('')}
       </div>` : '');
   },
+
+  /* ── arrastar tarefas entre os dias ─────────────────────────────
+     O cartão é um card de verdade: pega e solta noutro bloco para
+     mudar o dia (prazo). Soltar na faixa de pendências tira o dia —
+     vira pendência da semana aberta. Previsões tracejadas não
+     arrastam: ainda não são tarefas. */
+  pos() {
+    if (R.rotinaSemanal.filtro.vista !== 'semana') return;
+    let drag = null;
+    $$('.semana .k.tarefa, .pendsem .k.tarefa').forEach(k => {
+      if (k.classList.contains('prev')) return;
+      k.draggable = true;
+      k.ondragstart = e => { drag = k; semArrastou = false; k.classList.add('drag');
+        e.dataTransfer.effectAllowed = 'move'; };
+      k.ondragend = () => { k.classList.remove('drag'); drag = null; };
+    });
+    $$('.semana .col[data-dia]').forEach(c => {
+      c.ondragover = e => { e.preventDefault(); if (drag) c.classList.add('sobre'); };
+      c.ondragleave = () => c.classList.remove('sobre');
+      c.ondrop = async e => {
+        e.preventDefault(); c.classList.remove('sobre');
+        if (!drag) return;
+        semArrastou = true;
+        const id = drag.dataset.id; drag = null;
+        if (await grava('acoes', { prazo: c.dataset.dia, semana_de: null }, id)) pinta();
+      };
+    });
+    const faixa = $('.pendsem');
+    if (faixa && cache.temSemana) {
+      faixa.ondragover = e => { e.preventDefault(); if (drag) faixa.classList.add('sobre'); };
+      faixa.ondragleave = () => faixa.classList.remove('sobre');
+      faixa.ondrop = async e => {
+        e.preventDefault(); faixa.classList.remove('sobre');
+        if (!drag) return;
+        semArrastou = true;
+        const id = drag.dataset.id; drag = null;
+        const alvo = R.rotinaSemanal.filtro.semana || seg();
+        if (await grava('acoes', { prazo: null, hora: null, semana_de: alvo }, id)) pinta();
+      };
+    }
+  },
+
   acoes: {
     /* ── filtros e navegação ─────────────────────────────────── */
     vista(b)   { R.rotinaSemanal.filtro.vista = b.dataset.v; pinta(); },
@@ -4627,6 +4672,7 @@ R.rotinaSemanal = {
     'nova-no-dia'(b) { formPontual(b.dataset.d); },
     'nova-pendencia'() { formPendencia(R.rotinaSemanal.filtro.semana || seg()); },
     async 'editar-pendencia'(b) {
+      if (semArrastou) { semArrastou = false; return; }
       const [a] = await q('acoes', x => x.eq('id', b.dataset.id));
       if (a) formPendencia(a.semana_de, a);
     },
@@ -4688,6 +4734,7 @@ R.rotinaSemanal = {
        Trocar a data move a tarefa de bloco, que é como se remaneja a
        semana sem desfazer a rotina que a gerou. */
     async 'editar-tarefa'(b) {
+      if (semArrastou) { semArrastou = false; return; }
       const [a] = await q('acoes', x => x.eq('id', b.dataset.id));
       if (!a) return;
       form(`Tarefa · ${a.titulo}`, [
