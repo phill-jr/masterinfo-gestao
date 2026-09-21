@@ -958,6 +958,7 @@ function render(){
   document.getElementById('conta').textContent=(atual+1)+'/'+SLIDES.length;
   document.getElementById('chipJan').textContent=rotuloMes(MESES[0])+' · dias '+JAN.de+'–'+JAN.ate;
   document.getElementById('falaTxt').innerHTML=fala||'—';
+  marcarHash();
   const p=document.getElementById('pontos');
   p.innerHTML=SLIDES.map((_,i)=>`<button class="pt" data-i="${i}" aria-current="${i===atual}"
     aria-label="Slide ${i+1}"></button>`).join('');
@@ -975,6 +976,24 @@ function escala(){
   stage.style.transform='scale('+(caixa.clientWidth/1280)+')';
 }
 const vai=d=>{ atual=Math.max(0,Math.min(SLIDES.length-1,atual+d)); render(); };
+
+/* #slide-N na URL: mesma convencao do painel semanal, da para mandar o link
+   de um slide especifico. Dentro do artifact o hash pode nao aparecer na barra
+   de enderecos; no arquivo solto funciona inteiro. */
+function marcarHash(){
+  try{ const alvo='#slide-'+(atual+1);
+    if(location.hash!==alvo) history.replaceState(null,'',alvo);
+  }catch(e){}
+}
+function lerHash(){
+  try{ const m=String(location.hash||'').match(/^#slide-(\d+)$/);
+    if(!m) return false;
+    const i=Math.max(0,Math.min(SLIDES.length-1,parseInt(m[1],10)-1));
+    if(i===atual) return false;
+    atual=i; return true;
+  }catch(e){ return false; }
+}
+window.addEventListener('hashchange',()=>{ if(lerHash()) render(); });
 
 /* ═══════════════ painel ═══════════════ */
 const CAMPOS=[['faturamento','Faturamento (R$)'],['vendas','Vendas realizadas'],
@@ -994,6 +1013,51 @@ const linhas=(t,cs)=>String(t||'').split('\n').map(l=>l.trim()).filter(Boolean).
 const paraTexto=(a,cs)=>(a||[]).map(o=>cs.map(c=>{
   const v=o[c]; return (v==null)?'':String(v).replace('.',',');}).join('; ')).join('\n');
 
+/* Le o bloco do MANUAL-DADOS.md: CHAVE: valor, e secoes com uma linha por item.
+   Tolerante de proposito — linha vazia, acento, ';' ou tabulacao, tudo passa. */
+const ESCALARES={FATURAMENTO:'faturamento',VENDAS:'vendas',CANCELAMENTOS:'cancelamentos',
+  PERDIDOS:'cancelamentosPre',BASE:'baseAtiva',TICKET:'ticket',INVESTIMENTO:'investimento',
+  CICLO:'cicloDias',ATIVACAO:'ativacaoDias'};
+const LISTAS={BAIRROS:['nome','casas','ativos','vendas','invCob','invAna'],
+  PLANOS:['nome','vendas','valor'],CANAIS:['nome','investimento','leads','vendas'],
+  VENDEDORES:['nome','leads','vendas','ciclo']};
+const semAcento=t=>String(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+
+function lerBloco(txt){
+  const d={funil:{},bairros:[],planos:[],canais:[],vendedores:[],decisoes:[]};
+  let mes=null, secao=null, achou=0;
+  String(txt||'').split('\n').forEach(bruta=>{
+    const l=bruta.trim(); if(!l) return;
+    const m=l.match(/^([A-Za-zÀ-ÿ_]+)\s*:\s*(.*)$/);
+    if(m){
+      const chave=semAcento(m[1]), val=m[2].trim();
+      if(chave==='MES'){ mes=val||null; secao=null; return; }
+      if(ESCALARES[chave]){ if(val!==''){ d[ESCALARES[chave]]=paraNum(val); achou++; } secao=null; return; }
+      if(chave==='FUNIL'){
+        const p=val.split(/\t|;/).map(x=>x.trim());
+        ['leads','atendidos','viaveis','propostas','vendas'].forEach((k,i)=>{
+          if(p[i]!==undefined&&p[i]!=='') { d.funil[k]=paraNum(p[i]); achou++; }});
+        secao=null; return;
+      }
+      if(LISTAS[chave]||chave==='DECISOES'){ secao=chave; if(val==='') return; bruta=val; }
+      else { secao=null; return; }
+    }
+    if(!secao) return;
+    const linha=(m?bruta:l).trim(); if(!linha) return;
+    const p=linha.split(/\t|;/).map(x=>x.trim());
+    if(!p[0]) return;
+    /* a linha-modelo do manual nao e dado */
+    if(/^(nome|o que fazer)$/i.test(p[0])) return;
+    if(secao==='DECISOES'){ d.decisoes.push({oque:p[0],quem:p[1]||'',prazo:p[2]||'',ind:p[3]||''}); }
+    else { const cs=LISTAS[secao], o={};
+      cs.forEach((c,i)=>{ o[c]= i===0 ? p[0] : paraNum(p[i]); }); d[secao.toLowerCase()==='bairros'?'bairros'
+      :secao==='PLANOS'?'planos':secao==='CANAIS'?'canais':'vendedores'].push(o); }
+    achou++;
+  });
+  d.decisoes=d.decisoes.slice(0,3);
+  return {mes,d,achou};
+}
+
 function abrirPainel(){
   const d=store[mesEdit]||{}, f=d.funil||{};
   document.getElementById('formCorpo').innerHTML=`
@@ -1002,6 +1066,20 @@ function abrirPainel(){
         ${rotuloMes(m)}${m===MESES[0]?' — referência':''}</option>`).join('')}</select>
       <span class="dica">Sempre os dias ${JAN.de} a ${JAN.ate}. Preencha os quatro meses para as
       comparações e o slide 10 funcionarem.</span></div>
+    <fieldset><legend>Colar tudo de uma vez</legend>
+      <div class="campo"><label for="t_bloco">Bloco do MANUAL-DADOS.md</label>
+        <textarea id="t_bloco" spellcheck="false" placeholder="MES: ${MESES[0]}
+FATURAMENTO:
+VENDAS:
+FUNIL: leads; atendidos; viaveis; propostas; vendas
+
+BAIRROS:
+Centro; 3200; 1480; 31; 8; 6"></textarea>
+        <span class="dica">Cola o bloco preenchido e clica em Aplicar. A linha
+        <code>MES:</code> escolhe o mês sozinha. Depois confira nos campos abaixo e salve.</span>
+        <button class="btn" id="bAplicar" type="button">Aplicar o bloco</button>
+        <span class="dica" id="retorno"></span></div>
+    </fieldset>
     <fieldset><legend>Números do período</legend><div class="grade">
       ${CAMPOS.map(([k,r])=>`<div class="campo"><label for="c_${k}">${r}</label>
         <input id="c_${k}" data-k="${k}" inputmode="decimal" value="${esc(numTxt(d[k]))}"></div>`).join('')}
@@ -1026,6 +1104,25 @@ function abrirPainel(){
     <button class="btn pri" id="bSalvar" style="padding:10px">Salvar ${rotuloMes(mesEdit)}</button>
     ${podeEscrever?'':'<span class="dica">Você está como leitor: o que salvar fica só neste navegador.</span>'}`;
   document.getElementById('mesSel').addEventListener('change',e=>{coletar();mesEdit=e.target.value;abrirPainel();});
+  document.getElementById('bAplicar').addEventListener('click',()=>{
+    const r=lerBloco(document.getElementById('t_bloco').value);
+    const alvo=(r.mes&&MESES.indexOf(r.mes)>=0)?r.mes:mesEdit;
+    const ret=document.getElementById('retorno');
+    if(!r.achou){ ret.textContent='Não encontrei nenhum valor nesse bloco. Confira o formato no manual.';
+      return; }
+    coletar();
+    const base=Object.assign({},store[alvo]||{});
+    Object.keys(r.d).forEach(k=>{
+      const v=r.d[k];
+      if(k==='funil'){ base.funil=Object.assign({},base.funil||{},v); }
+      else if(Array.isArray(v)){ if(v.length) base[k]=v; }
+      else if(v!==undefined) base[k]=v;
+    });
+    base.mes=alvo; store[alvo]=base; mesEdit=alvo;
+    abrirPainel(); render();
+    const r2=document.getElementById('retorno');
+    if(r2) r2.textContent=r.achou+' valor(es) aplicados em '+rotuloMes(alvo)+'. Confira e clique em Salvar.';
+  });
   document.getElementById('bSalvar').addEventListener('click',async()=>{
     coletar(); await salvar(mesEdit); render();
     const s=document.getElementById('salvo'); s.textContent='salvo';
@@ -1084,6 +1181,7 @@ document.addEventListener('keydown',e=>{
 
 try{ const b=localStorage.getItem(LS); if(b) store=JSON.parse(b)||{}; }catch(e){ store={}; }
 document.getElementById('notas').hidden=true;
+lerHash();
 render();
 
 (async()=>{
