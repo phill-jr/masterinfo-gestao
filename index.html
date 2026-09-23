@@ -182,6 +182,19 @@ aside{background:var(--surface);border-right:1px solid var(--line);display:flex;
 .brand .lg{height:23px;width:auto;flex:none}
 .brand .mk{display:none;width:34px;height:34px;border-radius:10px;flex:none;place-items:center;
   background:linear-gradient(135deg,var(--ac),var(--ac2));color:var(--ac-fg);font-weight:700;font-size:13px;letter-spacing:-.4px}
+.gate .vmark{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;margin-bottom:22px;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));color:var(--ac-fg)}
+.brand.vida .vmk{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));color:var(--ac-fg)}
+.brand.vida .vtx{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.brand.vida .vtx b{font-size:14.5px;letter-spacing:-.2px;white-space:nowrap}
+.brand.vida .vtx i{font-style:normal;font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app.mini .brand.vida .vmk,.app.mini .brand.vida .vtx{display:none}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.vcat{cursor:pointer;transition:border-color .15s,transform .15s}
+.vcat:hover{border-color:var(--ac);transform:translateY(-1px)}
+.vcat h3{display:flex;align-items:center;gap:8px}
+.vlista{margin:-26px auto 30px;max-width:460px;color:var(--txt2);font-size:13.5px;line-height:1.8}
 .app.mini .brand .lg{display:none}
 .app.mini .brand .mk{display:grid}
 .app.mini .grp,.app.mini nav b,.app.mini .who .tx{display:none}
@@ -236,7 +249,7 @@ nav .sub a svg{width:15px;height:15px}
 .who .s{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* troca Empresa ⇄ Pessoal */
-.modo{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px;padding:9px 10px;
+.modo{display:flex;align-items:center;gap:10px;text-decoration:none;width:100%;margin-top:10px;padding:9px 10px;
   border:1px solid var(--line);border-radius:var(--r);background:var(--surface2);
   color:var(--txt2);text-align:left;transition:all .16s var(--ease)}
 .modo:hover{border-color:var(--ac);color:var(--txt);background:var(--ac-bg)}
@@ -1268,6 +1281,9 @@ const P = {
   medal:'M12 15a7 7 0 100-14 7 7 0 000 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12',
   up:'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12',
   link:'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71',
+  heart:'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z',
+  trend:'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6',
+  wallet:'M20 12V8H6a2 2 0 010-4h12v4M4 6v12a2 2 0 002 2h14v-4M18 12a2 2 0 000 4h4v-4z',
   lock:'M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2zM7 11V7a5 5 0 0110 0v4'
 };
 const ico = (n, s = 17) =>
@@ -1288,6 +1304,17 @@ const pref = Object.assign(
     modo:'empresa', abertos:['comercial','marketing'] },
   LS.get(PREF_KEY, {}));
 if (!Array.isArray(pref.abertos)) pref.abertos = ['comercial', 'marketing'];
+
+/* ── Gestão da Vida (23/09/2026) ──────────────────────────────────
+   O mesmo sistema servido num segundo endereço (repo gestao-vida),
+   que carrega ESTE arquivo. Lá ele vira outro produto: sem logo da
+   empresa, sem menu Empresa, só a vida pessoal. Um código só, para
+   não existir duas versões do financeiro andando separadas.
+   `?vida` na URL força o modo para testar localmente. */
+const VIDA = window.MI_APP === 'vida'
+  || /\/gestao-vida(\/|$)/.test(location.pathname)
+  || new URLSearchParams(location.search).has('vida');
+const VIDA_URL = 'https://phill-jr.github.io/gestao-vida/';
 
 /* ── Identidade visual ─────────────────────────────────────────────
    Vem da tabela config_visual, então vale para todo o time e em
@@ -1328,6 +1355,15 @@ function aplicaVisual() {
     ['--ac','--ac2','--ac-bg','--ac-fg'].forEach(v => r.style.removeProperty(v));
     r.dataset.accent = visual.accent || 'orange';
   }
+  if (VIDA) {
+    // A Vida não herda a identidade da empresa: cor e nome próprios.
+    ['--ac','--ac2','--ac-bg','--ac-fg'].forEach(v => r.style.removeProperty(v));
+    r.dataset.accent = 'emerald';
+    document.title = 'Gestão da Vida';
+    const ic = document.querySelector('link[rel=icon]');
+    if (ic) ic.href = 'icone.svg';
+    return;
+  }
   document.title = `${visual.nome_sistema} · ${visual.subtitulo || 'Gestão'}`;
   const ic = document.querySelector('link[rel=icon]');
   if (ic) ic.href = visual.favicon || 'icone.svg';
@@ -1354,7 +1390,7 @@ function aplicaPref() {
 }
 aplicaPref();
 
-let sb = null, sessao = null, eu = null, rota = 'inicio', area = null, abaCfg = 'perfil';
+let sb = null, sessao = null, eu = null, rota = VIDA ? 'vidaPainel' : 'inicio', area = null, abaCfg = 'perfil';
 const cache = { usuarios: [], canais: [], campanhas: [], cargos: [], setores: [], metricas: [] };
 
 const $  = (s, r = document) => r.querySelector(s);
@@ -1658,19 +1694,38 @@ const NAV_PESSOAL = [
   { tipo:'secao', label:'Financeiro',
     itens:['finPainel', 'finLancamentos', 'finImportar', 'finCategorias'] }
 ];
+/* Menu da Gestão da Vida: categoria (título) → submenu (grupo que
+   abre) → tela. Categoria nova da vida entra aqui como mais um
+   bloco `secao` + grupos, sem mexer no resto do shell. */
+const NAV_VIDA = [
+  { tipo:'item', r:'vidaPainel' },
+  { tipo:'secao', label:'Financeiro', itens:[] },
+  { tipo:'grupo', id:'v-lanc', label:'Lançamentos', icone:'wallet', semArea:true,
+    itens:['finPainel', 'finLancamentos', 'finImportar', 'finCategorias'] },
+  { tipo:'grupo', id:'v-inv', label:'Investimentos', icone:'trend', semArea:true,
+    itens:['invCarteira'] },
+  { tipo:'secao', label:'Renda extra', itens:[] },
+  { tipo:'grupo', id:'v-dark', label:'Canais Dark', icone:'film', semArea:true,
+    itens:['rendaDark'] }
+];
 const MODOS = {
   empresa: { nome:'Empresa',  desc:'Comercial, marketing e time', icone:'users',
              nav:NAV_EMPRESA, inicio:'inicio' },
   pessoal: { nome:'Pessoal',  desc:'Só você enxerga',             icone:'user',
-             nav:NAV_PESSOAL, inicio:'finPainel' }
+             nav:NAV_PESSOAL, inicio:'finPainel' },
+  vida:    { nome:'Vida',     desc:'Só você enxerga',             icone:'heart',
+             nav:NAV_VIDA, inicio:'vidaPainel' }
 };
-if (!MODOS[pref.modo]) pref.modo = 'empresa';
+if (VIDA) pref.modo = 'vida';
+else if (!MODOS[pref.modo] || pref.modo === 'vida') pref.modo = 'empresa';
 
 /* Em que modo mora cada rota. Serve para o Ctrl+K, os atalhos e o
    link colado por alguém caírem no menu certo em vez de abrir a
    tela com a barra lateral errada do lado. */
+const rotasDoNav = nav => nav.flatMap(s => s.tipo === 'item' ? [s.r] : s.itens);
 const ROTAS_PESSOAIS = new Set(NAV_PESSOAL.flatMap(s => s.itens));
-const modoDaRota = r => ROTAS_PESSOAIS.has(r) ? 'pessoal' : 'empresa';
+const ROTAS_VIDA = new Set([...rotasDoNav(NAV_VIDA), 'config']);
+const modoDaRota = r => VIDA ? 'vida' : ROTAS_PESSOAIS.has(r) ? 'pessoal' : 'empresa';
 
 /* ── acesso por módulo (correção 16) ──────────────────────────────
    O sistema é modular: cada pessoa enxerga só as telas da lista
@@ -1688,6 +1743,8 @@ const ehAdmin = () => !cache.temAcesso || !eu || eu.papel === 'admin';
    via RLS — não faz sentido um admin "conceder" o que já é da pessoa. */
 const ROTAS_LIVRES = new Set(['inicio', 'config']);
 function podeVer(r) {
+  // Na Vida só existem as telas da vida (+ Configurações, pela conta).
+  if (VIDA) return ROTAS_VIDA.has(r);
   if (ROTAS_LIVRES.has(r) || ROTAS_PESSOAIS.has(r)) return true;
   if (ehAdmin()) return true;
   return eu.modulos == null ? true : eu.modulos.includes(r);
@@ -9718,14 +9775,15 @@ async function palette() {
     /* Separado por modo porque "Financeiro" existe dos dois lados —
        o do marketing e o seu. Sem o grupo, viram dois itens iguais. */
     ...Object.entries(R).filter(([k]) => podeVer(k)).map(([k, r]) => ({
-      g: modoDaRota(k) === 'pessoal' ? 'Gestão Pessoal' : 'Navegar',
+      g: VIDA ? 'Ir para' : modoDaRota(k) === 'pessoal' ? 'Gestão Pessoal' : 'Navegar',
       t: r.label, ic: r.icone, run: () => vai(k) })),
+    ...(VIDA ? [] : [
     { g:'Ações', t:'Nova ação', ic:'plus', sc:'N', run:() => formAcao() },
     { g:'Ações', t:'Nova rotina recorrente', ic:'refresh', run:() => R.acoes.acoes.modelo() },
     { g:'Ações', t:'Gerar rotinas de hoje', ic:'zap', run:() => R.inicio.acoes.gerar() },
     { g:'Ações', t:'Gerar a semana inteira', ic:'cal', run:() => R.inicio.acoes['gerar-semana']() },
     { g:'Ações', t:'Nova campanha', ic:'target', run:() => formCampanha() },
-    { g:'Ações', t:'Registrar feedback', ic:'users', run:() => R.time.acoes.fb() },
+    { g:'Ações', t:'Registrar feedback', ic:'users', run:() => R.time.acoes.fb() } ]),
     { g:'Sistema', t:`Tema ${pref.theme === 'dark' ? 'claro' : 'escuro'}`, ic:pref.theme === 'dark' ? 'sun' : 'moon',
       run:() => { pref.theme = pref.theme === 'dark' ? 'light' : 'dark'; savePref(); montaShell(); } },
     { g:'Sistema', t:'Recarregar dados', ic:'refresh', sc:'R', run:() => { recarregaBase().then(pinta); } },
@@ -9733,7 +9791,7 @@ async function palette() {
   ];
 
   let registros = [];
-  Promise.all([
+  if (!VIDA) Promise.all([
     q('acoes', x => x.eq('recorrencia', 'nenhuma').order('created_at', { ascending:false }).limit(120)),
     q('campanhas'), q('producao_conteudo', x => x.limit(120))
   ]).then(([a, c, p]) => {
@@ -9886,6 +9944,85 @@ function menuConta(b) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   GESTÃO DA VIDA — telas próprias
+   Painel é o resumo de todas as categorias. Investimentos e Canais
+   Dark nascem como casca: o menu fica pronto agora e cada módulo
+   ganha tabela e tela de verdade na sua vez (combinado 23/09).
+   ═══════════════════════════════════════════════════════════════════ */
+R.vidaPainel = {
+  label:'Painel', icone:'grid', titulo:'Painel da vida',
+  async dados() {
+    await finBase();
+    if (!fin.temBanco) return { sem:true };
+    return { mes: await finLancsDoMes(hoje().slice(0, 7)) };
+  },
+  render(d) {
+    const r = d.sem ? null : finResumo(d.mes);
+    const nomeMes = new Date(hoje() + 'T12:00').toLocaleDateString('pt-BR', { month:'long' });
+    const bloco = (icone, titulo, texto, rota2, extra = '') => `<div class="card vcat" data-act="ir" data-rt="${rota2}">
+      <div class="ch"><h3>${ico(icone, 17)} ${titulo}</h3><span class="push">${ico('arrowR', 15)}</span></div>
+      <div class="cb"><p class="sm2" style="margin:0">${texto}</p>${extra}</div></div>`;
+    return `<div class="head"><div><h2>Painel da vida</h2>
+        <div class="sub">Tudo o que é seu, num lugar só. Privado: só você enxerga.</div></div></div>
+      ${r ? `<div class="tiles stg">
+        <div class="tile ok"><div class="ic">${ico('down',18)}</div><div class="n">${brl(r.entrou)}</div>
+          <div class="l">Entrou em ${nomeMes}</div></div>
+        <div class="tile bad"><div class="ic">${ico('out',18)}</div><div class="n">${brl(r.saiu)}</div>
+          <div class="l">Saiu em ${nomeMes}</div></div>
+        <div class="tile ${r.sobrou >= 0 ? 'ok' : 'bad'}"><div class="ic">${ico('money',18)}</div>
+          <div class="n">${brl(r.sobrou)}</div><div class="l">Sobrou</div></div>
+        <div class="tile"><div class="ic">${ico('trend',18)}</div><div class="n">${brl(r.investido)}</div>
+          <div class="l">Foi para investimento</div></div>
+      </div>` : ''}
+      <div class="grp" style="margin:22px 0 10px">Financeiro</div>
+      <div class="vgrid">
+        ${bloco('wallet', 'Lançamentos', 'Extratos, entradas e saídas, categorias.', 'finPainel')}
+        ${bloco('trend', 'Investimentos', 'Carteira de dividendos e pesquisa de ativos.', 'invCarteira',
+          '<span class="pill dim" style="margin-top:10px">em construção</span>')}
+      </div>
+      <div class="grp" style="margin:22px 0 10px">Renda extra</div>
+      <div class="vgrid">
+        ${bloco('film', 'Canais Dark', 'Canais de vídeo sem rosto como fonte de renda.', 'rendaDark',
+          '<span class="pill dim" style="margin-top:10px">em construção</span>')}
+      </div>`;
+  },
+  acoes: { ir(b) { vai(b.dataset.rt); } }
+};
+
+const vidaEmBreve = (icone, titulo, sub, itens) => `<div class="head"><div><h2>${titulo}</h2>
+    <div class="sub">${sub}</div></div></div>
+  <div class="card"><div class="cb">
+    ${vazio(icone, 'Módulo em construção', 'O menu já está no lugar. O que vai morar aqui:')}
+    <ul class="vlista">${itens.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div></div>`;
+
+R.invCarteira = {
+  label:'Carteira', icone:'trend', titulo:'Investimentos',
+  async dados() { return {}; },
+  render() {
+    return vidaEmBreve('trend', 'Investimentos', 'Carteira focada em dividendos (proventos).', [
+      'Carteira atualizada à mão: ativo, quantidade, preço médio',
+      'Proventos recebidos por mês e renda passiva projetada',
+      'Pesquisa: dividend yield, histórico de pagamentos, comparativo de ativos',
+      'Metas de aporte ligadas aos lançamentos do Financeiro'
+    ]);
+  }
+};
+
+R.rendaDark = {
+  label:'Meus canais', icone:'play', titulo:'Canais Dark',
+  async dados() { return {}; },
+  render() {
+    return vidaEmBreve('film', 'Canais Dark', 'Renda extra com canais de vídeo sem rosto.', [
+      'Cada canal com nicho, status e plataforma',
+      'Pipeline de vídeos: ideia → roteiro → produção → publicado',
+      'Receita por canal entrando como renda no Financeiro'
+    ]);
+  }
+};
+
+if (VIDA) R.finPainel.label = 'Visão do mês';
+
+/* ═══════════════════════════════════════════════════════════════════
    SHELL
    ═══════════════════════════════════════════════════════════════════ */
 function vai(r, a = null) {
@@ -9917,6 +10054,7 @@ function navHTML() {
     if (sec.tipo === 'item') return podeVer(sec.r) ? elo(sec.r, null) : '';
     // O menu mostra só os módulos que a pessoa pode abrir; grupo que
     // ficou sem nenhum item some inteiro.
+    if (sec.tipo === 'secao' && !sec.itens.length) return `<div class="grp">${sec.label}</div>`;
     const itens = sec.itens.filter(podeVer);
     if (!itens.length) return '';
     if (sec.tipo === 'secao') return `<div class="grp">${sec.label}</div>` + itens.map(k => elo(k, null)).join('');
@@ -9935,6 +10073,11 @@ function navHTML() {
    Dois botões lado a lado caberiam, mas na barra estreita viram
    duas palavras cortadas; e em modo mini sobra só o ícone. */
 function trocaModoHTML() {
+  if (VIDA) return '';
+  if (pref.modo === 'empresa') return `<a class="modo" id="modo" href="${VIDA_URL}" target="_blank" rel="noopener" title="Abrir a Gestão da Vida">
+    <span class="ic">${ico('heart', 16)}</span>
+    <span class="tx"><b>Gestão da Vida</b><i>Só você enxerga</i></span>
+    ${ico('arrowR', 14)}</a>`;
   const outro = pref.modo === 'empresa' ? 'pessoal' : 'empresa';
   const m = MODOS[outro];
   return `<button class="modo" id="modo" title="Ir para Gestão ${esc(m.nome)}">
@@ -9968,8 +10111,11 @@ function montaShell() {
 
   $('#root').innerHTML = `<div class="app${pref.mini ? ' mini' : ''}" id="app">
     <aside>
-      <div class="brand"><img class="lg" src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
-        <div class="mk">${esc(iniciais(visual.nome_sistema))}</div></div>
+      ${VIDA ? `<div class="brand vida"><span class="vmk">${ico('heart', 17)}</span>
+          <span class="vtx"><b>Gestão da Vida</b><i>${esc(eu?.nome || 'Pessoal')}</i></span>
+          <div class="mk">${ico('heart', 17)}</div></div>`
+        : `<div class="brand"><img class="lg" src="${logoSrc()}" alt="${esc(visual.nome_sistema)}">
+        <div class="mk">${esc(iniciais(visual.nome_sistema))}</div></div>`}
       <nav>${nav}</nav>
       ${trocaModoHTML()}
       <div class="who" id="av" title="Minha conta">${avatar(eu, 32, sessao?.user?.email)}
@@ -9981,8 +10127,8 @@ function montaShell() {
         <button class="ib" id="tgl">${ico('menu', 18)}</button>
         <div class="ttl" id="ttl">${R[rota].titulo}</div>
         <button class="search" id="busca">${ico('search', 15)}
-          <span>Buscar ações, campanhas, pessoas…</span><kbd>⌘K</kbd></button>
-        <button class="ib" id="sino">${ico('bell', 18)}</button>
+          <span>${VIDA ? 'Ir para…' : 'Buscar ações, campanhas, pessoas…'}</span><kbd>⌘K</kbd></button>
+        ${VIDA ? '' : `<button class="ib" id="sino">${ico('bell', 18)}</button>`}
         <button class="ib" id="tema">${ico(pref.theme === 'dark' ? 'sun' : 'moon', 18)}</button>
       </div>
       <div class="wrap" id="view"></div>
@@ -10007,9 +10153,9 @@ function montaShell() {
   /* Girar o aparelho com a gaveta aberta deixava a trava de rolagem
      ligada numa tela que já é de desktop. */
   addEventListener('resize', () => { if (!telaEstreita()) gaveta(false); });
-  $('#modo').onclick = () => trocaModo(pref.modo === 'empresa' ? 'pessoal' : 'empresa');
+  if (!VIDA && pref.modo !== 'empresa') $('#modo').onclick = () => trocaModo('empresa');
   $('#busca').onclick = palette;
-  $('#sino').onclick = e => notificacoes(e.currentTarget);
+  if ($('#sino')) $('#sino').onclick = e => notificacoes(e.currentTarget);
   $('#av').onclick = e => menuConta(e.currentTarget);
   $('#tema').onclick = () => { pref.theme = pref.theme === 'dark' ? 'light' : 'dark'; savePref(); montaShell(); };
   pinta();
@@ -10067,8 +10213,8 @@ async function pinta() {
   }
   if (meu !== pintando) return;
 
-  // contadores da sidebar + sino
-  try {
+  // contadores da sidebar + sino (são da empresa; na Vida não existem)
+  if (!VIDA) try {
     const [k] = await q('v_dashboard_dia'); const kk = k || {};
     dados._temModelo = (await q('acoes', x => x.neq('recorrencia', 'nenhuma').limit(1))).length > 0;
     if (dados.k) dados.k._temModelo = dados._temModelo;
@@ -10111,11 +10257,12 @@ document.addEventListener('keydown', e => {
     gPend = false;
     const mapa = { i:'inicio', a:'acoes', g:'agenda', c:'config', p:'producao', m:'metas',
                    f:'financeiro', t:'time', d:'finPainel' };
+    if (VIDA) mapa.i = 'vidaPainel';
     if (mapa[k]) { e.preventDefault(); vai(mapa[k]); }
     return;
   }
   if (k === 'g') { gPend = true; setTimeout(() => gPend = false, 1400); }
-  else if (k === 'n') { e.preventDefault(); formAcao(); }
+  else if (k === 'n' && !VIDA) { e.preventDefault(); formAcao(); }
   else if (k === 'r') { e.preventDefault(); recarregaBase().then(pinta); toast('Atualizado.', { tipo:'info' }); }
   else if (e.key === '?') { e.preventDefault(); abaCfg = 'atalhos'; vai('config'); }
   else if (e.key === 'Escape') { $$('.pop').forEach(p => p.remove()); gaveta(false); }
@@ -10172,9 +10319,9 @@ function telaConexao() {
 
 function telaLogin() {
   $('#root').innerHTML = `<div class="gate">${aurora()}<div class="card">
-    <img class="mark" src="${logoSrc()}" alt="MasterInfo">
+    ${VIDA ? `<div class="vmark">${ico('heart', 26)}</div>` : `<img class="mark" src="${logoSrc()}" alt="MasterInfo">`}
     <div class="steps"><i class="on"></i><i class="on"></i></div>
-    <h1>Gestão de Marketing e Comercial</h1>
+    <h1>${VIDA ? 'Gestão da Vida' : 'Gestão de Marketing e Comercial'}</h1>
     <p class="lede">Entre com o e-mail e a senha cadastrados no sistema.</p>
     <div class="fields">
       <div><label>E-mail</label><input id="e" type="email" autocomplete="username"></div>
