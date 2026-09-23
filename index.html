@@ -1694,18 +1694,14 @@ const NAV_PESSOAL = [
   { tipo:'secao', label:'Financeiro',
     itens:['finPainel', 'finLancamentos', 'finImportar', 'finCategorias'] }
 ];
-/* Menu da Gestão da Vida: categoria (título) → submenu (grupo que
-   abre) → tela. Categoria nova da vida entra aqui como mais um
-   bloco `secao` + grupos, sem mexer no resto do shell. */
+/* Menu da Gestão da Vida, compacto (pedido de 23/09): uma linha por
+   categoria, e só uma categoria aberta por vez (sanfona, ver o clique
+   em [data-grupo] no montaShell). Categoria nova = mais um grupo. */
 const NAV_VIDA = [
   { tipo:'item', r:'vidaPainel' },
-  { tipo:'secao', label:'Financeiro', itens:[] },
-  { tipo:'grupo', id:'v-lanc', label:'Lançamentos', icone:'wallet', semArea:true,
-    itens:['finPainel', 'finLancamentos', 'finImportar', 'finCategorias'] },
-  { tipo:'grupo', id:'v-inv', label:'Investimentos', icone:'trend', semArea:true,
-    itens:['invCarteira'] },
-  { tipo:'secao', label:'Renda extra', itens:[] },
-  { tipo:'grupo', id:'v-dark', label:'Canais Dark', icone:'film', semArea:true,
+  { tipo:'grupo', id:'v-fin', label:'Financeiro', icone:'wallet', semArea:true,
+    itens:['finPainel', 'finLancamentos', 'finImportar', 'finCategorias', 'invCarteira'] },
+  { tipo:'grupo', id:'v-renda', label:'Renda extra', icone:'zap', semArea:true,
     itens:['rendaDark'] }
 ];
 const MODOS = {
@@ -9996,7 +9992,7 @@ const vidaEmBreve = (icone, titulo, sub, itens) => `<div class="head"><div><h2>$
     <ul class="vlista">${itens.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div></div>`;
 
 R.invCarteira = {
-  label:'Carteira', icone:'trend', titulo:'Investimentos',
+  label:'Investimentos', icone:'trend', titulo:'Investimentos',
   async dados() { return {}; },
   render() {
     return vidaEmBreve('trend', 'Investimentos', 'Carteira focada em dividendos (proventos).', [
@@ -10009,7 +10005,7 @@ R.invCarteira = {
 };
 
 R.rendaDark = {
-  label:'Meus canais', icone:'play', titulo:'Canais Dark',
+  label:'Canais Dark', icone:'film', titulo:'Canais Dark',
   async dados() { return {}; },
   render() {
     return vidaEmBreve('film', 'Canais Dark', 'Renda extra com canais de vídeo sem rosto.', [
@@ -10141,7 +10137,16 @@ function montaShell() {
   });
   $$('[data-grupo]').forEach(b => b.onclick = () => {
     const id = b.dataset.grupo, i = pref.abertos.indexOf(id);
-    if (i >= 0) pref.abertos.splice(i, 1); else pref.abertos.push(id);
+    if (i >= 0) pref.abertos.splice(i, 1);
+    else {
+      // Na Vida o menu é sanfona: abrir uma categoria fecha as outras.
+      if (VIDA) {
+        pref.abertos = pref.abertos.filter(x => !x.startsWith('v-'));
+        $$('[data-grupo]').forEach(o => { if (o !== b) {
+          o.classList.remove('aberto'); o.nextElementSibling.classList.remove('aberto'); } });
+      }
+      pref.abertos.push(id);
+    }
     savePref();
     b.classList.toggle('aberto'); b.nextElementSibling.classList.toggle('aberto');
   });
