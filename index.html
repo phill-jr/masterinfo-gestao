@@ -1068,6 +1068,26 @@ kbd{font:600 11px Inter;background:var(--surface2);border:1px solid var(--line);
 .fgasto .v b{font-size:14px}
 .fgasto .v div{font-size:11.5px;color:var(--dim);margin-top:2px}
 .fsaldo{font-family:"Inter Tight";font-size:33px;font-weight:700;letter-spacing:-.035em}
+/* organizador (Gestão da Vida) */
+.orgsub{padding:10px 18px 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
+.orgck{width:24px;height:24px;border-radius:50%;border:2px solid var(--line2);display:grid;place-items:center;flex:none;
+  color:transparent;background:transparent;cursor:pointer;transition:all .15s}
+.orgck:hover{border-color:var(--ok);color:var(--ok)}
+.orgck.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.orgfx.feito .t{color:var(--dim);text-decoration:line-through}
+.orgtot{background:var(--surface2)}.orgtot b{font-variant-numeric:tabular-nums;font-size:15px}
+.orghist{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:18px 18px 14px}
+.orghist .c{text-align:center;border-radius:10px;padding:6px 0}
+.orghist .c.on{background:var(--surface2)}
+.orghist .bs{height:120px;display:flex;align-items:flex-end;justify-content:center;gap:4px}
+.orghist .bs i{width:14px;min-height:2px;border-radius:4px 4px 0 0}
+.orghist .mm{font-size:12px;color:var(--txt2);margin-top:7px;font-weight:600}
+.orghist .sv{font-size:11px;font-variant-numeric:tabular-nums;margin-top:2px;white-space:nowrap}
+.orgpilha{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;margin-bottom:12px}
+.orgfat{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
+.orgfat:last-child{border-bottom:0}.orgfat .g{flex:1}.orgfat .m{font-size:11.5px;color:var(--dim)}
+.orgfat .v{text-align:right;font-variant-numeric:tabular-nums}.orgfat .v div{font-size:11.5px;color:var(--dim)}
+@media(max-width:600px){.orghist .sv{font-size:9.5px}.orghist .bs i{width:9px}.orgfx .pill{display:none}}
 
 /* ── dashboard do extrato ──────────────────────────────────────
    A barra empilhada mostra o extrato inteiro numa linha: dá para
@@ -1700,7 +1720,7 @@ const NAV_PESSOAL = [
 const NAV_VIDA = [
   { tipo:'item', r:'vidaPainel' },
   { tipo:'grupo', id:'v-fin', label:'Financeiro', icone:'wallet', semArea:true,
-    itens:['finPainel', 'finLancamentos', 'finImportar', 'finCategorias', 'invCarteira'] },
+    itens:['finOrganizador', 'finPainel', 'finLancamentos', 'finImportar', 'finCategorias', 'invCarteira'] },
   { tipo:'grupo', id:'v-renda', label:'Renda extra', icone:'zap', semArea:true,
     itens:['rendaDark'] }
 ];
@@ -9566,8 +9586,11 @@ function formFinConta(row) {
       { v:'cartao', t:'Cartão de crédito' }, { v:'dinheiro', t:'Dinheiro' },
       { v:'investimento', t:'Investimento' }] },
     { k:'instituicao', label:'Banco', value:row?.instituicao, ph:'Ex.: Nubank' },
+    { k:'saldo', label:'Saldo hoje (R$)', type:'number', step:'0.01', value:row?.saldo,
+      hint:'Opcional. Em cartão, a fatura em aberto. Aparece no Organizador.' },
     { k:'ativa', type:'checkbox', label:'Ativa', cap:'Ativa', value: row ? row.ativa : true }
   ], async d => {
+    if (d.saldo != null && Number(d.saldo) !== Number(row?.saldo ?? NaN)) d.saldo_em = hoje();
     const ok = await grava('fin_contas', d, row?.id);
     if (ok) { await finBase(); if (fin.imp && !fin.imp.conta_id) {
       fin.imp.conta_id = fin.contas.find(c => c.nome === d.nome)?.id || ''; await finRecalcula(); } }
@@ -9972,6 +9995,7 @@ R.vidaPainel = {
       </div>` : ''}
       <div class="grp" style="margin:22px 0 10px">Financeiro</div>
       <div class="vgrid">
+        ${bloco('grid', 'Organizador', 'Quanto tenho, o que vence, quanto sobra e as metas.', 'finOrganizador')}
         ${bloco('wallet', 'Lançamentos', 'Extratos, entradas e saídas, categorias.', 'finPainel')}
         ${bloco('trend', 'Investimentos', 'Carteira de dividendos e pesquisa de ativos.', 'invCarteira',
           '<span class="pill dim" style="margin-top:10px">em construção</span>')}
@@ -10015,6 +10039,301 @@ R.rendaDark = {
     ]);
   }
 };
+
+/* ───────────────────────── ORGANIZADOR ─────────────────────────
+   Pedido de 12/10: ver o financeiro "de uma forma geral, mais
+   simplificada". A Visão do mês explica para onde o dinheiro foi;
+   o Organizador responde o dia a dia numa tela só: quanto eu tenho,
+   o que vence, quanto sobra e quanto falta para cada meta.
+   Saldo, contas fixas e metas são digitados à mão (CORREÇÃO 25) —
+   não depende de mandar extrato para a tela fazer sentido. */
+const org = { mes: hoje().slice(0, 7) };
+
+// Dia 31 em fevereiro vence no último dia do mês, não some.
+const orgVence = (mes, dia) => {
+  const [a, m] = mes.split('-').map(Number);
+  return `${mes}-${String(Math.min(dia, new Date(a, m, 0).getDate())).padStart(2, '0')}`;
+};
+const orgDiasAte = d => Math.round((new Date(d + 'T12:00') - new Date(hoje() + 'T12:00')) / 864e5);
+const orgNomeMes = (mes, curto) => {
+  const t = new Date(mes + '-15T12:00').toLocaleDateString('pt-BR',
+    curto ? { month:'short' } : { month:'long' });
+  return t[0].toUpperCase() + t.slice(1).replace('.', '');
+};
+// Cartão entra subtraindo: o saldo dele é a fatura em aberto.
+const orgSaldoReal = c => (c.tipo === 'cartao' ? -1 : 1) * (Number(c.saldo) || 0);
+
+R.finOrganizador = {
+  label:'Organizador', icone:'grid', titulo:'Organizador financeiro',
+  async dados() {
+    await finBase();
+    if (!fin.temBanco) return { sem:true };
+    let ini = org.mes; for (let i = 0; i < 5; i++) ini = finMesAnterior(ini);
+    const [fixas, pagos, metas, lancs] = await Promise.all([
+      qOpcional('fin_fixas', x => x.eq('ativa', true).order('dia').order('nome')),
+      qOpcional('fin_fixas_mes', x => x.eq('mes', org.mes)),
+      qOpcional('fin_metas', x => x.order('concluida').order('ordem').order('nome')),
+      q('fin_lancamentos', x => x.gte('data', ini + '-01').lt('data', finProxMes(org.mes)).limit(10000))
+    ]);
+    if (fixas === null) return { semOrg:true };
+    const meses = [ini]; while (meses.length < 6) meses.push(finProxMes(meses.at(-1)).slice(0, 7));
+    return { fixas, pagos, metas, lancs, meses };
+  },
+  render(d) {
+    if (d.sem) return finSemBanco();
+    if (d.semOrg) return `<div class="head"><div><h2>Organizador</h2></div></div>
+      <div class="card"><div class="cb">${vazio('db', 'Ainda não está no banco',
+        'Rode sql/CORRECAO-25.sql com o aplicar-sql.py.')}</div></div>`;
+
+    const atual = org.mes === hoje().slice(0, 7);
+    const pago = new Map(d.pagos.map(p => [p.fixa_id, p]));
+    const valPago = f => { const p = pago.get(f.id); return p ? Number(p.valor ?? f.valor) || 0 : 0; };
+    const pagar = d.fixas.filter(f => f.tipo === 'pagar'), receber = d.fixas.filter(f => f.tipo === 'receber');
+    const soma = (ls, fn) => ls.reduce((a, x) => a + fn(x), 0);
+    const totPagar = soma(pagar, f => pago.has(f.id) ? valPago(f) : Number(f.valor) || 0);
+    const jaPago = soma(pagar, valPago);
+    const totReceber = soma(receber, f => pago.has(f.id) ? valPago(f) : Number(f.valor) || 0);
+    const atrasadas = atual ? pagar.filter(f => !pago.has(f.id) && orgDiasAte(orgVence(org.mes, f.dia)) < 0) : [];
+
+    const contas = fin.contas.filter(c => c.ativa);
+    const comSaldo = contas.filter(c => c.saldo != null);
+    const tenho = soma(comSaldo, orgSaldoReal);
+    const metas = d.metas, abertas = metas.filter(m => !m.concluida);
+    const guardado = soma(metas, m => Number(m.guardado) || 0);
+
+    const doMes = m => d.lancs.filter(l => l.data.slice(0, 7) === m);
+    const rMes = finResumo(doMes(org.mes));
+    // Entrada prevista: as fixas de receber; sem elas, o que entrou de fato.
+    const entra = receber.length ? totReceber : rMes.entrou;
+    const sobra = entra - totPagar;
+
+    const filtros = `<div class="filtros">${dd('Mês', 'mes', finOptMeses(12), org.mes, { icone:'cal' })}</div>`;
+
+    const tiles = `<div class="tiles stg">
+      <div class="tile ${tenho >= 0 ? 'ok' : 'bad'}"><div class="ic">${ico('wallet',18)}</div>
+        <div class="n">${comSaldo.length ? brl(tenho) : '—'}</div><div class="l">Tenho hoje</div>
+        <div class="h">${comSaldo.length ? `somando ${comSaldo.length} conta(s)` : 'informe o saldo das contas'}</div></div>
+      <div class="tile ${atrasadas.length ? 'bad' : 'warn'}"><div class="ic">${ico('cal',18)}</div>
+        <div class="n">${brl(totPagar - jaPago)}</div><div class="l">Falta pagar em ${orgNomeMes(org.mes)}</div>
+        <div class="h">${pagar.length ? `${pagar.filter(f => pago.has(f.id)).length} de ${pagar.length} paga(s)` : 'nenhuma conta fixa'}${
+          atrasadas.length ? ` · <span style="color:var(--bad)">${atrasadas.length} atrasada(s)</span>` : ''}</div></div>
+      <div class="tile ${sobra >= 0 ? 'ok' : 'bad'}"><div class="ic">${ico('money',18)}</div>
+        <div class="n">${brl(sobra)}</div><div class="l">Sobra prevista</div>
+        <div class="h">${brl(entra)} entra − ${brl(totPagar)} de contas fixas</div></div>
+      <div class="tile"><div class="ic">${ico('target',18)}</div>
+        <div class="n">${brl(guardado)}</div><div class="l">Guardado nas metas</div>
+        <div class="h">${abertas.length ? `faltam ${brl(soma(abertas, m => Math.max(0, m.alvo - m.guardado)))} em ${abertas.length} meta(s)` : 'nenhuma meta aberta'}</div></div>
+    </div>`;
+
+    const status = f => {
+      const p = pago.get(f.id), rec = f.tipo === 'receber';
+      if (p) return `<span class="pill ok">${rec ? 'recebido' : 'pago'} ${dt(p.pago_em)}</span>`;
+      const v = orgVence(org.mes, f.dia), n = orgDiasAte(v);
+      if (n < 0) return `<span class="pill ${rec ? 'warn' : 'bad'}">${rec ? 'não caiu' : 'atrasada'} · ${-n} dia(s)</span>`;
+      if (n === 0) return `<span class="pill warn">${rec ? 'cai hoje' : 'vence hoje'}</span>`;
+      if (n <= 5) return `<span class="pill warn">em ${n} dia(s)</span>`;
+      return `<span class="pill dim">dia ${dt(v)}</span>`;
+    };
+    const linhaFixa = f => {
+      const p = pago.has(f.id);
+      return `<div class="row orgfx${p ? ' feito' : ''}">
+        <button class="orgck${p ? ' on' : ''}" data-act="marcar" data-id="${f.id}"
+          title="${p ? 'Desmarcar' : f.tipo === 'receber' ? 'Marcar como recebido' : 'Marcar como pago'}">${ico('check', 13)}</button>
+        <div class="g"><div class="t">${esc(f.nome)}</div>
+          <div class="m">todo dia ${f.dia}${f.categoria_id ? ' · ' + esc(finNomeCat(f.categoria_id)) : ''}</div></div>
+        ${status(f)}
+        <b style="font-variant-numeric:tabular-nums;color:${f.tipo === 'receber' ? 'var(--ok)' : 'var(--txt)'}">${
+          p ? brl(valPago(f)) : Number(f.valor) ? brl(f.valor) : '<span class="sm2">a definir</span>'}</b>
+        <button class="ib" data-act="ed-fixa" data-id="${f.id}" title="Editar">${ico('edit', 14)}</button>
+      </div>`;
+    };
+    const cardFixas = `<div class="card">
+      <div class="ch"><h3>${ico('cal', 15)} Contas do mês</h3>
+        <div class="push"><button class="btn sm" data-act="nova-fixa">${ico('plus', 13)}Conta fixa</button></div></div>
+      ${d.fixas.length ? `
+        ${pagar.length ? `<div class="orgsub">A pagar · ${brl(totPagar)}</div>${pagar.map(linhaFixa).join('')}` : ''}
+        ${receber.length ? `<div class="orgsub">A receber · ${brl(totReceber)}</div>${receber.map(linhaFixa).join('')}` : ''}`
+      : `<div class="cb">${vazio('cal', 'Nenhuma conta fixa ainda',
+          'Aluguel, luz, internet, cartão, salário — o que repete todo mês. Cadastra uma vez e todo mês ela aparece aqui para marcar.',
+          { act:'nova-fixa', label:'Cadastrar conta fixa' })}</div>`}
+    </div>`;
+
+    const linhaConta = c => {
+      const idade = c.saldo_em ? orgDiasAte(c.saldo_em) * -1 : null;
+      return `<div class="row">
+        <span class="fdot" style="background:${c.tipo === 'cartao' ? 'var(--bad)' : 'var(--ok)'}"></span>
+        <div class="g"><div class="t">${esc(c.nome)}</div>
+          <div class="m">${c.tipo === 'cartao' ? 'fatura em aberto' : esc(c.instituicao || c.tipo)}${
+            idade == null ? '' : ` · ${idade === 0 ? 'atualizado hoje' : `atualizado há ${idade} dia(s)`}`}${
+            idade > 7 ? ' <span class="pill warn">velho</span>' : ''}</div></div>
+        <b style="font-variant-numeric:tabular-nums;color:${c.saldo == null ? 'var(--dim)' : orgSaldoReal(c) < 0 ? 'var(--bad)' : 'var(--txt)'}">${
+          c.saldo == null ? '—' : brl(orgSaldoReal(c))}</b>
+        <button class="btn sm ghost" data-act="saldo" data-id="${c.id}">Atualizar</button>
+      </div>`;
+    };
+    const cardContas = `<div class="card">
+      <div class="ch"><h3>${ico('wallet', 15)} Onde está meu dinheiro</h3>
+        <div class="push"><button class="btn sm ghost" data-act="nova-conta">${ico('plus', 13)}Conta</button></div></div>
+      ${contas.length ? contas.map(linhaConta).join('') + `<div class="row orgtot"><div class="g"><div class="t">Total</div></div>
+          <b>${brl(tenho)}</b></div>`
+      : `<div class="cb">${vazio('wallet', 'Nenhuma conta cadastrada',
+          'Banco, poupança, cartão, dinheiro na carteira. Você digita o saldo e o total aparece no topo.',
+          { act:'nova-conta', label:'Cadastrar conta' })}</div>`}
+    </div>`;
+
+    const linhaMeta = m => {
+      const pct = Math.min(100, m.guardado / m.alvo * 100), falta = Math.max(0, m.alvo - m.guardado);
+      let ritmo = '';
+      if (m.prazo && falta > 0) {
+        const [a1, m1] = hoje().split('-').map(Number), [a2, m2] = m.prazo.split('-').map(Number);
+        const nm = (a2 - a1) * 12 + (m2 - m1);
+        ritmo = nm > 0 ? ` · ${brl(falta / nm)}/mês até ${dtl(m.prazo)}` : ` · <span style="color:var(--bad)">prazo vencido</span>`;
+      }
+      return `<div class="fgasto">
+        <div class="g"><div class="t"><span class="fdot" style="background:${esc(m.cor || 'var(--ac)')}"></span>
+            ${esc(m.nome)} ${m.concluida || falta === 0 ? '<span class="pill ok">concluída</span>' : ''}</div>
+          <div class="bar"><i style="width:${Math.max(2, pct)}%;background:${esc(m.cor || 'var(--ac)')}"></i></div>
+          <div class="m">${brl(m.guardado)} de ${brl(m.alvo)} · ${pc(pct)}${falta > 0 ? ` · faltam ${brl(falta)}` : ''}${ritmo}</div></div>
+        <button class="btn sm" data-act="guardar" data-id="${m.id}">${ico('plus', 13)}Guardar</button>
+        <button class="ib" data-act="ed-meta" data-id="${m.id}" title="Editar">${ico('edit', 14)}</button>
+      </div>`;
+    };
+    const cardMetas = `<div class="card">
+      <div class="ch"><h3>${ico('target', 15)} Metas</h3>
+        <div class="push"><button class="btn sm ghost" data-act="nova-meta">${ico('plus', 13)}Meta</button></div></div>
+      ${metas.length ? metas.map(linhaMeta).join('')
+      : `<div class="cb">${vazio('target', 'Nenhuma meta ainda',
+          'Reserva de emergência, viagem, troca do carro. Diz quanto quer juntar e vai guardando aos poucos.',
+          { act:'nova-meta', label:'Criar meta' })}</div>`}
+    </div>`;
+
+    // Seis meses em barras: entrou x saiu, e o que sobrou embaixo.
+    const hist = d.meses.map(m => ({ m, ...finResumo(doMes(m)) }));
+    const topo = Math.max(1, ...hist.flatMap(h => [h.entrou, h.saiu]));
+    const temHist = hist.some(h => h.qtd);
+    const cardHist = `<div class="card">
+      <div class="ch"><h3>${ico('chart', 15)} Últimos 6 meses</h3>
+        <div class="push"><span class="sm2"><span class="fdot" style="background:var(--ok)"></span> entrou
+          &nbsp;<span class="fdot" style="background:var(--bad)"></span> saiu</span></div></div>
+      ${temHist ? `<div class="orghist">${hist.map(h => `<div class="c${h.m === org.mes ? ' on' : ''}">
+          <div class="bs"><i style="height:${h.entrou / topo * 100}%;background:var(--ok)" title="Entrou ${brl(h.entrou)}"></i>
+            <i style="height:${h.saiu / topo * 100}%;background:var(--bad)" title="Saiu ${brl(h.saiu)}"></i></div>
+          <div class="mm">${orgNomeMes(h.m, true)}</div>
+          <div class="sv" style="color:${h.qtd ? (h.sobrou >= 0 ? 'var(--ok)' : 'var(--bad)') : 'var(--dim)'}">${h.qtd ? brl(h.sobrou) : '—'}</div>
+        </div>`).join('')}</div>`
+      : `<div class="cb">${vazio('chart', 'Sem lançamentos ainda',
+          'O histórico vem dos extratos. Mande um e os meses aparecem aqui.', { act:'importar', label:'Mandar extrato' })}</div>`}
+    </div>`;
+
+    // O mês dividido em três: o que não dá para fugir, o que é escolha, e o que continua seu.
+    const fatias = [
+      { t:'Essencial', v:rMes.essencial, c:'var(--info)', s:'teria de pagar de qualquer jeito' },
+      { t:'Estilo de vida', v:rMes.cortavel, c:'var(--warn)', s:'escolha — onde dá para cortar' },
+      { t:'Investido', v:rMes.investido, c:'var(--ok)', s:'saiu da conta mas continua seu' }
+    ];
+    const cardDiv = `<div class="card">
+      <div class="ch"><h3>${ico('filter', 15)} Para onde foi em ${orgNomeMes(org.mes)}</h3>
+        <div class="push"><button class="btn sm ghost" data-act="detalhes">Ver detalhes ${ico('arrowR', 13)}</button></div></div>
+      ${rMes.saiu ? `<div class="cb">
+        <div class="orgpilha">${fatias.filter(f => f.v > 0).map(f =>
+          `<i style="flex:${f.v};background:${f.c}" title="${f.t} ${brl(f.v)}"></i>`).join('')}</div>
+        ${fatias.map(f => `<div class="orgfat"><span class="fdot" style="background:${f.c}"></span>
+          <div class="g"><b>${f.t}</b><div class="m">${f.s}</div></div>
+          <div class="v"><b>${brl(f.v)}</b><div>${pc(f.v / rMes.saiu * 100)}</div></div></div>`).join('')}
+      </div>` : `<div class="cb">${vazio('filter', 'Nada saiu neste mês', 'Ou o extrato deste mês ainda não veio.',
+          { act:'importar', label:'Mandar extrato' })}</div>`}
+    </div>`;
+
+    return `<div class="head"><div><h2>Organizador</h2>
+        <div class="sub">Seu dinheiro numa olhada. Privado: só você enxerga.</div></div></div>
+      ${filtros}${tiles}
+      <div class="g2">${cardFixas}<div style="display:grid;gap:14px;align-content:start">${cardContas}${cardMetas}</div></div>
+      <div class="g2" style="margin-top:14px">${cardHist}${cardDiv}</div>`;
+  },
+  acoes: {
+    mes(b) { org.mes = b.dataset.v; pinta(); },
+    importar() { vai('finImportar'); },
+    detalhes() { fin.mes = org.mes; vai('finPainel'); },
+    'nova-fixa'() { formFinFixa(); },
+    async 'ed-fixa'(b) { const [f] = await q('fin_fixas', x => x.eq('id', b.dataset.id)); if (f) formFinFixa(f); },
+    async marcar(b) {
+      const id = b.dataset.id;
+      const [p] = await q('fin_fixas_mes', x => x.eq('fixa_id', id).eq('mes', org.mes));
+      if (p) { if (await apaga('fin_fixas_mes', p.id)) pinta(); return; }
+      const [f] = await q('fin_fixas', x => x.eq('id', id)); if (!f) return;
+      const quando = org.mes === hoje().slice(0, 7) ? hoje() : orgVence(org.mes, f.dia);
+      const salva = async valor => {
+        const ok = await grava('fin_fixas_mes', { fixa_id:id, mes:org.mes, pago_em:quando, valor });
+        if (ok) await pinta();
+        return ok;
+      };
+      // Conta sem valor fixo (luz, água) pergunta quanto veio; o resto marca direto.
+      if (!Number(f.valor)) return form(`Quanto veio ${f.nome}?`, [
+        { k:'valor', label:'Valor (R$)', type:'number', step:'0.01', req:true }
+      ], d => salva(d.valor), f.tipo === 'receber' ? 'Marcar recebido' : 'Marcar pago');
+      salva(null);
+    },
+    'nova-conta'() { formFinConta(); },
+    saldo(b) {
+      const c = fin.contas.find(x => x.id === b.dataset.id); if (!c) return;
+      form(`Saldo — ${c.nome}`, [
+        { k:'saldo', label: c.tipo === 'cartao' ? 'Fatura em aberto (R$)' : 'Quanto tem hoje (R$)',
+          type:'number', step:'0.01', req:true, value:c.saldo,
+          hint: c.tipo === 'cartao' ? 'Digite positivo — o total já desconta.' : 'Olhe no app do banco e digite o número.' }
+      ], async d => {
+        const ok = await grava('fin_contas', { saldo:d.saldo, saldo_em:hoje() }, c.id);
+        if (ok) await finBase();
+        return ok;
+      });
+    },
+    'nova-meta'() { formFinMeta(); },
+    async 'ed-meta'(b) { const [m] = await q('fin_metas', x => x.eq('id', b.dataset.id)); if (m) formFinMeta(m); },
+    async guardar(b) {
+      const [m] = await q('fin_metas', x => x.eq('id', b.dataset.id)); if (!m) return;
+      form(`Guardar em ${m.nome}`, [
+        { k:'valor', label:'Quanto (R$)', type:'number', step:'0.01', req:true,
+          hint:`Hoje tem ${brl(m.guardado)}. Para tirar dinheiro da meta, use valor negativo.` }
+      ], async d => {
+        const novo = Math.max(0, Number(m.guardado) + d.valor);
+        return grava('fin_metas', { guardado:novo, concluida: novo >= Number(m.alvo) }, m.id);
+      }, 'Guardar');
+    }
+  }
+};
+
+function formFinFixa(row) {
+  form(row ? 'Editar conta fixa' : 'Nova conta fixa', [
+    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Aluguel' },
+    { k:'tipo', label:'Tipo', type:'select', value:row?.tipo || 'pagar', opts:[
+      { v:'pagar', t:'Conta a pagar' }, { v:'receber', t:'Dinheiro a receber (salário, aluguel recebido…)' }] },
+    { k:'valor', label:'Valor (R$)', type:'number', step:'0.01', value:row?.valor,
+      hint:'Valor muda todo mês (luz, água)? Deixe em branco: ao marcar como paga, ele pergunta quanto veio.' },
+    { k:'dia', label:'Dia do vencimento', type:'number', req:true, value:row?.dia ?? 10 },
+    { k:'categoria_id', label:'Categoria', type:'select', value:row?.categoria_id || '', opts:optFinCats('— nenhuma —') },
+    ...(row ? [{ k:'ativa', type:'checkbox', label:'Ativa', cap:'Ativa — desmarque quando a conta acabar', value:row.ativa }] : [])
+  ], async d => {
+    if (!(d.dia >= 1 && d.dia <= 31)) { toast('Dia entre 1 e 31.', { tipo:'bad' }); return false; }
+    d.valor = d.valor ?? 0;
+    return grava('fin_fixas', d, row?.id);
+  });
+}
+
+function formFinMeta(row) {
+  form(row ? 'Editar meta' : 'Nova meta', [
+    { k:'nome', label:'Nome', req:true, value:row?.nome, ph:'Ex.: Reserva de emergência' },
+    { k:'alvo', label:'Quanto quero juntar (R$)', type:'number', step:'0.01', req:true, value:row?.alvo },
+    { k:'guardado', label:'Quanto já tenho (R$)', type:'number', step:'0.01', value:row?.guardado ?? 0 },
+    { k:'prazo', label:'Até quando', type:'date', value:row?.prazo,
+      hint:'Opcional. Com prazo, a tela diz quanto guardar por mês.' },
+    { k:'cor', label:'Cor', value:row?.cor || '#10b981', ph:'#10b981' },
+    ...(row ? [{ k:'concluida', type:'checkbox', label:'Concluída', cap:'Concluída', value:row.concluida }] : [])
+  ], async d => {
+    if (d.cor && !/^#[0-9a-f]{6}$/i.test(d.cor)) { toast('Cor no formato #rrggbb.', { tipo:'bad' }); return false; }
+    d.guardado = d.guardado ?? 0;
+    if (d.concluida == null) d.concluida = d.guardado >= d.alvo;
+    return grava('fin_metas', d, row?.id);
+  });
+}
 
 if (VIDA) R.finPainel.label = 'Visão do mês';
 
